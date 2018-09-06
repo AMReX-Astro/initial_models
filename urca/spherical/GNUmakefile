@@ -8,13 +8,9 @@ MKVERBOSE := t
 
 SDC    :=
 
-# location of top-level MAESTRO directory
-MAESTRO_TOP_DIR = ../../../..
-
 # EOS and network
-EOS_TOP_DIR := $(MICROPHYSICS_HOME)/EOS
 EOS_DIR := helmholtz
-CONDUCTIVITY_DIR := stellar
+
 NETWORK_TOP_DIR := $(MICROPHYSICS_HOME)/networks
 NETWORK_DIR := ignition_reaclib/URCA-simple
 

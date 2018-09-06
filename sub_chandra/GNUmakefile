@@ -8,16 +8,11 @@ COMP := gfortran
 
 MKVERBOSE := t
 
-
-# location of top-level MAESTRO directory
-MAESTRO_TOP_DIR = ../../..
-
-
 # EOS and network
-EOS_DIR := helmeos
+EOS_DIR := helmholtz
 
 NETWORK_DIR := general_null
-GENERAL_NET_INPUTS := $(MAESTRO_TOP_DIR)/Microphysics/networks/$(NETWORK_DIR)/triple_alpha_plus_o.net
+GENERAL_NET_INPUTS := $(MICROPHYSICS_HOME)/networks/$(NETWORK_DIR)/triple_alpha_plus_o.net
 
 
 
