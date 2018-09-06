@@ -7,8 +7,8 @@ program init_1d
   use bl_constants_module
   use bl_error_module
   use extern_probin_module, only: use_eos_coulomb
-  use eos_module, only: eos_input_rt, eos, eos_init
-  use eos_type_module, only: eos_t
+  use eos_module, only: eos, eos_init
+  use eos_type_module, only: eos_input_rt, eos_t
   use network
   use fundamental_constants_module, only: Gconst
   use f2kcli
