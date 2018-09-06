@@ -29,7 +29,7 @@
 
 subroutine integrate_HSE(g_type, mass, p_type, temp_fluff, outfile)
 
-   use eos_type_module
+   use eos_type_module, only : eos_t, eos_input_rt
    use eos_module
    use network
    use init_1d_variables
@@ -150,7 +150,7 @@ end subroutine integrate_HSE
 subroutine integration_loop(istart, iend, g_type, g_const, p_type, temp_fluff)
 
    use eos_module
-   use eos_type_module
+   use eos_type_module, only : eos_t, eos_input_rt
    use init_1d_variables
    use init_1d_grids
    use bl_constants_module
@@ -321,7 +321,7 @@ subroutine HSE_NR_loop_isothermal(dens_curr, dens_prev, temp_curr, pres_curr, &
                                   fluff, temp_fluff)
 
    use eos_module
-   use eos_type_module
+   use eos_type_module, only : eos_t, eos_input_rt
    use init_1d_variables
    use bl_types
    use bl_constants_module
@@ -432,7 +432,7 @@ subroutine HSE_NR_loop_isentropic(dens_curr, dens_prev, temp_curr, pres_curr, &
                                   fluff, temp_fluff)
 
    use eos_module
-   use eos_type_module
+   use eos_type_module, only : eos_t, eos_input_rt
    use init_1d_variables
    use bl_types
    use bl_constants_module
@@ -610,6 +610,7 @@ subroutine compute_HSE_error(g_type, mass, temp_fluff, outfile)
    use init_1d_grids
    use bl_types
    use bl_constants_module
+   use bl_error_module
 
    implicit none
 
