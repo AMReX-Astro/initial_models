@@ -29,6 +29,7 @@
 
 subroutine integrate_HSE(g_type, mass, p_type, temp_fluff, outfile)
 
+   use eos_type_module
    use eos_module
    use network
    use init_1d_variables
@@ -59,18 +60,19 @@ subroutine integrate_HSE(g_type, mass, p_type, temp_fluff, outfile)
    ! Functions ................................................................
    real(kind=dp_t) :: m_shell
 
+   type(eos_t) :: eos_state
+
    !===========================================================================
    ! Enforce thermodynamic consistency at the base
    
-   temp_eos(1) = Ustate(ibase, itemp)
-   den_eos(1)  = Ustate(ibase, idens)
-   xn_eos(1,:) = Ustate(ibase, ispec:Nvars)
-   call eos(eos_input_rt, den_eos, temp_eos, npts, xn_eos, p_eos, h_eos, &
-            e_eos, cv_eos, cp_eos, xne_eos, eta_eos, pele_eos, dpdt_eos, &
-            dpdr_eos, dedt_eos, dedr_eos, dpdX_eos, dhdX_eos, gam1_eos,  &
-            cs_eos, s_eos, dsdt_eos, dsdr_eos, .false.)
-   Ustate(ibase, ipres) = p_eos(1)
-   Ustate(ibase, ientr) = s_eos(1)
+   eos_state % T = Ustate(ibase, itemp)
+   eos_state % rho  = Ustate(ibase, idens)
+   eos_state % xn(:) = Ustate(ibase, ispec:Nvars)
+
+   call eos(eos_input_rt, eos_state)
+
+   Ustate(ibase, ipres) = eos_state % p
+   Ustate(ibase, ientr) = eos_state % s
 
    !===========================================================================
    ! Construct the gravitational constant
@@ -148,6 +150,7 @@ end subroutine integrate_HSE
 subroutine integration_loop(istart, iend, g_type, g_const, p_type, temp_fluff)
 
    use eos_module
+   use eos_type_module
    use init_1d_variables
    use init_1d_grids
    use bl_constants_module
@@ -176,6 +179,8 @@ subroutine integration_loop(istart, iend, g_type, g_const, p_type, temp_fluff)
 
    ! Temporaries ..............................................................
    integer :: i ! loop index
+
+   type(eos_t) :: eos_state
 
    ! Functions ................................................................
    real(kind=dp_t) :: m_shell
@@ -228,7 +233,7 @@ subroutine integration_loop(istart, iend, g_type, g_const, p_type, temp_fluff)
 
       ! set composition data
       ! since xn_eos is in a module, it will still be set correctly in NR loop
-      xn_eos(1,:) = Ustate(i, ispec:Nvars)
+      eos_state % xn(:) = Ustate(i, ispec:Nvars)
 
       ! compute quantities for current zone
       if (fluff) then
@@ -281,14 +286,11 @@ subroutine integration_loop(istart, iend, g_type, g_const, p_type, temp_fluff)
       end if
 
       ! Enforce thermodynamic consistency
-      temp_eos(1) = temp_zone
-      den_eos(1)  = dens_zone
-      call eos(eos_input_rt, den_eos, temp_eos, npts, xn_eos, p_eos, h_eos, &
-               e_eos, cv_eos, cp_eos, xne_eos, eta_eos, pele_eos, dpdt_eos, &
-               dpdr_eos, dedt_eos, dedr_eos, dpdX_eos, dhdX_eos, gam1_eos,  &
-               cs_eos, s_eos, dsdt_eos, dsdr_eos, .false.)
-      pres_zone = p_eos(1)
-      s_zone    = s_eos(1)
+      eos_state % T = temp_zone
+      eos_state % rho = dens_zone
+      call eos(eos_input_rt, eos_state)
+      pres_zone = eos_state % p
+      s_zone    = eos_state % s
 
       ! Save entropy at core profile edge once that zone has been corrected.
       ! We will only need the core entropy on the inward integration, which is
@@ -319,6 +321,7 @@ subroutine HSE_NR_loop_isothermal(dens_curr, dens_prev, temp_curr, pres_curr, &
                                   fluff, temp_fluff)
 
    use eos_module
+   use eos_type_module
    use init_1d_variables
    use bl_types
    use bl_constants_module
@@ -348,6 +351,8 @@ subroutine HSE_NR_loop_isothermal(dens_curr, dens_prev, temp_curr, pres_curr, &
    real(kind=dp_t) :: drho
    logical         :: converged
 
+   type(eos_t) :: eos_state
+
    ! Temporaries ..............................................................
    integer :: i ! loop index
 
@@ -362,17 +367,14 @@ subroutine HSE_NR_loop_isothermal(dens_curr, dens_prev, temp_curr, pres_curr, &
       pres_hse = pres_prev + dble(istep)*HALF*(dens_curr+dens_prev)*dx*grav
 
       ! Compute pressure from EOS
-      temp_eos(1) = temp_curr
-      den_eos(1)  = dens_curr
-      call eos(eos_input_rt, den_eos, temp_eos, npts, xn_eos, p_eos, h_eos, &
-               e_eos, cv_eos, cp_eos, xne_eos, eta_eos, pele_eos, dpdt_eos, &
-               dpdr_eos, dedt_eos, dedr_eos, dpdX_eos, dhdX_eos, gam1_eos,  &
-               cs_eos, s_eos, dsdt_eos, dsdr_eos, .false.)
-      pres_eos = p_eos(1)
+      eos_state % T = temp_curr
+      eos_state % rho = dens_curr
+      call eos(eos_input_rt, eos_state)
+      pres_eos = eos_state % p
 
       ! Compute change in density based on Taylor expansions of EOS and HSE
       dp_hse = HALF*dx*grav
-      dp_eos = dpdr_eos(1)
+      dp_eos = eos_state % dpdr
       drho = (pres_hse - pres_eos) / (dp_eos - dp_hse)
 
       ! Restrict change in density to prevent runaway
@@ -430,6 +432,7 @@ subroutine HSE_NR_loop_isentropic(dens_curr, dens_prev, temp_curr, pres_curr, &
                                   fluff, temp_fluff)
 
    use eos_module
+   use eos_type_module
    use init_1d_variables
    use bl_types
    use bl_constants_module
@@ -465,6 +468,8 @@ subroutine HSE_NR_loop_isentropic(dens_curr, dens_prev, temp_curr, pres_curr, &
    integer         :: i ! loop index
    real(kind=dp_t) :: junk
 
+   type(eos_t) :: eos_state
+
    !===========================================================================
    ! Newton-Raphson loop
 
@@ -478,21 +483,18 @@ subroutine HSE_NR_loop_isentropic(dens_curr, dens_prev, temp_curr, pres_curr, &
       pres_hse = pres_prev + dble(istep)*HALF*(dens_curr+dens_prev)*dx*grav
 
       ! Compute pressure from EOS
-      temp_eos(1) = temp_curr
-      den_eos(1)  = dens_curr
-      call eos(eos_input_rt, den_eos, temp_eos, npts, xn_eos, p_eos, h_eos, &
-               e_eos, cv_eos, cp_eos, xne_eos, eta_eos, pele_eos, dpdt_eos, &
-               dpdr_eos, dedt_eos, dedr_eos, dpdX_eos, dhdX_eos, gam1_eos,  &
-               cs_eos, s_eos, dsdt_eos, dsdr_eos, .false.)
-      pres_eos = p_eos(1)
-      entr_eos = s_eos(1)
+      eos_state % T = temp_curr
+      eos_state % rho = dens_curr
+      call eos(eos_input_rt, eos_state)
+      pres_eos = eos_state % p
+      entr_eos = eos_state % s
 
       ! Compute change in density based on Taylor expansions of EOS and HSE
       dp_hse = HALF*dx*grav
-      dpdr = dpdr_eos(1)
-      dpdt = dpdt_eos(1)
-      dsdr = dsdr_eos(1)
-      dsdt = dsdt_eos(1)
+      dpdr = eos_state % dpdr
+      dpdt = eos_state % dpdt
+      dsdr = eos_state % dsdr
+      dsdt = eos_state % dsdt
       determinant = dsdt*(dpdr - dp_hse) - dpdt*dsdr
       junk = dsdt*(pres_hse - pres_eos) - dpdT*(entr_iso - entr_eos)
       drho = junk / determinant
