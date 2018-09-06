@@ -66,7 +66,7 @@ program init_1d
                    rmax, model_input)
 
    ! Initialize externals
-   call eos_init(use_eos_coulomb=.true.)
+   call eos_init()
    call network_init()
 
    ! Set parameters
