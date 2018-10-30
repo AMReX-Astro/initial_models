@@ -14,7 +14,7 @@
 !!
 !!***
 
-program init_1d
+program init_1d_irreg
 
   use bl_types
   use bl_constants_module
@@ -36,18 +36,20 @@ program init_1d
   real (kind=dp_t), allocatable :: model_hybrid_hse(:,:)
   real (kind=dp_t), allocatable :: entropy_want(:)
 
-  integer, parameter :: nx = 1280
+  integer, parameter :: nx = 640
+  integer, parameter :: nr = (3*((nx/5)/2-0.5_dp_t)*((nx/5)/2-0.5_dp_t)-0.75_dp_t)/2.0_dp_t;
 
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 5 + nspec
   integer, parameter :: idens = 1, &
-       itemp = 2, &
-       ipres = 3, &
-       ientr = 4, &
-       isndspd = 5, &
-       ispec = 6
+                        itemp = 2, &
+                        ipres = 3, &
+                        ientr = 4, &
+                        isndspd = 5, &
+                        ispec = 6
 
-  real (kind=dp_t), save :: xmin, xmax, delx
+  real (kind=dp_t), save :: xmin, xmax, delx, delr
+  real (kind=dp_t), allocatable :: delrl(:), delrr(:)
 
   real (kind=dp_t) :: dens_zone, temp_zone, pres_zone, entropy
 
@@ -95,11 +97,11 @@ program init_1d
 
   real(kind=dp_t) :: interpolate
   real(kind=dp_t) :: sum
+  real(kind=dp_t) :: rfrac
 
   integer :: ibegin
   integer :: i_isentropic
 
-  real(kind=dp_t), parameter :: M_solar = 1.98892d33
   real(kind=dp_t) :: anelastic_cutoff = 3.e6  ! this is for diagnostics only -- not used in the HSEing
   real(kind=dp_t) :: M_enclosed_anel
   real(kind=dp_t) :: grav_ener, M_center
@@ -121,10 +123,10 @@ program init_1d
   ! constant for the kepler model
 
   ! MAESTRO
-  ! temp_fluff_cutoff = 1.d-4
+  temp_fluff_cutoff = 1.d-4
 
   ! CASTRO
-  temp_fluff_cutoff = 1.d3
+  ! temp_fluff_cutoff = 1.d3
 
   temp_fluff = 5.d6
 
@@ -143,23 +145,34 @@ program init_1d
   !===========================================================================
 
   ! allocate storage
-  allocate(xzn_hse(nx))
-  allocate(xznl(nx))
-  allocate(xznr(nx))
-  allocate(model_kepler_hse(nx,nvar))
-  allocate(model_isentropic_hse(nx,nvar))
-  allocate(model_hybrid_hse(nx,nvar))
-  allocate(M_enclosed(nx))
-  allocate(entropy_want(nx))
+  allocate(xzn_hse(nr))
+  allocate(xznl(nr))
+  allocate(xznr(nr))
+  allocate(model_kepler_hse(nr,nvar))
+  allocate(model_isentropic_hse(nr,nvar))
+  allocate(model_hybrid_hse(nr,nvar))
+  allocate(M_enclosed(nr))
+  allocate(entropy_want(nr))
+  allocate(delrl(nr))
+  allocate(delrr(nr))
 
   ! compute the coordinates of the new gridded function
-  delx = (xmax - xmin) / dble(nx)
+  delx = (xmax - xmin) / dble(nx/5)
 
-  do i = 1, nx
-     xznl(i) = xmin + (dble(i) - 1.0_dp_t)*delx
-     xznr(i) = xmin + (dble(i))*delx
-     xzn_hse(i) = 0.5_dp_t*(xznl(i) + xznr(i))
+  do i = 1, nr
+     if (i .eq. 1) then
+        ! set the first edge node to xmin
+        xznl(i) = xmin
+     else
+        xznl(i) = xmin + sqrt(0.75_dp_t + 2.0_dp_t*(i - 1.5_dp_t))*delx
+     end if
+
+     xznr(i) = xmin + sqrt(0.75_dp_t + 2.0_dp_t*(i - 0.5_dp_t))*delx
+     xzn_hse(i) =  xmin + sqrt( 0.75_dp_t + 2.0_dp_t*(i - 1.0_dp_t) )*delx  ! cell center
+     delrl(i) = xzn_hse(i) - xznl(i) 
+     delrr(i) = xznr(i) - xzn_hse(i)
   enddo
+
 
 
   !===========================================================================
@@ -281,21 +294,21 @@ program init_1d
 
   igood = -1
 
-  do i = 1, nx
+  do i = 1, nr
 
      do n = 1, nvar
 
         if (xzn_hse(i) < base_r(npts_model)) then
 
            model_kepler_hse(i,n) = interpolate(xzn_hse(i), npts_model, &
-                base_r, base_state(:,n))
+                                        base_r, base_state(:,n))
 
            igood = i
         else
 
            !if (n == itemp) then
 
-           ! linearly interpolate the last good Kepler zones
+              ! linearly interpolate the last good Kepler zones
            !   slope = (model_kepler_hse(igood,itemp) - model_kepler_hse(igood-1,itemp))/ &
            !        (xzn_hse(igood) - xzn_hse(igood-1))
            !
@@ -303,10 +316,10 @@ program init_1d
            !                               model_kepler_hse(igood,itemp) + slope*(xzn_hse(i) - xzn_hse(igood)))
 
            !else
-           ! use a zero-gradient at the top of the initial model if our domain is
-           ! larger than the model's domain.
+              ! use a zero-gradient at the top of the initial model if our domain is
+              ! larger than the model's domain.
 
-           model_kepler_hse(i,n) = base_state(npts_model,n)
+              model_kepler_hse(i,n) = base_state(npts_model,n)
            !endif
         endif
 
@@ -328,13 +341,13 @@ program init_1d
 
 
 
-  open (unit=30, file="model.uniform", status="unknown")
+  open (unit=30, file="model.nonuniform", status="unknown")
 
 1000 format (1x, 12(g26.16, 1x))
 
-  write (30,*) "# initial model just after putting onto a uniform grid"
+  write (30,*) "# initial model just after putting onto a non-uniform grid"
 
-  do i = 1, nx
+  do i = 1, nr
 
      write (30,1000) xzn_hse(i), model_kepler_hse(i,idens), model_kepler_hse(i,itemp), &
           model_kepler_hse(i,ipres), (model_kepler_hse(i,ispec-1+n), n=1,nspec)
@@ -353,10 +366,10 @@ program init_1d
   ! assuming HSE and constant entropy.
 
 
-  ! find the zone in the uniformly gridded model that corresponds to the
+  ! find the zone in the nonconstant gridded model that corresponds to the
   ! first zone of the original model
   ibegin = -1
-  do i = 1, nx
+  do i = 1, nr
      if (xzn_hse(i) >= base_r(1)) then
         ibegin = i
         exit
@@ -371,10 +384,12 @@ program init_1d
   central_density = model_kepler_hse(1,idens)
   print *, 'interpolated central density = ', central_density
 
+  delr = delrl(1) + delrr(1)
+  
   do iter_dens = 1, max_iter
 
      ! compute the enclosed mass
-     M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_kepler_hse(1,idens)
+     M_enclosed(1) = FOUR3RD*M_PI*delr**3*model_kepler_hse(1,idens)
 
      do i = 2, ibegin
         M_enclosed(i) = M_enclosed(i-1) + &
@@ -419,10 +434,13 @@ program init_1d
         ! start off the Newton loop by saying that the zone has not converged
         converged_hse = .FALSE.
 
+        delr = delrr(i) + delrl(i+1)
+        rfrac = delrl(i+1)/delr
+        
         do iter = 1, MAX_ITER
 
            p_want = model_kepler_hse(i+1,ipres) - &
-                delx*0.5_dp_t*(dens_zone + model_kepler_hse(i+1,idens))*g_zone
+                delr*((ONE-rfrac)*dens_zone + rfrac*model_kepler_hse(i+1,idens))*g_zone
 
 
            ! now we have two functions to zero:
@@ -451,7 +469,7 @@ program init_1d
            B = entropy_want(i) - entropy
 
            dAdT = -dpt
-           dAdrho = -0.5d0*delx*g_zone - dpd
+           dAdrho = -(ONE-rfrac)*delr*g_zone - dpd
            dBdT = -dst
            dBdrho = -dsd
 
@@ -535,11 +553,12 @@ program init_1d
   print *, 'putting Kepler model into HSE on our grid...'
 
   ! compute the enclosed mass
-  M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_kepler_hse(1,idens)
+  delr = delrl(1) + delrr(1)
+  M_enclosed(1) = FOUR3RD*M_PI*delr**3*model_kepler_hse(1,idens)
 
   fluff = .FALSE.
 
-  do i = 2, nx
+  do i = 2, nr
 
      ! use previous zone as initial guess for T, rho
      dens_zone = model_kepler_hse(i-1,idens)
@@ -560,12 +579,15 @@ program init_1d
 
      if (.not. fluff) then
 
+        delr = delrl(i) + delrr(i-1)
+        rfrac = delrr(i-1)/delr
+        
         do iter = 1, MAX_ITER
 
 
            ! HSE differencing
            p_want = model_kepler_hse(i-1,ipres) + &
-                delx*0.5_dp_t*(dens_zone + model_kepler_hse(i-1,idens))*g_zone
+                delr*((ONE-rfrac)*dens_zone + rfrac*model_kepler_hse(i-1,idens))*g_zone
 
            temp_zone = model_kepler_hse(i,itemp)
 
@@ -583,10 +605,10 @@ program init_1d
            pres_zone = eos_state%p
 
            dpd = eos_state%dpdr
-           drho = (p_want - pres_zone)/(dpd - 0.5_dp_t*delx*g_zone)
+           drho = (p_want - pres_zone)/(dpd - (ONE-rfrac)*delr*g_zone)
 
            dens_zone = max(0.9_dp_t*dens_zone, &
-                min(dens_zone + drho, 1.1_dp_t*dens_zone))
+                           min(dens_zone + drho, 1.1_dp_t*dens_zone))
 
            if (abs(drho) < TOL*dens_zone) then
               converged_hse = .TRUE.
@@ -670,9 +692,10 @@ program init_1d
   isentropic = .true.
 
   ! keep track of the mass enclosed below the current zone
-  M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_isentropic_hse(1,idens)
+  delr = delrl(1) + delrr(1)
+  M_enclosed(1) = FOUR3RD*M_PI*delr**3*model_isentropic_hse(1,idens)
 
-  do i = 2, nx
+  do i = 2, nr
 
      ! use previous zone as initial guess for T, rho
      dens_zone = model_isentropic_hse(i-1,idens)
@@ -692,12 +715,15 @@ program init_1d
 
      if (.not. fluff) then
 
+        delr = delrl(i) + delrr(i-1)
+        rfrac = delrr(i-1)/delr
+        
         do iter = 1, MAX_ITER
 
            if (isentropic) then
 
               p_want = model_isentropic_hse(i-1,ipres) + &
-                   delx*0.5_dp_t*(dens_zone + model_isentropic_hse(i-1,idens))*g_zone
+                   delr*((ONE-rfrac)*dens_zone + rfrac*model_isentropic_hse(i-1,idens))*g_zone
 
 
               ! now we have two functions to zero:
@@ -726,7 +752,7 @@ program init_1d
               B = entropy_want(i) - entropy
 
               dAdT = -dpt
-              dAdrho = 0.5d0*delx*g_zone - dpd
+              dAdrho = (ONE-rfrac)*delr*g_zone - dpd
               dBdT = -dst
               dBdrho = -dsd
 
@@ -736,10 +762,10 @@ program init_1d
               drho = -(A + dAdT*dtemp)/dAdrho
 
               dens_zone = max(0.9_dp_t*dens_zone, &
-                   min(dens_zone + drho, 1.1_dp_t*dens_zone))
+                              min(dens_zone + drho, 1.1_dp_t*dens_zone))
 
               temp_zone = max(0.9_dp_t*temp_zone, &
-                   min(temp_zone + dtemp, 1.1_dp_t*temp_zone))
+                              min(temp_zone + dtemp, 1.1_dp_t*temp_zone))
 
 
               if (dens_zone < low_density_cutoff) then
@@ -762,7 +788,7 @@ program init_1d
 
               ! do isothermal
               p_want = model_isentropic_hse(i-1,ipres) + &
-                   delx*0.5*(dens_zone + model_isentropic_hse(i-1,idens))*g_zone
+                   delr*((ONE-rfrac)*dens_zone + rfrac*model_isentropic_hse(i-1,idens))*g_zone
 
               temp_zone = temp_fluff
 
@@ -779,7 +805,7 @@ program init_1d
 
               dpd = eos_state%dpdr
 
-              drho = (p_want - pres_zone)/(dpd - 0.5*delx*g_zone)
+              drho = (p_want - pres_zone)/(dpd - (ONE-rfrac)*delr*g_zone)
 
               dens_zone = max(0.9*dens_zone, &
                    min(dens_zone + drho, 1.1*dens_zone))
@@ -858,15 +884,14 @@ program init_1d
   ! structure outside.
   !===========================================================================
 
-  print *, 'creating hybrid model...'  
+  print *, 'creating hybrid model...'
   print *, ' '
-
   eint_hybrid = 0.0
 
 
   max_temp = maxval(model_kepler_hse(:,itemp))
   i_isentropic = -1
-  do i = 1, nx
+  do i = 1, nr
      model_hybrid_hse(i,:) = model_isentropic_hse(i,:)
 
      if (model_kepler_hse(i,itemp) > model_isentropic_hse(i,itemp)) then
@@ -894,11 +919,12 @@ program init_1d
 
 
   ! compute the enclosed mass
-  M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_hybrid_hse(1,idens)
+  delr = delrl(1) + delrr(1)
+  M_enclosed(1) = FOUR3RD*M_PI*delr**3*model_hybrid_hse(1,idens)
 
   fluff = .FALSE.
 
-  do i = 2, nx
+  do i = 2, nr
 
      ! use previous zone as initial guess for T, rho
      dens_zone = model_hybrid_hse(i-1,idens)
@@ -919,12 +945,15 @@ program init_1d
 
      if (.not. fluff) then
 
+        delr = delrl(i) + delrr(i-1)
+        rfrac = delrr(i-1)/delr
+        
         do iter = 1, MAX_ITER
 
 
            ! HSE differencing
            p_want = model_hybrid_hse(i-1,ipres) + &
-                delx*0.5_dp_t*(dens_zone + model_hybrid_hse(i-1,idens))*g_zone
+                delr*((ONE-rfrac)*dens_zone + rfrac*model_hybrid_hse(i-1,idens))*g_zone
 
            temp_zone = model_hybrid_hse(i,itemp)
 
@@ -938,10 +967,10 @@ program init_1d
            pres_zone = eos_state%p
 
            dpd = eos_state%dpdr
-           drho = (p_want - pres_zone)/(dpd - 0.5_dp_t*delx*g_zone)
+           drho = (p_want - pres_zone)/(dpd - (ONE-rfrac)*delr*g_zone)
 
            dens_zone = max(0.9_dp_t*dens_zone, &
-                min(dens_zone + drho, 1.1_dp_t*dens_zone))
+                           min(dens_zone + drho, 1.1_dp_t*dens_zone))
 
            if (abs(drho) < TOL*dens_zone) then
               converged_hse = .TRUE.
@@ -1027,7 +1056,7 @@ program init_1d
   ipos = index(model_file, '.raw')
   outfile = model_file(1:ipos-1) // '.hse'
 
-  write(num,'(i8)') nx
+  write(num,'(i8)') nr
 
   outfile = trim(outfile) // '.' // trim(adjustl(num))
 
@@ -1035,7 +1064,7 @@ program init_1d
 
   open (unit=50, file=outfile, status="unknown")
 
-  write (50,1001) "# npts = ", nx
+  write (50,1001) "# npts = ", nr
   write (50,1001) "# num of variables = ", 3 + nspec
   write (50,1002) "# density"
   write (50,1002) "# temperature"
@@ -1049,7 +1078,7 @@ program init_1d
 1002 format(a)
 1003 format(a,a)
 
-  do i = 1, nx
+  do i = 1, nr
 
      write (50,1000) xzn_hse(i), model_kepler_hse(i,idens), model_kepler_hse(i,itemp), model_kepler_hse(i,ipres), &
           (model_kepler_hse(i,ispec-1+n), n=1,nspec)
@@ -1060,24 +1089,29 @@ program init_1d
 
 
   ! compute the enclosed mass
-  M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_kepler_hse(1,idens)
+  delr = delrl(1) + delrr(1)
+  M_enclosed(1) = FOUR3RD*M_PI*delr**3*model_kepler_hse(1,idens)
 
-  do i = 2, nx
+  do i = 2, nr
      M_enclosed(i) = M_enclosed(i-1) + &
           FOUR3RD*M_PI*(xznr(i) - xznl(i)) * &
           (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_kepler_hse(i,idens)
   enddo
 
-  print *, 'total mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
+  print *, 'total mass = ', real(M_enclosed(nr)), ' g = ', real(M_enclosed(nr)/M_solar), ' solar masses'
 
 
   ! compute the maximum HSE error
   max_hse_error = -1.d30
 
-  do i = 2, nx-1
+  do i = 2, nr-1
      g_zone = -Gconst*M_enclosed(i-1)/xznr(i-1)**2
-     dpdr = (model_kepler_hse(i,ipres) - model_kepler_hse(i-1,ipres))/delx
-     rhog = HALF*(model_kepler_hse(i,idens) + model_kepler_hse(i-1,idens))*g_zone
+     
+     delr = delrl(i) + delrr(i-1)
+     dpdr = (model_kepler_hse(i,ipres) - model_kepler_hse(i-1,ipres))/delr
+     
+     rfrac = delrr(i-1)/delr
+     rhog = ((1.0_dp_t-rfrac)*model_kepler_hse(i,idens) + rfrac*model_kepler_hse(i-1,idens))*g_zone
 
      if (dpdr /= ZERO .and. model_kepler_hse(i+1,idens) > low_density_cutoff) then
         max_hse_error = max(max_hse_error, abs(dpdr - rhog)/abs(dpdr))
@@ -1094,7 +1128,7 @@ program init_1d
   ipos = index(model_file, '.raw')
   outfile = model_file(1:ipos-1) // '.isentropic.hse'
 
-  write(num,'(i8)') nx
+  write(num,'(i8)') nr
 
   outfile = trim(outfile) // '.' // trim(adjustl(num))
 
@@ -1102,7 +1136,7 @@ program init_1d
 
   open (unit=50, file=outfile, status="unknown")
 
-  write (50,1001) "# npts = ", nx
+  write (50,1001) "# npts = ", nr
   write (50,1001) "# num of variables = ", 3 + nspec
   write (50,1002) "# density"
   write (50,1002) "# temperature"
@@ -1112,7 +1146,7 @@ program init_1d
      write (50,1003) "# ", spec_names(n)
   enddo
 
-  do i = 1, nx
+  do i = 1, nr
 
      write (50,1000) xzn_hse(i), model_isentropic_hse(i,idens), model_isentropic_hse(i,itemp), model_isentropic_hse(i,ipres), &
           (model_isentropic_hse(i,ispec-1+n), n=1,nspec)
@@ -1123,24 +1157,29 @@ program init_1d
 
 
   ! compute the enclosed mass
-  M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_isentropic_hse(1,idens)
+  delr = delrl(1) + delrr(1)
+  M_enclosed(1) = FOUR3RD*M_PI*delr**3*model_isentropic_hse(1,idens)
 
-  do i = 2, nx
+  do i = 2, nr
      M_enclosed(i) = M_enclosed(i-1) + &
           FOUR3RD*M_PI*(xznr(i) - xznl(i)) * &
           (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_isentropic_hse(i,idens)
   enddo
 
-  print *, 'total mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
+  print *, 'total mass = ', real(M_enclosed(nr)), ' g = ', real(M_enclosed(nr)/M_solar), ' solar masses'
 
 
   ! compute the maximum HSE error
   max_hse_error = -1.d30
 
-  do i = 2, nx-1
+  do i = 2, nr-1
      g_zone = -Gconst*M_enclosed(i-1)/xznr(i-1)**2
-     dpdr = (model_isentropic_hse(i,ipres) - model_isentropic_hse(i-1,ipres))/delx
-     rhog = HALF*(model_isentropic_hse(i,idens) + model_isentropic_hse(i-1,idens))*g_zone
+     
+     delr = delrl(i) + delrr(i-1)
+     dpdr = (model_isentropic_hse(i,ipres) - model_isentropic_hse(i-1,ipres))/delr
+     
+     rfrac = delrr(i-1)/delr
+     rhog = ((1.0_dp_t-rfrac)*model_isentropic_hse(i,idens) + rfrac*model_isentropic_hse(i-1,idens))*g_zone
 
      if (dpdr /= ZERO .and. model_isentropic_hse(i+1,idens) > low_density_cutoff) then
         max_hse_error = max(max_hse_error, abs(dpdr - rhog)/abs(dpdr))
@@ -1158,7 +1197,7 @@ program init_1d
   ipos = index(model_file, '.raw')
   outfile = model_file(1:ipos-1) // '.hybrid.hse'
 
-  write(num,'(i8)') nx
+  write(num,'(i8)') nr
 
   outfile = trim(outfile) // '.' // trim(adjustl(num))
 
@@ -1166,7 +1205,7 @@ program init_1d
 
   open (unit=50, file=outfile, status="unknown")
 
-  write (50,1001) "# npts = ", nx
+  write (50,1001) "# npts = ", nr
   write (50,1001) "# num of variables = ", 3 + nspec
   write (50,1002) "# density"
   write (50,1002) "# temperature"
@@ -1176,7 +1215,7 @@ program init_1d
      write (50,1003) "# ", spec_names(n)
   enddo
 
-  do i = 1, nx
+  do i = 1, nr
 
      write (50,1000) xzn_hse(i), model_hybrid_hse(i,idens), model_hybrid_hse(i,itemp), model_hybrid_hse(i,ipres), &
           (model_hybrid_hse(i,ispec-1+n), n=1,nspec)
@@ -1187,15 +1226,16 @@ program init_1d
 
 
   ! compute the enclosed mass
-  M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_hybrid_hse(1,idens)
+  delr = delrl(1) + delrr(1)
+  M_enclosed(1) = FOUR3RD*M_PI*delr**3*model_hybrid_hse(1,idens)
 
-  do i = 2, nx
+  do i = 2, nr
      M_enclosed(i) = M_enclosed(i-1) + &
           FOUR3RD*M_PI*(xznr(i) - xznl(i)) * &
           (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_hybrid_hse(i,idens)
   enddo
 
-  print *, 'total mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
+  print *, 'total mass = ', real(M_enclosed(nr)), ' g = ', real(M_enclosed(nr)/M_solar), ' solar masses'
   print *, 'mass of convective region = ', real(M_enclosed(i_isentropic)), ' g = ', &
        real(M_enclosed(i_isentropic)/M_solar), ' solar masses'
   print *, 'radius of convective region = ', real(xzn_hse(i_isentropic)), ' cm'
@@ -1203,10 +1243,14 @@ program init_1d
   ! compute the maximum HSE error
   max_hse_error = -1.d30
 
-  do i = 2, nx-1
+  do i = 2, nr-1
      g_zone = -Gconst*M_enclosed(i-1)/xznr(i-1)**2
-     dpdr = (model_hybrid_hse(i,ipres) - model_hybrid_hse(i-1,ipres))/delx
-     rhog = HALF*(model_hybrid_hse(i,idens) + model_hybrid_hse(i-1,idens))*g_zone
+     
+     delr = delrl(i) + delrr(i-1)
+     dpdr = (model_hybrid_hse(i,ipres) - model_hybrid_hse(i-1,ipres))/delr
+     
+     rfrac = delrr(i-1)/delr
+     rhog = ((1.0_dp_t-rfrac)*model_hybrid_hse(i,idens) + rfrac*model_hybrid_hse(i-1,idens))*g_zone
 
      if (dpdr /= ZERO .and. model_hybrid_hse(i+1,idens) > low_density_cutoff) then
         max_hse_error = max(max_hse_error, abs(dpdr - rhog)/abs(dpdr))
@@ -1224,7 +1268,7 @@ program init_1d
 
   open (unit=60, file=outfile, status="unknown")
 
-  do i = 1, nx
+  do i = 1, nr
      write (60,1000) xzn_hse(i), model_kepler_hse(i,ientr)
   enddo
 
@@ -1232,8 +1276,9 @@ program init_1d
 
 
   ! compute the mass enclosed inside the anelastic_cutoff
-  M_enclosed_anel = FOUR3RD*M_PI*delx**3*model_hybrid_hse(1,idens)
-  do i = 2, nx
+  delr = delrl(1) + delrr(1)
+  M_enclosed_anel = FOUR3RD*M_PI*delr**3*model_hybrid_hse(1,idens)
+  do i = 2, nr
      if (model_hybrid_hse(i,idens) >= anelastic_cutoff) then
         M_enclosed_anel = M_enclosed_anel + &
              FOUR3RD*M_PI*(xznr(i) - xznl(i)) * &
@@ -1259,7 +1304,7 @@ program init_1d
   grav_ener = -FOUR*M_PI*Gconst*M_center*xzn_hse(1)*model_hybrid_hse(1,idens)*(xznr(1) - xznl(1))
 
 
-  do i = 2, nx
+  do i = 2, nr
      if (model_hybrid_hse(i,idens) >= anelastic_cutoff) then
         M_center = M_center + &
              FOUR3RD*M_PI*(xzn_hse(i) - xznl(i)) * &
@@ -1278,64 +1323,64 @@ program init_1d
   print *, "gravitational potential energy = ", grav_ener
   print *, "internal energy = ", eint_hybrid
 
-end program init_1d
+end program init_1d_irreg
 
 
 
 
 
-function interpolate(r, npts, model_r, model_var)
+  function interpolate(r, npts, model_r, model_var)
 
-  use bl_types
+    use bl_types
 
-  implicit none
+    implicit none
 
 
-  ! given the array of model coordinates (model_r), and variable (model_var),
-  ! find the value of model_var at point r using linear interpolation.
-  ! Eventually, we can do something fancier here.
+    ! given the array of model coordinates (model_r), and variable (model_var),
+    ! find the value of model_var at point r using linear interpolation.
+    ! Eventually, we can do something fancier here.
 
-  real(kind=dp_t) :: interpolate
-  real(kind=dp_t), intent(in) :: r
-  integer :: npts
-  real(kind=dp_t), dimension(npts) :: model_r, model_var
+    real(kind=dp_t) :: interpolate
+    real(kind=dp_t), intent(in) :: r
+    integer :: npts
+    real(kind=dp_t), dimension(npts) :: model_r, model_var
 
-  real(kind=dp_t) :: slope
-  real(kind=dp_t) :: minvar, maxvar
+    real(kind=dp_t) :: slope
+    real(kind=dp_t) :: minvar, maxvar
 
-  integer :: i, id
+    integer :: i, id
 
-  ! find the location in the coordinate array where we want to interpolate
-  do i = 1, npts
-     if (model_r(i) >= r) exit
-  enddo
+    ! find the location in the coordinate array where we want to interpolate
+    do i = 1, npts
+       if (model_r(i) >= r) exit
+    enddo
 
-  id = i
+    id = i
 
-  if (id == 1) then
+    if (id == 1) then
 
-     slope = (model_var(id+1) - model_var(id))/(model_r(id+1) - model_r(id))
-     interpolate = slope*(r - model_r(id)) + model_var(id)
+       slope = (model_var(id+1) - model_var(id))/(model_r(id+1) - model_r(id))
+       interpolate = slope*(r - model_r(id)) + model_var(id)
 
-     ! safety check to make sure interpolate lies within the bounding points
-     !minvar = min(model_var(id+1),model_var(id))
-     !maxvar = max(model_var(id+1),model_var(id))
-     !interpolate = max(interpolate,minvar)
-     !interpolate = min(interpolate,maxvar)
+       ! safety check to make sure interpolate lies within the bounding points
+       !minvar = min(model_var(id+1),model_var(id))
+       !maxvar = max(model_var(id+1),model_var(id))
+       !interpolate = max(interpolate,minvar)
+       !interpolate = min(interpolate,maxvar)
 
-  else
+    else
 
-     slope = (model_var(id) - model_var(id-1))/(model_r(id) - model_r(id-1))
-     interpolate = slope*(r - model_r(id)) + model_var(id)
+       slope = (model_var(id) - model_var(id-1))/(model_r(id) - model_r(id-1))
+       interpolate = slope*(r - model_r(id)) + model_var(id)
 
-     ! safety check to make sure interpolate lies within the bounding points
-     minvar = min(model_var(id),model_var(id-1))
-     maxvar = max(model_var(id),model_var(id-1))
-     interpolate = max(interpolate,minvar)
-     interpolate = min(interpolate,maxvar)
+       ! safety check to make sure interpolate lies within the bounding points
+       minvar = min(model_var(id),model_var(id-1))
+       maxvar = max(model_var(id),model_var(id-1))
+       interpolate = max(interpolate,minvar)
+       interpolate = min(interpolate,maxvar)
 
-  endif
+    endif
 
-  return
+    return
 
-end function interpolate
+  end function interpolate
