@@ -20,7 +20,7 @@ program init_1d
   use bl_constants_module
   use bl_error_module
   use eos_module, only: eos, eos_init
-  use eos_type_module, only : eos_t, eos_input_rt
+  use eos_type_module, only : eos_t, eos_input_rt, eos_input_re, eos_input_rp
   use network
   use fundamental_constants_module
   use extern_probin_module, only: use_eos_coulomb
@@ -35,7 +35,9 @@ program init_1d
   real (kind=dp_t), allocatable :: model_isentropic_hse(:,:)
   real (kind=dp_t), allocatable :: model_hybrid_hse(:,:)
   real (kind=dp_t), allocatable :: model_conservative(:,:)
+  real (kind=dp_t), allocatable :: model_convective(:,:)
   real (kind=dp_t), allocatable :: entropy_want(:)
+  real (kind=dp_t), allocatable :: model_ener(:)
 
   integer, parameter :: nx = 6144
 
@@ -85,7 +87,7 @@ program init_1d
   integer, parameter :: MAX_VARNAME_LENGTH=80
   integer :: npts_model, nvars_model_file, nparams_model
 
-  real(kind=dp_t), allocatable :: base_state(:,:), base_r(:)
+  real(kind=dp_t), allocatable :: base_state(:,:), base_r(:), base_m(:), base_ener(:)
   real(kind=dp_t), allocatable :: vars_stored(:), params_stored(:)
   character(len=MAX_VARNAME_LENGTH), allocatable :: paramnames_stored(:)
   character(len=MAX_VARNAME_LENGTH), allocatable :: varnames_stored(:)
@@ -95,9 +97,7 @@ program init_1d
   character (len=5000) :: header_line, model_file, outfile
   character (len=8) num
 
-  real(kind=dp_t) :: interpolate
-  real(kind=dp_t) :: conservative_interpolate
-  real(kind=dp_t) :: sum
+  real(kind=dp_t) :: summ
 
   integer :: ibegin
   integer :: i_isentropic
@@ -151,6 +151,7 @@ program init_1d
   allocate(model_mesa_hse(nx,nvar))
   allocate(model_isentropic_hse(nx,nvar))
   allocate(model_hybrid_hse(nx,nvar))
+  allocate(model_convective(nx,nvar))
   allocate(M_enclosed(nx))
   allocate(entropy_want(nx))
 
@@ -169,7 +170,7 @@ program init_1d
 
   ! Open the model file and read in the header
   !
-  ! the model file is assumed to be of the follow form:
+  ! the model file is assummed to be of the follow form:
   ! 1   2   3   4
   ! parameter_name parameter_name parameter_name parameter_name
   ! 92834.29034 132 2343.232 2349.1235
@@ -185,7 +186,7 @@ program init_1d
   ! Presently, we take density, temperature, and composition as the
   ! independent variables and use them to define the thermodynamic state.
   !
-  ! composition is assumed to be in terms of mass fractions
+  ! composition is assummed to be in terms of mass fractions
 
   open(99,file=model_file)
 
@@ -260,6 +261,8 @@ program init_1d
   ! allocate storage for the model data
   allocate (base_state(npts_model, nvar))
   allocate (base_r(npts_model))
+  allocate (base_m(npts_model))
+
 
   do i = 1, npts_model
      read(99,*) (vars_stored(j), j = 1, nvars_model_file)
@@ -297,6 +300,10 @@ program init_1d
 
         case("csound")
            base_state(n,isndspd) = vars_stored(j)
+           found = .true.
+
+        case("mass")
+           base_m(n) = vars_stored(j)
            found = .true.
 
         case default
@@ -352,15 +359,15 @@ program init_1d
 
      enddo
 
-     ! make sure that the species (mass fractions) sum to 1
-     sum = 0.0d0
+     ! make sure that the species (mass fractions) summ to 1
+     summ = 0.0d0
      do n = ispec,ispec-1+nspec
         model_mesa_hse(i,n) = max(model_mesa_hse(i,n),smallx)
-        sum = sum + model_mesa_hse(i,n)
+        summ = summ + model_mesa_hse(i,n)
      enddo
 
      do n = ispec,ispec-1+nspec
-        model_mesa_hse(i,n) = model_mesa_hse(i,n)/sum
+        model_mesa_hse(i,n) = model_mesa_hse(i,n)/summ
      enddo
 
   enddo
@@ -389,7 +396,7 @@ program init_1d
   ! because the MESA model likely begins at a larger radius than our first
   ! HSE model zone, simple interpolation will not do a good job.  We want to
   ! integrate in from the zone that best matches the first MESA model zone,
-  ! assuming HSE and constant entropy.
+  ! assumming HSE and constant entropy.
 
   ! find the zone in the uniformly gridded model that corresponds to the
   ! first zone of the original model
@@ -679,7 +686,7 @@ program init_1d
 
   !===========================================================================
   ! compute the alternate model using the same central density and
-  ! temperature, but assuming that we are isentropic (and in HSE).
+  ! temperature, but assumming that we are isentropic (and in HSE).
   !===========================================================================
 
   print *, 'creating isentropic model...'
@@ -1030,47 +1037,238 @@ program init_1d
   print *, 'creating conservative model...'
   print *, ' '
 
-  ! compute the enclosed mass
-  M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_mesa_hse(1,idens)
-
-  allocate(model_conservative(npts_model,nvar))
+  allocate(model_conservative(nx,nvar+1))
 
   ! model_conservative(:,:) = model_mesa_hse(:,:)
 
-  fluff = .FALSE.
+  ! fluff = .FALSE.
+  !
+  ! do i = 1, nx
+  !
+  !    do n = 1, nvar
+  !
+  !       model_conservative(i,n) = model_mesa_hse(i,n)
+  !
+  !
+  !    enddo
+  !
+  !    model_conservative(i,nvar+1) = interpolate(xzn_hse(i), npts_model, &
+  !         base_r, base_m)
+  !
+  !
+  ! enddo
 
+  ! ---------------------------------
+
+  model_conservative(:,1:nvar) = model_mesa_hse(:,:)
+
+  allocate(base_ener(npts_model))
+  allocate(model_ener(nx))
+
+  ! first calculate the eden across the model
   do i = 1, npts_model
 
-     do n = 1, nvar
+     eos_state%rho = base_state(i,idens)
+     eos_state%T = base_state(i,itemp)
+     eos_state%xn(:) = base_state(i,ispec:ispec-1+nspec)
 
-        model_conservative(i,n) = base_state(i,n)
+     if (eos_state%rho .gt. 1.d-10) then
 
-        ! if (xzn_hse(i) < base_r(npts_model)) then
-        !
-        !    model_conservative(i,n) = conservative_interpolate(xzn_hse(i), npts_model, &
-        !         base_r, base_state(:,n))
-        !
-        !    igood = i
-        ! else
-        !    model_conservative(i,n) = base_state(npts_model,n)
-        ! endif
+        call eos(eos_input_rt, eos_state)
+        base_ener(i) = eos_state%e * base_state(i,idens)
 
+     else
+
+        base_ener(i) = 0.0d0
+
+     endif
+  enddo
+
+  do i = 1, nx
+
+     model_conservative(i,n) = model_mesa_hse(i,n)
+
+     call conservative_interpolate(model_ener(i), xzn_hse(i),npts_model,base_r, base_ener, delx, status)
+
+     if (model_ener(i) < 0.0d0 .or. model_ener(i) /= model_ener(i) .or. (status .eq. 1)) then
+        print *, "conservative interpolate of eden_model failed :("
+        model_ener(i) = centered_interpolate(xzn_hse(i),npts_model,base_r,base_ener)
+     endif
+     !
+     !
+     do k = 1, nspec
+        call conservative_interpolate(model_conservative(i,ispec-1+k),xzn_hse(i),npts_model,&
+             base_r,base_state(:,ispec-1+k)*base_state(:,idens), delx, status)
+
+        if (model_conservative(i,ispec-1+k) < 0.0d0 .or. &
+             model_conservative(i,ispec-1+k) /= model_conservative(i,ispec-1+k) .or. &
+             (status .eq. 1)) then
+           print *, "conservative interpolate of X_i*dens_model failed :(", model_conservative(i,ispec-1+k)
+           model_conservative(i,ispec-1+k) = centered_interpolate(xzn_hse(i),npts_model,base_r,&
+                base_state(:,ispec-1+k)*base_state(:,idens))
+        endif
      enddo
 
-     ! make sure that the species (mass fractions) sum to 1
-     sum = 0.0d0
-     do n = ispec,ispec-1+nspec
-        model_conservative(i,n) = min(model_conservative(i,n),smallx)
-        sum = sum + model_conservative(i,n)
-     enddo
+     model_conservative(i,idens) = sum(model_conservative(i,ispec:ispec+nspec-1))
 
-     if (sum > 0.0d0) then
-        do n = ispec,ispec-1+nspec
-           model_conservative(i,n) = model_conservative(i,n)/sum
-        enddo
+     if (model_conservative(i,idens) < 0.0d0 .or. &
+          model_conservative(i,idens) /= model_conservative(i,idens)) then
+        print *, "summming of species' partial densities failed"
+        model_conservative(i,idens) = centered_interpolate(xzn_hse(i),npts_model,base_r,&
+             base_state(:,idens))
      endif
 
+     model_conservative(i,nvar+1) = centered_interpolate(xzn_hse(i), npts_model, &
+          base_r, base_m)
+
   enddo
+
+  do i = 1, nx
+     eos_state%rho = model_conservative(i,idens)
+     eos_state%e = model_ener(i) / model_conservative(i,idens)
+     eos_state%xn(:) = model_conservative(i,ispec:ispec+nspec-1) / model_conservative(i,idens)
+     eos_state % T   = 10000.0e0_rt
+
+     call eos(eos_input_re, eos_state)
+
+     model_conservative(i,itemp) = eos_state%T
+     model_conservative(i,ipres) = eos_state%p
+     model_conservative(i,ientr) = eos_state%s
+
+     ! make sure that the species (mass fractions) sum to 1
+     summ = 0.0d0
+     do n = 1, nspec
+        summ = summ + model_conservative(i,ispec+n-1)
+     enddo
+
+     do n = 1,nspec
+        model_conservative(i,ispec+n-1) = max(smallx, model_conservative(i,ispec+n-1)/summ)
+     enddo
+
+  enddo
+
+
+
+  !-------------------
+  ! Now do HSE
+  !--------------------
+
+  ! compute the enclosed mass
+  M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_conservative(1,idens)
+
+  fluff = .FALSE.
+
+  do i = 2, nx
+
+     dens_zone = model_conservative(i,idens)
+     temp_zone = model_conservative(i,itemp)
+
+     xn(:) = model_conservative(i,ispec:ispec+nspec-1)
+
+     ! compute the gravitational acceleration on the interface between zones
+     ! i-1 and i
+     g_zone = -Gconst*M_enclosed(i-1)/(xznr(i-1)*xznr(i-1))
+
+     !-----------------------------------------------------------------------
+     ! iteration loop
+     !-----------------------------------------------------------------------
+
+     converged_hse = .FALSE.
+
+     if (.not. fluff) then
+
+        ! do iter = 1, MAX_ITER
+
+        ! HSE differencing
+        p_want = model_conservative(i-1,ipres) + &
+             delx*dens_zone*g_zone
+
+        temp_zone = model_conservative(i,itemp)
+
+        if (model_conservative(i-1,idens) .lt. temp_fluff_cutoff) then
+           temp_zone = temp_fluff
+        end if
+
+        ! (t, rho) -> (p)
+        eos_state%T     = temp_zone
+        eos_state%p     = p_want
+        eos_state%rho   = dens_zone
+        eos_state%xn(:) = xn(:)
+
+        call eos(eos_input_rp, eos_state)
+
+        pres_zone = eos_state%p
+
+        temp_zone = eos_state%T
+
+        ! dpd = eos_state%dpdr
+        ! drho = (p_want - pres_zone)/(dpd - 0.5d0*delx*g_zone)
+        !
+        ! dens_zone = max(0.9d0*dens_zone, &
+        !      min(dens_zone + drho, 1.1d0*dens_zone))
+        !
+        ! if (abs(drho) < TOL*dens_zone) then
+        !    converged_hse = .TRUE.
+        !    exit
+        ! endif
+
+        if (dens_zone < low_density_cutoff) then
+           dens_zone = low_density_cutoff
+           temp_zone = temp_fluff
+           fluff = .TRUE.
+
+        endif
+
+        ! enddo
+
+        ! if (.NOT. converged_hse) then
+        !
+        !    print *, 'Error zone', i, ' did not converge in init_1d'
+        !    print *, 'integrate up'
+        !    print *, 'dens_zone, temp_zone = ', dens_zone, temp_zone
+        !    print *, "p_want = ", p_want
+        !    print *, "drho = ", drho
+        !    call bl_error('Error: HSE non-convergence')
+        !
+        ! endif
+
+        if (temp_zone < temp_fluff) then
+           temp_zone = temp_fluff
+        endif
+
+     else
+        dens_zone = low_density_cutoff
+        temp_zone = temp_fluff
+     endif
+
+     ! call the EOS one more time for this zone and then go on to the next
+     ! (t, rho) -> (p)
+
+     eos_state%p     = pres_zone
+     eos_state%rho   = dens_zone
+     eos_state%xn(:) = xn(:)
+
+     call eos(eos_input_rp, eos_state)
+
+     temp_zone = eos_state%T
+
+     ! update the thermodynamics in this zone
+     model_conservative(i,idens) = dens_zone
+     model_conservative(i,itemp) = temp_zone
+     model_conservative(i,ipres) = pres_zone
+     model_conservative(i,ientr) = eos_state%s
+     model_conservative(i,isndspd) = &
+          sqrt(eos_state%gam1*eos_state%p/eos_state%rho)
+     model_conservative(i,ispec:ispec+nspec-1) = eos_state%xn
+
+     M_enclosed(i) = M_enclosed(i-1) + &
+          FOUR3RD*M_PI*(xznr(i) - xznl(i)) * &
+          (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_conservative(i,idens)
+
+  enddo
+
+
+
 
 
   !===========================================================================
@@ -1124,7 +1322,7 @@ program init_1d
           (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_mesa_hse(i,idens)
   enddo
 
-  print *, 'total mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
+  print *, 'summ mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
 
   ! compute the maximum HSE error
   max_hse_error = -1.d30
@@ -1185,7 +1383,7 @@ program init_1d
           (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_isentropic_hse(i,idens)
   enddo
 
-  print *, 'total mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
+  print *, 'summ mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
 
 
   ! compute the maximum HSE error
@@ -1248,7 +1446,7 @@ program init_1d
           (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_hybrid_hse(i,idens)
   enddo
 
-  print *, 'total mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
+  print *, 'summ mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
 
   if (i_isentropic == -1) then
      print *, "there is no convective region :("
@@ -1347,8 +1545,8 @@ program init_1d
 
   open (unit=50, file=outfile, status="unknown")
 
-  write (50,1001) "# npts = ", npts_model
-  write (50,1001) "# num of variables = ", 3 + nspec
+  write (50,1001) "# npts = ", nx !npts_model
+  write (50,1001) "# num of variables = ", 3 + nspec + 1
   write (50,1002) "# density"
   write (50,1002) "# temperature"
   write (50,1002) "# pressure"
@@ -1357,10 +1555,15 @@ program init_1d
      write (50,1003) "# ", spec_names(n)
   enddo
 
-  do i = 1, npts_model
+  write (50,1002) "# mass"
 
-     write (50,1000) base_r(i), model_conservative(i,idens), model_conservative(i,itemp), model_conservative(i,ipres), &
-          (model_conservative(i,ispec-1+n), n=1,nspec)
+  do i = 1, nx !npts_model
+
+     ! write (50,1000) base_r(i), model_conservative(i,idens), model_conservative(i,itemp), model_conservative(i,ipres), &
+     !      (model_conservative(i,ispec-1+n), n=1,nspec), base_m(i)
+
+     write (50,1000) xzn_hse(i), model_conservative(i,idens), model_conservative(i,itemp), model_conservative(i,ipres), &
+          (model_conservative(i,ispec-1+n), n=1,nspec), model_conservative(i,nvar+1)
 
   enddo
 
@@ -1375,7 +1578,7 @@ program init_1d
   !         (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_conservative(i,idens)
   ! enddo
   !
-  ! print *, 'total mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
+  ! print *, 'summ mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
 
 
   ! ! compute the maximum HSE error
@@ -1394,130 +1597,217 @@ program init_1d
   ! print *, 'maximum HSE error = ', max_hse_error
   ! print *, ' '
 
+contains
+
+
+  function interpolate(r, npts, model_r, model_var)
+
+    use bl_types
+
+    implicit none
+
+    ! given the array of model coordinates (model_r), and variable (model_var),
+    ! find the value of model_var at point r using linear interpolation.
+    ! Eventually, we can do something fancier here.
+
+    real(kind=dp_t) :: interpolate
+    real(kind=dp_t), intent(in) :: r
+    integer :: npts
+    real(kind=dp_t), dimension(npts) :: model_r, model_var
+
+    real(kind=dp_t) :: slope
+    real(kind=dp_t) :: minvar, maxvar
+
+    integer :: i, id
+
+    ! find the location in the coordinate array where we want to interpolate
+    do i = 1, npts
+       if (model_r(i) >= r) exit
+    enddo
+
+    id = i
+
+    if (id == 1) then
+
+       slope = (model_var(id+1) - model_var(id))/(model_r(id+1) - model_r(id))
+       interpolate = slope*(r - model_r(id)) + model_var(id)
+
+       ! safety check to make sure interpolate lies within the bounding points
+       !minvar = min(model_var(id+1),model_var(id))
+       !maxvar = max(model_var(id+1),model_var(id))
+       !interpolate = max(interpolate,minvar)
+       !interpolate = min(interpolate,maxvar)
+
+    else
+
+       slope = (model_var(id) - model_var(id-1))/(model_r(id) - model_r(id-1))
+       interpolate = slope*(r - model_r(id)) + model_var(id)
+
+       ! safety check to make sure interpolate lies within the bounding points
+       minvar = min(model_var(id),model_var(id-1))
+       maxvar = max(model_var(id),model_var(id-1))
+       interpolate = max(interpolate,minvar)
+       interpolate = min(interpolate,maxvar)
+
+    endif
+
+    return
+
+  end function interpolate
+
+  ! function conservative_interpolate(r, npts, model_r, model_var)
+  subroutine conservative_interpolate(interpolated, r, npts_model, model_r, model_var, dx, status, iloc)
+
+    !     given the array of model coordinates (model_r), and variable (model_var),
+    !     find the value of model_var at point r (var_r) using linear interpolation.
+    !     Eventually, we can do something fancier here.
+    use bl_types
+    use amrex_error_module
+
+    implicit none
+
+    real(kind=dp_t)        , intent(in   ) :: r, dx
+    integer         , intent(in   ) :: npts_model
+    real(kind=dp_t)        , intent(in   ) :: model_r(npts_model), model_var(npts_model)
+    integer, intent(in), optional   :: iloc
+    real(kind=dp_t)        , intent(out  ) :: interpolated
+    integer         , intent(out  ) :: status
+
+    ! Local variables
+    integer                         :: max_iter = 5
+    integer                         :: i, n, n_boxes
+    real(kind=dp_t)                        :: rel_error = 1.d0
+    real(kind=dp_t)                        :: delta = 1.d-4
+    real(kind=dp_t)                        :: summ, rm
+    ! real(kind=dp_t)               :: centered_interpolate
+
+
+    interpolated = centered_interpolate(r, npts_model, model_r, model_var, iloc)
+
+    status = 0
+
+    do n = 1, max_iter
+       if (rel_error <= delta) exit
+
+       summ = 0.0d0
+       n_boxes = 2**n
+
+       do i = 1, n_boxes
+          rm = r - 0.5 * dx + dx * (float(i-1) + 0.5d0) / float(n_boxes)
+          summ = summ + 1.0d0 / float(n_boxes) * centered_interpolate(rm, npts_model, model_r, model_var)
+       enddo
+
+       rel_error = abs(summ - interpolated) / abs(interpolated)
+
+       interpolated = summ
+
+    enddo
+
+    if (rel_error >  delta) status = 1
+
+  end subroutine conservative_interpolate
+
+
+  function centered_interpolate(r, npts_model, model_r, model_var, iloc) result(interpolated)
+
+    !     given the array of model coordinates (model_r), and variable (model_var),
+    !     find the value of model_var at point r (var_r) using linear interpolation.
+    !     Eventually, we can do something fancier here.
+    use bl_types
+
+    implicit none
+
+    real(kind=dp_t)                        :: interpolated
+    real(kind=dp_t)        , intent(in   ) :: r
+    integer         , intent(in   ) :: npts_model
+    real(kind=dp_t)        , intent(in   ) :: model_r(npts_model), model_var(npts_model)
+    integer, intent(in), optional   :: iloc
+
+    ! Local variables
+    integer                         :: id
+    real(kind=dp_t)                        :: slope,minvar,maxvar
+
+    !     find the location in the coordinate array where we want to interpolate
+    if (present(iloc)) then
+       id = iloc
+    else
+       call locate_sub(r, npts_model, model_r, id)
+    end if
+
+    if (id .eq. 1) then
+
+       slope = (model_var(id+1) - model_var(id))/(model_r(id+1) - model_r(id))
+       interpolated = slope*(r - model_r(id)) + model_var(id)
+
+       ! safety check to make sure interpolate lies within the bounding points
+       minvar = min(model_var(id+1),model_var(id))
+       maxvar = max(model_var(id+1),model_var(id))
+       interpolated = max(interpolated,minvar)
+       interpolated = min(interpolated,maxvar)
+
+    else if (id .eq. npts_model) then
+
+       slope = (model_var(id) - model_var(id-1))/(model_r(id) - model_r(id-1))
+       interpolated = slope*(r - model_r(id)) + model_var(id)
+
+       ! safety check to make sure interpolate lies within the bounding points
+       minvar = min(model_var(id),model_var(id-1))
+       maxvar = max(model_var(id),model_var(id-1))
+       interpolated = max(interpolated,minvar)
+       interpolated = min(interpolated,maxvar)
+
+    else
+
+       slope = 0.5d0 *( (model_var(id+1) - model_var(id))/(model_r(id+1) - model_r(id)) + &
+            (model_var(id) - model_var(id-1))/(model_r(id) - model_r(id-1)) )
+       interpolated = slope*(r - model_r(id)) + model_var(id)
+
+       ! ! safety check to make sure interpolate lies within the bounding points
+       minvar = min(model_var(id+1),model_var(id), model_var(id-1))
+       maxvar = max(model_var(id+1),model_var(id), model_var(id-1))
+       interpolated = max(interpolated,minvar)
+       interpolated = min(interpolated,maxvar)
+
+
+    endif
+
+  end function centered_interpolate
+
+  subroutine locate_sub(x, n, xs, loc)
+    use bl_types
+
+    implicit none
+
+    integer,  intent(in   ) :: n
+    real(rt), intent(in   ) :: x, xs(n)
+    integer,  intent(  out) :: loc
+
+    integer :: ilo, ihi, imid
+
+    !$gpu
+
+    if (x .le. xs(1)) then
+       loc = 1
+    else if (x .gt. xs(n-1)) then
+       loc = n
+    else
+
+       ilo = 1
+       ihi = n-1
+
+       do while (ilo+1 .ne. ihi)
+          imid = (ilo+ihi)/2
+          if (x .le. xs(imid)) then
+             ihi = imid
+          else
+             ilo = imid
+          end if
+       end do
+
+       loc = ihi
+
+    end if
+
+  end subroutine locate_sub
+
 end program init_1d
-
-
-function interpolate(r, npts, model_r, model_var)
-
-  use bl_types
-
-  implicit none
-
-  ! given the array of model coordinates (model_r), and variable (model_var),
-  ! find the value of model_var at point r using linear interpolation.
-  ! Eventually, we can do something fancier here.
-
-  real(kind=dp_t) :: interpolate
-  real(kind=dp_t), intent(in) :: r
-  integer :: npts
-  real(kind=dp_t), dimension(npts) :: model_r, model_var
-
-  real(kind=dp_t) :: slope
-  real(kind=dp_t) :: minvar, maxvar
-
-  integer :: i, id
-
-  ! find the location in the coordinate array where we want to interpolate
-  do i = 1, npts
-     if (model_r(i) >= r) exit
-  enddo
-
-  id = i
-
-  if (id == 1) then
-
-     slope = (model_var(id+1) - model_var(id))/(model_r(id+1) - model_r(id))
-     interpolate = slope*(r - model_r(id)) + model_var(id)
-
-     ! safety check to make sure interpolate lies within the bounding points
-     !minvar = min(model_var(id+1),model_var(id))
-     !maxvar = max(model_var(id+1),model_var(id))
-     !interpolate = max(interpolate,minvar)
-     !interpolate = min(interpolate,maxvar)
-
-  else
-
-     slope = (model_var(id) - model_var(id-1))/(model_r(id) - model_r(id-1))
-     interpolate = slope*(r - model_r(id)) + model_var(id)
-
-     ! safety check to make sure interpolate lies within the bounding points
-     minvar = min(model_var(id),model_var(id-1))
-     maxvar = max(model_var(id),model_var(id-1))
-     interpolate = max(interpolate,minvar)
-     interpolate = min(interpolate,maxvar)
-
-  endif
-
-  return
-
-end function interpolate
-
-function conservative_interpolate(r, npts, model_r, model_var)
-
-  use bl_types
-
-  implicit none
-
-  ! given the array of model coordinates (model_r), and variable (model_var),
-  ! find the value of model_var at point r using linear interpolation.
-  ! Eventually, we can do something fancier here.
-
-  real(kind=dp_t) :: conservative_interpolate
-  real(kind=dp_t), intent(in) :: r
-  integer :: npts
-  real(kind=dp_t), dimension(npts) :: model_r, model_var
-
-  real(kind=dp_t) :: slope_r, slope_l, slope, dr
-  real(kind=dp_t) :: minvar, maxvar
-
-  integer :: i, id
-
-  ! I'm going to assume a constant dr
-
-  ! find the location in the coordinate array where we want to interpolate
-  do i = 1, npts
-     if (model_r(i) >= r) exit
-  enddo
-
-  id = i
-
-  ! check to see if r is nearer r(i-1) or r(i)
-  if ((model_r(i) - r) >= (r - model_r(i-1))) then
-     id = id + 1
-  endif
-
-  if (id == 1) then
-
-     slope = (model_var(id+1) - model_var(id))/(model_r(id+1) - model_r(id))
-
-     conservative_interpolate = slope*(r - model_r(id)) + model_var(id)
-
-     ! safety check to make sure interpolate lies within the bounding points
-     !minvar = min(model_var(id+1),model_var(id))
-     !maxvar = max(model_var(id+1),model_var(id))
-     !interpolate = max(interpolate,minvar)
-     !interpolate = min(interpolate,maxvar)
-
-  else
-
-     dr = model_r(id+1) - model_r(id)
-
-     slope_r = (model_var(id+1) - model_var(id))/dr
-     slope_l = (model_var(id) - model_var(id-1))/dr
-
-     slope = 0.5d0 * (slope_r + slope_l)
-
-     ! slope = (model_var(id) - model_var(id-1))/(model_r(id) - model_r(id-1))
-     conservative_interpolate = slope*(r - model_r(id)) + model_var(id)
-
-     ! safety check to make sure interpolate lies within the bounding points
-     minvar = min(model_var(id),model_var(id-1))
-     maxvar = max(model_var(id),model_var(id-1))
-     conservative_interpolate = max(conservative_interpolate,minvar)
-     conservative_interpolate = min(conservative_interpolate,maxvar)
-
-  endif
-
-  return
-
-end function conservative_interpolate
