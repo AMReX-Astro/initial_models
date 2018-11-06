@@ -263,16 +263,16 @@ program init_1d
   allocate (base_r(npts_model))
   allocate (base_m(npts_model))
 
-
   do i = 1, npts_model
-     read(99,*) (vars_stored(j), j = 1, nvars_model_file)
+     read(99, *) (vars_stored(j), j = 1, nvars_model_file)
 
-     base_state(i,:) = ZERO
+     ! need to reverse the inputs file here
+
+     n = npts_model - i + 1
+
+     base_state(n,:) = ZERO
 
      do j = 1, nvars_model_file
-
-        ! need to reverse the inputs file here
-        n = npts_model - i + 1
 
         found = .false.
 
@@ -335,6 +335,8 @@ program init_1d
   enddo
 
   close (50)
+
+  print *, base_state(:, idens)
 
 
   !===========================================================================
@@ -1039,27 +1041,6 @@ program init_1d
 
   allocate(model_conservative(nx,nvar+1))
 
-  ! model_conservative(:,:) = model_mesa_hse(:,:)
-
-  ! fluff = .FALSE.
-  !
-  ! do i = 1, nx
-  !
-  !    do n = 1, nvar
-  !
-  !       model_conservative(i,n) = model_mesa_hse(i,n)
-  !
-  !
-  !    enddo
-  !
-  !    model_conservative(i,nvar+1) = interpolate(xzn_hse(i), npts_model, &
-  !         base_r, base_m)
-  !
-  !
-  ! enddo
-
-  ! ---------------------------------
-
   model_conservative(:,1:nvar) = model_mesa_hse(:,:)
 
   allocate(base_ener(npts_model))
@@ -1146,7 +1127,6 @@ program init_1d
      enddo
 
   enddo
-
 
 
   !-------------------
