@@ -36,6 +36,7 @@ program init_1d
   real (kind=dp_t), allocatable :: model_hybrid_hse(:,:)
   real (kind=dp_t), allocatable :: model_conservative(:,:)
   real (kind=dp_t), allocatable :: model_convective(:,:)
+  real (kind=dp_t), allocatable :: model_ad_excess(:,:)
   real (kind=dp_t), allocatable :: entropy_want(:)
   real (kind=dp_t), allocatable :: model_ener(:)
 
@@ -59,17 +60,17 @@ program init_1d
 
   real (kind=dp_t) :: central_density
 
-  real (kind=dp_t) :: p_want, drho, dtemp
+  real (kind=dp_t) :: p_want, drho, dtemp, gradP
 
-  real (kind=dp_t) :: g_zone
+  real (kind=dp_t) :: g_zone, hse_error, ad_error, ad_tol, adiabatic_excess
 
-  real (kind=dp_t) :: max_hse_error, dpdr, rhog
+  real (kind=dp_t) :: max_hse_error, dpdr, rhog, best_hse_error, best_ad_error
 
   real (kind=dp_t), parameter :: TOL = 1.d-10
 
-  integer, parameter :: MAX_ITER = 250
+  integer, parameter :: MAX_ITER = 250, AD_ITER = 250
 
-  integer :: iter, iter_dens, status
+  integer :: iter, iter_dens, status, jiter, best_i, best_j
 
   integer :: igood
   real (kind=dp_t) :: slope
@@ -88,6 +89,7 @@ program init_1d
   integer :: npts_model, nvars_model_file, nparams_model
 
   real(kind=dp_t), allocatable :: base_state(:,:), base_r(:), base_m(:), base_ener(:)
+  real(kind=dp_t), allocatable :: base_ad(:), model_ad(:), base_gradT(:), base_gradr(:)
   real(kind=dp_t), allocatable :: vars_stored(:), params_stored(:)
   character(len=MAX_VARNAME_LENGTH), allocatable :: paramnames_stored(:)
   character(len=MAX_VARNAME_LENGTH), allocatable :: varnames_stored(:)
@@ -262,6 +264,8 @@ program init_1d
   allocate (base_state(npts_model, nvar))
   allocate (base_r(npts_model))
   allocate (base_m(npts_model))
+  allocate (base_gradT(npts_model))
+  allocate (base_gradr(npts_model))
 
   do i = 1, npts_model
      read(99, *) (vars_stored(j), j = 1, nvars_model_file)
@@ -306,6 +310,16 @@ program init_1d
            base_m(n) = vars_stored(j)
            found = .true.
 
+        case("gradT")
+           base_gradT(n) = vars_stored(j)
+           found = .true.
+
+
+        case("gradr")
+           base_gradr(n) = vars_stored(j)
+           found = .true.
+
+
         case default
 
            ! check if they are species
@@ -335,8 +349,6 @@ program init_1d
   enddo
 
   close (50)
-
-  print *, base_state(:, idens)
 
 
   !===========================================================================
@@ -1050,12 +1062,12 @@ program init_1d
   do i = 1, npts_model
 
      eos_state%rho = base_state(i,idens)
-     eos_state%T = base_state(i,itemp)
+     eos_state%p = base_state(i,ipres)
      eos_state%xn(:) = base_state(i,ispec:ispec-1+nspec)
 
      if (eos_state%rho .gt. 1.d-10) then
 
-        call eos(eos_input_rt, eos_state)
+        call eos(eos_input_rp, eos_state)
         base_ener(i) = eos_state%e * base_state(i,idens)
 
      else
@@ -1108,7 +1120,6 @@ program init_1d
      eos_state%rho = model_conservative(i,idens)
      eos_state%e = model_ener(i) / model_conservative(i,idens)
      eos_state%xn(:) = model_conservative(i,ispec:ispec+nspec-1) / model_conservative(i,idens)
-     eos_state % T   = 10000.0e0_rt
 
      call eos(eos_input_re, eos_state)
 
@@ -1127,6 +1138,8 @@ program init_1d
      enddo
 
   enddo
+
+  ! print *, model_conservative(:, itemp)
 
 
   !-------------------
@@ -1153,87 +1166,26 @@ program init_1d
      ! iteration loop
      !-----------------------------------------------------------------------
 
-     converged_hse = .FALSE.
+     ! HSE differencing
+     p_want = model_conservative(i-1,ipres) + &
+          delx*0.5d0*(dens_zone + model_conservative(i-1,idens))*g_zone
 
-     if (.not. fluff) then
+     temp_zone = model_conservative(i,itemp)
 
-        ! do iter = 1, MAX_ITER
-
-        ! HSE differencing
-        p_want = model_conservative(i-1,ipres) + &
-             delx*dens_zone*g_zone
-
-        temp_zone = model_conservative(i,itemp)
-
-        if (model_conservative(i-1,idens) .lt. temp_fluff_cutoff) then
-           temp_zone = temp_fluff
-        end if
-
-        ! (t, rho) -> (p)
-        eos_state%T     = temp_zone
-        eos_state%p     = p_want
-        eos_state%rho   = dens_zone
-        eos_state%xn(:) = xn(:)
-
-        call eos(eos_input_rp, eos_state)
-
-        pres_zone = eos_state%p
-
-        temp_zone = eos_state%T
-
-        ! dpd = eos_state%dpdr
-        ! drho = (p_want - pres_zone)/(dpd - 0.5d0*delx*g_zone)
-        !
-        ! dens_zone = max(0.9d0*dens_zone, &
-        !      min(dens_zone + drho, 1.1d0*dens_zone))
-        !
-        ! if (abs(drho) < TOL*dens_zone) then
-        !    converged_hse = .TRUE.
-        !    exit
-        ! endif
-
-        if (dens_zone < low_density_cutoff) then
-           dens_zone = low_density_cutoff
-           temp_zone = temp_fluff
-           fluff = .TRUE.
-
-        endif
-
-        ! enddo
-
-        ! if (.NOT. converged_hse) then
-        !
-        !    print *, 'Error zone', i, ' did not converge in init_1d'
-        !    print *, 'integrate up'
-        !    print *, 'dens_zone, temp_zone = ', dens_zone, temp_zone
-        !    print *, "p_want = ", p_want
-        !    print *, "drho = ", drho
-        !    call bl_error('Error: HSE non-convergence')
-        !
-        ! endif
-
-        if (temp_zone < temp_fluff) then
-           temp_zone = temp_fluff
-        endif
-
-     else
-        dens_zone = low_density_cutoff
-        temp_zone = temp_fluff
-     endif
-
-     ! call the EOS one more time for this zone and then go on to the next
      ! (t, rho) -> (p)
-
-     eos_state%p     = pres_zone
+     eos_state%T     = temp_zone
+     eos_state%p     = p_want
      eos_state%rho   = dens_zone
      eos_state%xn(:) = xn(:)
 
      call eos(eos_input_rp, eos_state)
 
+     pres_zone = eos_state%p
+
      temp_zone = eos_state%T
 
      ! update the thermodynamics in this zone
-     model_conservative(i,idens) = dens_zone
+     ! model_conservative(i,idens) = dens_zone
      model_conservative(i,itemp) = temp_zone
      model_conservative(i,ipres) = pres_zone
      model_conservative(i,ientr) = eos_state%s
@@ -1247,8 +1199,230 @@ program init_1d
 
   enddo
 
+  deallocate(base_ener, model_ener)
 
 
+  !===========================================================================
+  ! compute the adiabatic excess model
+  !===========================================================================
+
+  print *, 'creating conserved adiabatic excess model...'
+  print *, ' '
+
+  allocate(model_ad_excess(nx,nvar))
+
+  model_ad_excess(:,:) = model_mesa_hse(:,:)
+
+  allocate(base_ad(npts_model))
+  allocate(model_ad(nx))
+
+  ! first calculate the adiabatic excess across the model
+  do i = 2, npts_model
+
+     eos_state%rho = base_state(i,idens)
+     eos_state%p = base_state(i,ipres)
+     eos_state%xn(:) = base_state(i,ispec:ispec-1+nspec)
+
+     call eos(eos_input_rp, eos_state)
+
+     ! gradP = base_gradr(i) * base_state(i, isndspd)**2
+
+     ! if (i > 1) then
+     !    print *, "gradr = ", base_gradr(i), "drhodr = ", (base_state(i,idens) - base_state(i-1,idens)) / (base_r(i) - base_r(i-1))
+     ! endif
+
+     ! base_ad(i) = base_gradT(i) / gradP * base_state(i, ipres) / base_state(i, itemp) - &
+     !      eos_state%dpde / base_state(i,idens)
+
+     base_ad(i) = (base_state(i,itemp) - base_state(i-1,itemp)) / (base_state(i,ipres) - base_state(i-1,ipres)) * &
+          base_state(i, ipres) / base_state(i, itemp) - &
+          (eos_state%gam1 - 1.d00) / eos_state%gam1
+
+  enddo
+
+  do i = 1, nx
+
+     model_ad_excess(i,n) = model_mesa_hse(i,n)
+
+     call conservative_interpolate(model_ad(i), xzn_hse(i),npts_model,base_r, base_ad, delx, status)
+
+     if (model_ad(i) /= model_ad(i) .or. (status .eq. 1)) then
+        print *, "conservative interpolate of eden_model failed :("
+        model_ad(i) = centered_interpolate(xzn_hse(i),npts_model,base_r,base_ad)
+     endif
+
+     do k = 1, nspec
+        call conservative_interpolate(model_ad_excess(i,ispec-1+k),xzn_hse(i),npts_model,&
+             base_r,base_state(:,ispec-1+k)*base_state(:,idens), delx, status)
+
+        if (model_ad_excess(i,ispec-1+k) < 0.0d0 .or. &
+             model_ad_excess(i,ispec-1+k) /= model_ad_excess(i,ispec-1+k) .or. &
+             (status .eq. 1)) then
+           print *, "conservative interpolate of X_i*dens_model failed :(", model_ad_excess(i,ispec-1+k)
+           model_ad_excess(i,ispec-1+k) = centered_interpolate(xzn_hse(i),npts_model,base_r,&
+                base_state(:,ispec-1+k)*base_state(:,idens))
+        endif
+     enddo
+
+     model_ad_excess(i,idens) = sum(model_ad_excess(i,ispec:ispec+nspec-1))
+
+     if (model_ad_excess(i,idens) < 0.0d0 .or. &
+          model_ad_excess(i,idens) /= model_ad_excess(i,idens)) then
+        print *, "summming of species' partial densities failed"
+        model_ad_excess(i,idens) = centered_interpolate(xzn_hse(i),npts_model,base_r,&
+             base_state(:,idens))
+     endif
+
+     ! model_ad_excess(i,nvar+1) = centered_interpolate(xzn_hse(i), npts_model, &
+     !      base_r, base_m)
+
+  enddo
+
+  do i = 1, nx
+
+     ! make sure that the species (mass fractions) sum to 1
+     summ = 0.0d0
+     do n = 1, nspec
+        summ = summ + model_ad_excess(i,ispec+n-1)
+     enddo
+
+     do n = 1,nspec
+        model_ad_excess(i,ispec+n-1) = max(smallx, model_ad_excess(i,ispec+n-1)/summ)
+     enddo
+
+  enddo
+
+  ! print *, model_ad_excess(:, itemp)
+
+
+  !-------------------
+  ! Now do HSE
+  !--------------------
+
+  ! compute the enclosed mass
+  M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_ad_excess(1,idens)
+
+  fluff = .FALSE.
+
+  do i = 2, nx
+
+     dens_zone = model_mesa_hse(i-1,idens)
+     temp_zone = model_mesa_hse(i-1,itemp)
+
+     xn(:) = model_ad_excess(i,ispec:ispec+nspec-1)
+
+     ! compute the gravitational acceleration on the interface between zones
+     ! i-1 and i
+     g_zone = -Gconst*M_enclosed(i-1)/(xznr(i-1)*xznr(i-1))
+
+     !-----------------------------------------------------------------------
+     ! iteration loop
+     !-----------------------------------------------------------------------
+
+     converged_hse = .FALSE.
+
+     best_hse_error = 1.d0
+     best_ad_error = 1.d0
+     ad_tol = 1.d-5
+
+     ! do iter = 0, AD_ITER
+
+     ! dens_zone = model_ad_excess(i-1,idens) * (1.0d0 + 0.1d0 * real(AD_ITER/2 - iter) / real(AD_ITER))
+
+     dens_zone = model_ad_excess(i,idens)
+
+     do jiter = 0, AD_ITER
+
+        temp_zone = model_ad_excess(i-1,itemp) * (1.0d0 + 0.1d0 * real(AD_ITER/2 - jiter) / real(AD_ITER))
+
+        ! HSE differencing
+        p_want = model_ad_excess(i-1,ipres) + &
+             delx*0.5d0*(dens_zone + model_ad_excess(i-1,idens))*g_zone
+
+        eos_state%T = temp_zone
+        eos_state%rho = dens_zone
+        eos_state%xn = xn(:)
+
+        call eos(eos_input_rt, eos_state)
+
+        pres_zone = eos_state%p
+        !
+        ! dpd = eos_state%dpdr
+        ! drho = (p_want - pres_zone)/(dpd - 0.5d0*delx*g_zone)
+        !
+        ! hse_error = abs(drho) / dens_zone
+
+        if (temp_zone .eq. 0.0d0 .or. dens_zone .eq. 0.0d0) then
+           print *, "temp_zone =", temp_zone, "dens_zone =", dens_zone
+        endif
+
+        if (abs(pres_zone - model_ad_excess(i-1,ipres) ) < 1e-9) then
+           adiabatic_excess = (temp_zone - model_ad_excess(i-1,itemp)) / &
+                smallx * pres_zone / temp_zone - &
+                (eos_state%gam1 - 1.d00) / eos_state%gam1
+
+        else
+
+           adiabatic_excess = (temp_zone - model_ad_excess(i-1,itemp)) / &
+                (pres_zone - model_ad_excess(i-1,ipres)) * pres_zone / temp_zone - &
+                (eos_state%gam1 - 1.d00) / eos_state%gam1
+        endif
+
+        ! print * , adiabatic_excess, model_ad(i)
+
+        ad_error = abs(adiabatic_excess - model_ad(i)) / abs(adiabatic_excess)
+
+        if (ad_error < best_ad_error) then
+           ! best_i = iter
+           best_j = jiter
+           ! best_hse_error = hse_error
+           best_ad_error = ad_error
+        endif
+
+        ! dens_zone = max(0.9d0*dens_zone, &
+        !      min(dens_zone + drho, 1.1d0*dens_zone))
+        !
+        ! if (abs(drho) < TOL*dens_zone) then
+        !    converged_hse = .TRUE.
+        !    exit
+        ! endif
+     enddo
+
+     ! enddo
+
+     ! print *, "best_errors = ", best_hse_error, best_ad_error
+
+     temp_zone = model_ad_excess(i-1,itemp) * (1.0d0 + 0.1d0 * real(AD_ITER/2 - best_j) / real(AD_ITER))
+     ! dens_zone = model_ad_excess(i-1,idens) * (1.0d0 + 0.1d0 * real(AD_ITER/2 - best_i) / real(AD_ITER))
+
+     ! (t, rho) -> (p)
+     eos_state%T     = temp_zone
+     eos_state%p     = p_want
+     eos_state%rho   = dens_zone
+     eos_state%xn(:) = xn(:)
+
+     call eos(eos_input_rp, eos_state)
+
+     pres_zone = eos_state%p
+
+     temp_zone = eos_state%T
+
+     ! update the thermodynamics in this zone
+     ! model_conservative(i,idens) = dens_zone
+     model_ad_excess(i,itemp) = temp_zone
+     model_ad_excess(i,ipres) = pres_zone
+     model_ad_excess(i,ientr) = eos_state%s
+     model_ad_excess(i,isndspd) = &
+          sqrt(eos_state%gam1*eos_state%p/eos_state%rho)
+     model_ad_excess(i,ispec:ispec+nspec-1) = eos_state%xn
+
+     M_enclosed(i) = M_enclosed(i-1) + &
+          FOUR3RD*M_PI*(xznr(i) - xznl(i)) * &
+          (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_ad_excess(i,idens)
+
+  enddo
+
+  deallocate(base_ad, model_ad, base_gradT, base_gradr)
 
 
   !===========================================================================
@@ -1537,13 +1711,47 @@ program init_1d
 
   write (50,1002) "# mass"
 
-  do i = 1, nx !npts_model
-
-     ! write (50,1000) base_r(i), model_conservative(i,idens), model_conservative(i,itemp), model_conservative(i,ipres), &
-     !      (model_conservative(i,ispec-1+n), n=1,nspec), base_m(i)
+  do i = 1, nx
 
      write (50,1000) xzn_hse(i), model_conservative(i,idens), model_conservative(i,itemp), model_conservative(i,ipres), &
           (model_conservative(i,ispec-1+n), n=1,nspec), model_conservative(i,nvar+1)
+
+  enddo
+
+  close (unit=50)
+
+
+  !---------------------------------------------------------------------------
+  ! conservative model
+  !---------------------------------------------------------------------------
+
+  ipos = index(model_file, '.dat')
+  outfile = model_file(1:ipos-1) // '.adiabatic'
+
+  write(num,'(i8)') npts_model
+
+  outfile = trim(outfile) // '.' // trim(adjustl(num))
+
+  print *, 'writing conserved adiabatic excess model to ', trim(outfile)
+
+  open (unit=50, file=outfile, status="unknown")
+
+  write (50,1001) "# npts = ", nx !npts_model
+  write (50,1001) "# num of variables = ", 3 + nspec
+  write (50,1002) "# density"
+  write (50,1002) "# temperature"
+  write (50,1002) "# pressure"
+
+  do n = 1, nspec
+     write (50,1003) "# ", spec_names(n)
+  enddo
+
+  write (50,1002) "# mass"
+
+  do i = 1, nx
+
+     write (50,1000) xzn_hse(i), model_ad_excess(i,idens), model_ad_excess(i,itemp), model_ad_excess(i,ipres), &
+          (model_ad_excess(i,ispec-1+n), n=1,nspec)
 
   enddo
 
