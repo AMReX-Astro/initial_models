@@ -41,11 +41,11 @@ program init_1d
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 5 + nspec
   integer, parameter :: idens = 1, &
-       itemp = 2, &
-       ipres = 3, &
-       ientr = 4, &
-       isndspd = 5, &
-       ispec = 6
+                        itemp = 2, &
+                        ipres = 3, &
+                        ientr = 4, &
+                        isndspd = 5, &
+                        ispec = 6
 
   real (kind=dp_t), save :: xmin, xmax, delx
 
@@ -288,14 +288,14 @@ program init_1d
         if (xzn_hse(i) < base_r(npts_model)) then
 
            model_kepler_hse(i,n) = interpolate(xzn_hse(i), npts_model, &
-                base_r, base_state(:,n))
+                                        base_r, base_state(:,n))
 
            igood = i
         else
 
            !if (n == itemp) then
 
-           ! linearly interpolate the last good Kepler zones
+              ! linearly interpolate the last good Kepler zones
            !   slope = (model_kepler_hse(igood,itemp) - model_kepler_hse(igood-1,itemp))/ &
            !        (xzn_hse(igood) - xzn_hse(igood-1))
            !
@@ -303,10 +303,10 @@ program init_1d
            !                               model_kepler_hse(igood,itemp) + slope*(xzn_hse(i) - xzn_hse(igood)))
 
            !else
-           ! use a zero-gradient at the top of the initial model if our domain is
-           ! larger than the model's domain.
+              ! use a zero-gradient at the top of the initial model if our domain is
+              ! larger than the model's domain.
 
-           model_kepler_hse(i,n) = base_state(npts_model,n)
+              model_kepler_hse(i,n) = base_state(npts_model,n)
            !endif
         endif
 
@@ -586,7 +586,7 @@ program init_1d
            drho = (p_want - pres_zone)/(dpd - 0.5_dp_t*delx*g_zone)
 
            dens_zone = max(0.9_dp_t*dens_zone, &
-                min(dens_zone + drho, 1.1_dp_t*dens_zone))
+                           min(dens_zone + drho, 1.1_dp_t*dens_zone))
 
            if (abs(drho) < TOL*dens_zone) then
               converged_hse = .TRUE.
@@ -736,10 +736,10 @@ program init_1d
               drho = -(A + dAdT*dtemp)/dAdrho
 
               dens_zone = max(0.9_dp_t*dens_zone, &
-                   min(dens_zone + drho, 1.1_dp_t*dens_zone))
+                              min(dens_zone + drho, 1.1_dp_t*dens_zone))
 
               temp_zone = max(0.9_dp_t*temp_zone, &
-                   min(temp_zone + dtemp, 1.1_dp_t*temp_zone))
+                              min(temp_zone + dtemp, 1.1_dp_t*temp_zone))
 
 
               if (dens_zone < low_density_cutoff) then
@@ -858,9 +858,8 @@ program init_1d
   ! structure outside.
   !===========================================================================
 
-  print *, 'creating hybrid model...'  
+  print *, 'creating hybrid model...'
   print *, ' '
-
   eint_hybrid = 0.0
 
 
@@ -941,7 +940,7 @@ program init_1d
            drho = (p_want - pres_zone)/(dpd - 0.5_dp_t*delx*g_zone)
 
            dens_zone = max(0.9_dp_t*dens_zone, &
-                min(dens_zone + drho, 1.1_dp_t*dens_zone))
+                           min(dens_zone + drho, 1.1_dp_t*dens_zone))
 
            if (abs(drho) < TOL*dens_zone) then
               converged_hse = .TRUE.
@@ -1284,58 +1283,59 @@ end program init_1d
 
 
 
-function interpolate(r, npts, model_r, model_var)
+  function interpolate(r, npts, model_r, model_var)
 
-  use bl_types
+    use bl_types
 
-  implicit none
+    implicit none
 
 
-  ! given the array of model coordinates (model_r), and variable (model_var),
-  ! find the value of model_var at point r using linear interpolation.
-  ! Eventually, we can do something fancier here.
+    ! given the array of model coordinates (model_r), and variable (model_var),
+    ! find the value of model_var at point r using linear interpolation.
+    ! Eventually, we can do something fancier here.
 
-  real(kind=dp_t) :: interpolate
-  real(kind=dp_t), intent(in) :: r
-  integer :: npts
-  real(kind=dp_t), dimension(npts) :: model_r, model_var
+    real(kind=dp_t) :: interpolate
+    real(kind=dp_t), intent(in) :: r
+    integer :: npts
+    real(kind=dp_t), dimension(npts) :: model_r, model_var
 
-  real(kind=dp_t) :: slope
-  real(kind=dp_t) :: minvar, maxvar
+    real(kind=dp_t) :: slope
+    real(kind=dp_t) :: minvar, maxvar
 
-  integer :: i, id
+    integer :: i, id
 
-  ! find the location in the coordinate array where we want to interpolate
-  do i = 1, npts
-     if (model_r(i) >= r) exit
-  enddo
+    ! find the location in the coordinate array where we want to interpolate
+    do i = 1, npts
+       if (model_r(i) >= r) exit
+    enddo
 
-  id = i
+    id = i
 
-  if (id == 1) then
+    if (id == 1) then
 
-     slope = (model_var(id+1) - model_var(id))/(model_r(id+1) - model_r(id))
-     interpolate = slope*(r - model_r(id)) + model_var(id)
+       slope = (model_var(id+1) - model_var(id))/(model_r(id+1) - model_r(id))
+       interpolate = slope*(r - model_r(id)) + model_var(id)
 
-     ! safety check to make sure interpolate lies within the bounding points
-     !minvar = min(model_var(id+1),model_var(id))
-     !maxvar = max(model_var(id+1),model_var(id))
-     !interpolate = max(interpolate,minvar)
-     !interpolate = min(interpolate,maxvar)
+       ! safety check to make sure interpolate lies within the bounding points
+       !minvar = min(model_var(id+1),model_var(id))
+       !maxvar = max(model_var(id+1),model_var(id))
+       !interpolate = max(interpolate,minvar)
+       !interpolate = min(interpolate,maxvar)
 
-  else
+    else
 
-     slope = (model_var(id) - model_var(id-1))/(model_r(id) - model_r(id-1))
-     interpolate = slope*(r - model_r(id)) + model_var(id)
+       slope = (model_var(id) - model_var(id-1))/(model_r(id) - model_r(id-1))
+       interpolate = slope*(r - model_r(id)) + model_var(id)
 
-     ! safety check to make sure interpolate lies within the bounding points
-     minvar = min(model_var(id),model_var(id-1))
-     maxvar = max(model_var(id),model_var(id-1))
-     interpolate = max(interpolate,minvar)
-     interpolate = min(interpolate,maxvar)
+       ! safety check to make sure interpolate lies within the bounding points
+       minvar = min(model_var(id),model_var(id-1))
+       maxvar = max(model_var(id),model_var(id-1))
+       interpolate = max(interpolate,minvar)
+       interpolate = min(interpolate,maxvar)
 
-  endif
+    endif
 
-  return
+    return
 
-end function interpolate
+  end function interpolate
+
