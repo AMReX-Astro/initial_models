@@ -12,6 +12,14 @@ The routines are:
     temperature and density.
 
 
+  * urca/spherical
+
+    adaptation of the spherical initial model for a WD with the A=23
+    Urca process. This initial model routine helps ensure the A=23
+    Urca nuclei are in equilibrium in the initial spherically
+    symmetric model.
+
+
   * test2
 
     generate an isentropic plane-parallel atmosphere with an entropy
