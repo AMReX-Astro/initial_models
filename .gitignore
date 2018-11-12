@@ -8,3 +8,5 @@ probin.F90
 helm_table.dat
 
 actual_network.F90
+
+build/
