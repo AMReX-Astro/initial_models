@@ -18,6 +18,7 @@ GENERAL_NET_INPUTS := $(MICROPHYSICS_HOME)/networks/$(NETWORK_DIR)/aprox21.net
 
 # the local sources needed to build the initial model generator
 MODEL_SOURCES := init_1d.f90
+READER_SOURCES := read_mesa.f90
 # MODEL_SOURCES := init_1d_irreg.f90
 
 

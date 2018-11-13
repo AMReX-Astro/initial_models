@@ -73,15 +73,20 @@ def make_rest_table(param_files):
                 continue
 
             # find the description
-            if line.startswith("#"):
+            if line.startswith("#") or line.startswith("&"):
                 # handle descriptions here
                 descr += line[1:].rstrip().replace("@@",r"\newline")
                 line = f.readline()
                 continue
+            elif line.startswith('/') or line.lstrip().startswith('!'):
+                pass
 
             else:
                 current_param = Parameter()
                 line_list = line.split()
+
+                if len(line_list) == 2:
+                    line_list.append(line_list[1][1:])
 
                 current_param.var = line_list[0]
                 current_param.default = line_list[2].replace("_", "\_")
@@ -133,7 +138,7 @@ if __name__ == "__main__":
     param_files = []
     for root, dirs, files in os.walk(top_dir):
         for f in files:
-            if f == "_parameters":
+            if f[:6] == "_param":
                 param_files.append(os.path.normpath("/".join([root, f])))
 
     make_rest_table(param_files)

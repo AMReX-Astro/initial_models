@@ -47,6 +47,7 @@ include $(NETWORK_TOP_DIR)/$(strip $(NETWORK_DIR))/NETWORK_REQUIRES
 
 # explicitly add in any source defined in the build directory
 f90sources += $(MODEL_SOURCES)
+f90sources += $(READER_SOURCES)
 
 
 #-----------------------------------------------------------------------------
@@ -84,6 +85,12 @@ probin.F90: $(PROBIN_PARAMETERS) $(EXTERN_PARAMETERS) $(PROBIN_TEMPLATE)
            -t $(PROBIN_TEMPLATE) -o probin.F90 -n probin \
            --pa "$(PROBIN_PARAMETERS)" --pb "$(EXTERN_PARAMETERS)"
 	@echo " "
+
+read_mesa.f90: $(INITIAL_MODEL_HOME)/read_mesa/read_mesa.f90
+	cp ../read_mesa/read_mesa.f90 .
+	# $(LINK.f90) -o read_mesa.o $(objects) $(libraries)
+	@echo SUCCESS
+
 
 
 
@@ -131,7 +138,6 @@ init_1d.$(suf).exe: $(objects)
 	$(LINK.f90) -o init_1d.$(suf).exe $(objects) $(libraries)
 	@echo SUCCESS
 
-
 # include the fParallel Makefile rules
 include $(FBOXLIB_HOME)/Tools/F_mk/GMakerules.mak
 
@@ -150,3 +156,4 @@ print-%: ; @echo $* is $($*)
 clean::
 	$(RM) probin.F90
 	$(RM) build_info.f90
+	$(RM) read_mesa.f90

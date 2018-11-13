@@ -24,6 +24,7 @@ program init_1d
   use network
   use fundamental_constants_module
   use extern_probin_module, only: use_eos_coulomb
+  use mesa_reader
 
   implicit none
 
@@ -43,17 +44,19 @@ program init_1d
   integer, parameter :: nx = 6144
 
   ! define convenient indices for the scalars
-  integer, parameter :: nvar = 5 + nspec
   integer, parameter :: idens = 1, &
        itemp = 2, &
        ipres = 3, &
        ientr = 4, &
        isndspd = 5, &
-       ispec = 6
+       imass = 6, &
+       igradT = 7, &
+       ispec = 8
+  integer, parameter :: nvar = igradT + nspec
 
   real (kind=dp_t), save :: xmin, xmax, delx
 
-  real (kind=dp_t) :: dens_zone, temp_zone, pres_zone, entropy
+  real (kind=dp_t) :: dens_zone, temp_zone, pres_zone, entropy, temp_min, temp_max
 
   real (kind=dp_t) :: A, B, dAdT, dAdrho, dBdT, dBdrho
   real (kind=dp_t) :: dpd, dpt, dsd, dst
@@ -62,20 +65,20 @@ program init_1d
 
   real (kind=dp_t) :: p_want, drho, dtemp, gradP
 
-  real (kind=dp_t) :: g_zone, hse_error, ad_error, ad_tol, adiabatic_excess
+  real (kind=dp_t) :: g_zone, hse_error, ad_error, ad_tol, adiabatic_excess, err_min, err_max
 
-  real (kind=dp_t) :: max_hse_error, dpdr, rhog, best_hse_error, best_ad_error
+  real (kind=dp_t) :: max_hse_error, dpdr, rhog
 
   real (kind=dp_t), parameter :: TOL = 1.d-10
 
-  integer, parameter :: MAX_ITER = 250, AD_ITER = 250
+  integer, parameter :: MAX_ITER = 250, AD_ITER = 2500
 
-  integer :: iter, iter_dens, status, jiter, best_i, best_j
+  integer :: iter, iter_dens, status
 
   integer :: igood
   real (kind=dp_t) :: slope
 
-  logical :: converged_hse, converged_central_density, fluff, isentropic
+  logical :: converged_hse, converged_central_density, fluff, isentropic, print_n
 
   real (kind=dp_t) :: max_temp
 
@@ -88,8 +91,8 @@ program init_1d
   integer, parameter :: MAX_VARNAME_LENGTH=80
   integer :: npts_model, nvars_model_file, nparams_model
 
-  real(kind=dp_t), allocatable :: base_state(:,:), base_r(:), base_m(:), base_ener(:)
-  real(kind=dp_t), allocatable :: base_ad(:), model_ad(:), base_gradT(:), base_gradr(:)
+  real(kind=dp_t), allocatable :: base_state(:,:), base_r(:), base_ener(:)
+  real(kind=dp_t), allocatable :: base_ad(:), model_ad(:)
   real(kind=dp_t), allocatable :: vars_stored(:), params_stored(:)
   character(len=MAX_VARNAME_LENGTH), allocatable :: paramnames_stored(:)
   character(len=MAX_VARNAME_LENGTH), allocatable :: varnames_stored(:)
@@ -129,7 +132,6 @@ program init_1d
 
   ! CASTRO
   temp_fluff_cutoff = 2.d-7
-
   temp_fluff = 1.d5
 
   ! this comes in via extern_probin_module -- override the default
@@ -170,186 +172,16 @@ program init_1d
   ! read in the MESA model
   !===========================================================================
 
-  ! Open the model file and read in the header
-  !
-  ! the model file is assummed to be of the follow form:
-  ! 1   2   3   4
-  ! parameter_name parameter_name parameter_name parameter_name
-  ! 92834.29034 132 2343.232 2349.1235
-  ! 1   2   3   4   5
-  ! value_name value_name value_name value_name value_name
-  ! 195312.5000  5437711139.  8805500.952   .4695704813E+28  0.3  0.7  0
-  ! 585937.5000  5410152416.  8816689.836  0.4663923963E+28  0.3  0.7  0
-  !
-  ! we read in the number of variables and their order and use this to map
-  ! them into the base_state array.  We ignore anything other than density,
-  ! temperature, pressure and composition.
-  !
-  ! Presently, we take density, temperature, and composition as the
-  ! independent variables and use them to define the thermodynamic state.
-  !
-  ! composition is assummed to be in terms of mass fractions
+  allocate(varnames_stored(7))
+  varnames_stored(idens) = "rho"
+  varnames_stored(itemp) = "temperature"
+  varnames_stored(ipres) = "pressure"
+  varnames_stored(ientr) = "entropy"
+  varnames_stored(isndspd) = "csound"
+  varnames_stored(imass) = "mass"
+  varnames_stored(igradT) = "gradT"
 
-  open(99,file=model_file)
-
-  ! going to first do a pass through the file to count the line numbers
-  npts_model = 0
-  do
-     read (99,*,iostat=status)
-     if (status > 0) then
-        write(*,*) "Something went wrong :("
-     else if (status < 0) then
-        exit
-     else
-        npts_model = npts_model + 1
-     endif
-  enddo
-
-  ! subtract first two header rows and go back to start of file
-  npts_model = npts_model - 6
-
-  print *, npts_model, '    points found in the initial model file'
-
-  rewind(99)
-
-  ! the first line gives the column numbers of the parameters. From this we can get the number of parameters
-  read (99, '(a2000)') header_line
-  ! find last space in line
-  ipos = index(trim(header_line), ' ', back=.true.)
-  header_line = trim(adjustl(header_line(ipos:)))
-  read (header_line, *) nparams_model
-
-  print *, nparams_model, ' parameters found in the initial model file'
-
-  allocate (params_stored(nparams_model))
-  allocate (paramnames_stored(nparams_model))
-
-  ! now read in the names of the variables
-  read (99, '(a2000)') header_line
-  ipos = 1
-  do i = 1, nparams_model
-     header_line = trim(adjustl(header_line(ipos:)))
-     ipos = index(header_line, ' ') + 1
-     paramnames_stored(i) = trim(adjustl(header_line(:ipos)))
-  enddo
-
-  ! and finally read and store the parameters
-  read(99,*) (params_stored(j), j = 1, nparams_model)
-
-  ! space then read in variable numbers
-  read(99, *)
-
-  ! get number of variables
-  read (99, '(a5000)') header_line
-  ! find last space in line
-  ipos = index(trim(header_line), ' ', back=.true.)
-  header_line = trim(adjustl(header_line(ipos:)))
-  read (header_line, *) nvars_model_file
-
-  print *, nvars_model_file, ' variables found in the initial model file'
-
-  allocate (vars_stored(nvars_model_file))
-  allocate (varnames_stored(nvars_model_file))
-
-  ! now read in the names of the variables
-  read (99, '(a5000)') header_line
-  ipos = 1
-  do i = 1, nvars_model_file
-     header_line = trim(adjustl(header_line(ipos:)))
-     ipos = index(header_line, ' ') + 1
-     varnames_stored(i) = trim(adjustl(header_line(:ipos)))
-  enddo
-
-  ! allocate storage for the model data
-  allocate (base_state(npts_model, nvar))
-  allocate (base_r(npts_model))
-  allocate (base_m(npts_model))
-  allocate (base_gradT(npts_model))
-  allocate (base_gradr(npts_model))
-
-  do i = 1, npts_model
-     read(99, *) (vars_stored(j), j = 1, nvars_model_file)
-
-     ! need to reverse the inputs file here
-
-     n = npts_model - i + 1
-
-     base_state(n,:) = ZERO
-
-     do j = 1, nvars_model_file
-
-        found = .false.
-
-        select case (trim(varnames_stored(j)))
-
-        case ("rho")
-           base_state(n,idens) = vars_stored(j)
-           found = .true.
-
-        case ("temperature")
-           base_state(n,itemp) = vars_stored(j)
-           found = .true.
-
-        case ("pressure")
-           base_state(n,ipres) = vars_stored(j)
-           found = .true.
-
-        case("logR")
-           base_r(n) = R_solar*10**vars_stored(j)
-           found = .true.
-
-        case("entropy")
-           base_state(n,ientr) = vars_stored(j)
-           found = .true.
-
-        case("csound")
-           base_state(n,isndspd) = vars_stored(j)
-           found = .true.
-
-        case("mass")
-           base_m(n) = vars_stored(j)
-           found = .true.
-
-        case("gradT")
-           base_gradT(n) = vars_stored(j)
-           found = .true.
-
-
-        case("gradr")
-           base_gradr(n) = vars_stored(j)
-           found = .true.
-
-
-        case default
-
-           ! check if they are species
-           k = network_species_index(varnames_stored(j))
-           if (k > 0) then
-              ! print *, "found species"
-              base_state(n,ispec-1+k) = vars_stored(j)
-              found = .true.
-           endif
-
-        end select
-
-     enddo
-
-  enddo
-
-  print *, "base_state species(1) = ", base_state(1, ispec:)
-
-  print *, "base_state density(1) = ", base_state(1, idens)
-
-  open (unit=50, file="model.orig", status="unknown")
-
-  write (50,*) "# initial model as read in"
-
-  do i = 1, npts_model
-     write (50,1000) base_r(i), (base_state(i,j), j = 1, nvar)
-  enddo
-
-  close (50)
-
+  call read_mesa(model_file, base_state, base_r, varnames_stored, 7, npts_model)
 
   !===========================================================================
   ! put the model onto our new uniform grid
@@ -1112,7 +944,7 @@ program init_1d
      endif
 
      model_conservative(i,nvar+1) = centered_interpolate(xzn_hse(i), npts_model, &
-          base_r, base_m)
+          base_r, base_state(:, imass))
 
   enddo
 
@@ -1216,6 +1048,10 @@ program init_1d
   allocate(base_ad(npts_model))
   allocate(model_ad(nx))
 
+  low_density_cutoff =1.d-8
+  temp_fluff_cutoff = 2.d-8
+  temp_fluff = 1.d4
+
   ! first calculate the adiabatic excess across the model
   do i = 2, npts_model
 
@@ -1232,11 +1068,9 @@ program init_1d
      ! endif
 
      ! base_ad(i) = base_gradT(i) / gradP * base_state(i, ipres) / base_state(i, itemp) - &
-     !      eos_state%dpde / base_state(i,idens)
+     !      eos_state%dpde / base_state(i,idens) / eos_state%gam1
 
-     base_ad(i) = (base_state(i,itemp) - base_state(i-1,itemp)) / (base_state(i,ipres) - base_state(i-1,ipres)) * &
-          base_state(i, ipres) / base_state(i, itemp) - &
-          (eos_state%gam1 - 1.d00) / eos_state%gam1
+     base_ad(i) = base_state(i, igradT) - eos_state%dpde / base_state(i,idens) / eos_state%gam1
 
   enddo
 
@@ -1306,9 +1140,6 @@ program init_1d
 
   do i = 2, nx
 
-     dens_zone = model_mesa_hse(i-1,idens)
-     temp_zone = model_mesa_hse(i-1,itemp)
-
      xn(:) = model_ad_excess(i,ispec:ispec+nspec-1)
 
      ! compute the gravitational acceleration on the interface between zones
@@ -1319,25 +1150,134 @@ program init_1d
      ! iteration loop
      !-----------------------------------------------------------------------
 
+     !------------------------
+     ! first try HSE
+     !-----------------------
+
      converged_hse = .FALSE.
+     dens_zone = model_ad_excess(i-1,idens)
+     temp_zone = model_ad_excess(i-1,itemp)
 
-     best_hse_error = 1.d0
-     best_ad_error = 1.d0
-     ad_tol = 1.d-5
-
-     ! do iter = 0, AD_ITER
-
-     ! dens_zone = model_ad_excess(i-1,idens) * (1.0d0 + 0.1d0 * real(AD_ITER/2 - iter) / real(AD_ITER))
-
-     dens_zone = model_ad_excess(i,idens)
-
-     do jiter = 0, AD_ITER
-
-        temp_zone = model_ad_excess(i-1,itemp) * (1.0d0 + 0.1d0 * real(AD_ITER/2 - jiter) / real(AD_ITER))
+     do iter = 1, MAX_ITER
 
         ! HSE differencing
         p_want = model_ad_excess(i-1,ipres) + &
              delx*0.5d0*(dens_zone + model_ad_excess(i-1,idens))*g_zone
+
+        ! if (model_ad_excess(i-1,idens) .lt. temp_fluff_cutoff) then
+        !    temp_zone = temp_fluff
+        ! end if
+
+        ! (t, rho) -> (p)
+        eos_state%T     = temp_zone
+        eos_state%rho   = dens_zone
+        eos_state%xn(:) = xn(:)
+
+        call eos(eos_input_rt, eos_state)
+
+        pres_zone = eos_state%p
+
+        dpd = eos_state%dpdr
+        drho = (p_want - pres_zone)/(dpd - 0.5d0*delx*g_zone)
+
+        dens_zone = max(0.9d0*dens_zone, &
+             min(dens_zone + drho, 1.1d0*dens_zone))
+
+        if (abs(drho) < TOL*dens_zone) then
+           converged_hse = .TRUE.
+           exit
+        endif
+
+        ! if (dens_zone < low_density_cutoff) then
+        !    dens_zone = low_density_cutoff
+        !    temp_zone = temp_fluff
+        !    converged_hse = .TRUE.
+        !    fluff = .TRUE.
+        !    index_hse_fluff = i
+        !    exit
+        !
+        ! endif
+
+     enddo
+
+     temp_min = temp_zone!model_ad_excess(i-1,itemp)
+     temp_max = temp_zone!model_ad_excess(i-1,itemp)
+     err_min = 1.0d0
+     err_max = 1.0d0
+     ad_tol = 1.d-10
+
+     n = 0
+
+     do while (err_min * err_max > 0.0d0 .and. n < 10)
+
+        temp_min = temp_min * 0.99d0
+        temp_max = temp_max * 1.01d0
+
+        eos_state%T = temp_min
+        eos_state%rho = dens_zone
+        eos_state%xn = xn(:)
+
+        call eos(eos_input_rt, eos_state)
+
+        pres_zone = eos_state%p
+
+        adiabatic_excess = (temp_min - model_ad_excess(i-1,itemp)) / &
+             (pres_zone - model_ad_excess(i-1,ipres)) * pres_zone / temp_min - &
+             eos_state%dpde / dens_zone / eos_state%gam1
+
+        err_min = model_ad(i) - adiabatic_excess
+
+        eos_state%T = temp_max
+        eos_state%rho = dens_zone
+        eos_state%xn = xn(:)
+
+        call eos(eos_input_rt, eos_state)
+
+        pres_zone = eos_state%p
+
+        adiabatic_excess = (temp_max - model_ad_excess(i-1,itemp)) / &
+             (pres_zone - model_ad_excess(i-1,ipres)) * pres_zone / temp_max - &
+             eos_state%dpde / dens_zone / eos_state%gam1
+
+        err_max = model_ad(i) - adiabatic_excess
+
+        n = n + 1
+
+     enddo
+
+     print_n = .FALSE.
+
+     if (n > 5) then
+        print *, 'err_min =' , err_min, "err_max = ", err_max, "n = ", n, "logR = ", log10(xzn_hse(i)/R_solar)
+        print_n = .TRUE.
+     endif
+
+     if (err_min * err_max > 0.0d0) then
+
+        ! set temperature to the one that minimises the error
+        temp_zone = model_mesa_hse(i,itemp)
+
+        eos_state%T = temp_max
+        eos_state%rho = dens_zone
+        eos_state%xn = xn(:)
+
+        call eos(eos_input_rt, eos_state)
+
+        pres_zone = eos_state%p
+
+        adiabatic_excess = (temp_max - model_ad_excess(i-1,itemp)) / &
+             (pres_zone - model_ad_excess(i-1,ipres)) * pres_zone / temp_max - &
+             eos_state%dpde / dens_zone / eos_state%gam1
+
+        ad_error = model_ad(i) - adiabatic_excess
+
+        if (err_min < ad_error .and. err_min < err_max) then
+           temp_zone = temp_min
+        else if (err_max < ad_error) then
+           temp_zone = temp_max
+        endif
+
+        dens_zone = model_mesa_hse(i, idens)
 
         eos_state%T = temp_zone
         eos_state%rho = dens_zone
@@ -1346,54 +1286,137 @@ program init_1d
         call eos(eos_input_rt, eos_state)
 
         pres_zone = eos_state%p
-        !
-        ! dpd = eos_state%dpdr
-        ! drho = (p_want - pres_zone)/(dpd - 0.5d0*delx*g_zone)
-        !
-        ! hse_error = abs(drho) / dens_zone
 
-        if (temp_zone .eq. 0.0d0 .or. dens_zone .eq. 0.0d0) then
-           print *, "temp_zone =", temp_zone, "dens_zone =", dens_zone
+        p_want = model_ad_excess(i-1,ipres) + &
+             delx*0.5d0*(dens_zone + model_ad_excess(i-1,idens))*g_zone
+     else
+
+        n = 0
+        ad_error = 1.0d0
+
+        do while (abs(ad_error) > ad_tol .and. n < AD_ITER)
+
+           temp_zone = 0.5d0 * (temp_min + temp_max)
+
+           ! HSE differencing
+           p_want = model_ad_excess(i-1,ipres) + &
+                delx*0.5d0*(dens_zone + model_ad_excess(i-1,idens))*g_zone
+
+           eos_state%T = temp_zone
+           eos_state%rho = dens_zone
+           eos_state%xn = xn(:)
+
+           call eos(eos_input_rt, eos_state)
+
+           pres_zone = eos_state%p
+           !
+           ! dpd = eos_state%dpdr
+           ! drho = (p_want - pres_zone)/(dpd - 0.5d0*delx*g_zone)
+           !
+           ! hse_error = abs(drho) / dens_zone
+
+           if (temp_zone .eq. 0.0d0 .or. dens_zone .eq. 0.0d0) then
+              print *, "temp_zone =", temp_zone, "dens_zone =", dens_zone
+           endif
+
+           if (abs(pres_zone - model_ad_excess(i-1,ipres) ) < 1e-12) then
+              adiabatic_excess = (temp_zone - model_ad_excess(i-1,itemp)) / &
+                   smallx * pres_zone / temp_zone - &
+                   eos_state%dpde / dens_zone / eos_state%gam1
+
+              ! print *, "hack"
+
+           else
+
+              adiabatic_excess = (temp_zone - model_ad_excess(i-1,itemp)) / &
+                   (pres_zone - model_ad_excess(i-1,ipres)) * pres_zone / temp_zone - &
+                   eos_state%dpde / dens_zone / eos_state%gam1
+           endif
+
+           ! print * , adiabatic_excess, model_ad(i)
+
+           ad_error = model_ad(i) - adiabatic_excess
+
+           if (err_min * ad_error < 0) then
+              temp_max = temp_zone
+           else
+              temp_min = temp_zone
+           endif
+
+           n = n + 1
+
+        enddo
+
+        if (abs(ad_error) > ad_tol) then
+           temp_zone = model_mesa_hse(i,itemp)
+           dens_zone = model_mesa_hse(i, idens)
+
+           eos_state%T = temp_zone
+           eos_state%rho = dens_zone
+           eos_state%xn = xn(:)
+
+           call eos(eos_input_rt, eos_state)
+
+           pres_zone = eos_state%p
+
+           p_want = model_ad_excess(i-1,ipres) + &
+                delx*0.5d0*(dens_zone + model_ad_excess(i-1,idens))*g_zone
         endif
 
-        if (abs(pres_zone - model_ad_excess(i-1,ipres) ) < 1e-9) then
-           adiabatic_excess = (temp_zone - model_ad_excess(i-1,itemp)) / &
-                smallx * pres_zone / temp_zone - &
-                (eos_state%gam1 - 1.d00) / eos_state%gam1
+        ! enddo
 
-        else
+        if (print_n) then
+           print *, "error = ", ad_error, "rel_err = ", ad_error / model_ad(i), "n = ", n, "logR = ", log10(xzn_hse(i)/R_solar)
+        endif
+     endif
 
-           adiabatic_excess = (temp_zone - model_ad_excess(i-1,itemp)) / &
-                (pres_zone - model_ad_excess(i-1,ipres)) * pres_zone / temp_zone - &
-                (eos_state%gam1 - 1.d00) / eos_state%gam1
+     !------------------------
+     ! Now do HSE
+     !-----------------------
+
+     converged_hse = .FALSE.
+
+     do iter = 1, MAX_ITER
+
+        ! HSE differencing
+        p_want = model_ad_excess(i-1,ipres) + &
+             delx*0.5d0*(dens_zone + model_ad_excess(i-1,idens))*g_zone
+
+        ! if (model_ad_excess(i-1,idens) .lt. temp_fluff_cutoff) then
+        !    temp_zone = temp_fluff
+        ! end if
+
+        ! (t, rho) -> (p)
+        eos_state%T     = temp_zone
+        eos_state%rho   = dens_zone
+        eos_state%xn(:) = xn(:)
+
+        call eos(eos_input_rt, eos_state)
+
+        pres_zone = eos_state%p
+
+        dpd = eos_state%dpdr
+        drho = (p_want - pres_zone)/(dpd - 0.5d0*delx*g_zone)
+
+        dens_zone = max(0.9d0*dens_zone, &
+             min(dens_zone + drho, 1.1d0*dens_zone))
+
+        if (abs(drho) < TOL*dens_zone) then
+           converged_hse = .TRUE.
+           exit
         endif
 
-        ! print * , adiabatic_excess, model_ad(i)
-
-        ad_error = abs(adiabatic_excess - model_ad(i)) / abs(adiabatic_excess)
-
-        if (ad_error < best_ad_error) then
-           ! best_i = iter
-           best_j = jiter
-           ! best_hse_error = hse_error
-           best_ad_error = ad_error
-        endif
-
-        ! dens_zone = max(0.9d0*dens_zone, &
-        !      min(dens_zone + drho, 1.1d0*dens_zone))
-        !
-        ! if (abs(drho) < TOL*dens_zone) then
+        ! if (dens_zone < low_density_cutoff) then
+        !    dens_zone = low_density_cutoff
+        !    temp_zone = temp_fluff
         !    converged_hse = .TRUE.
+        !    fluff = .TRUE.
+        !    index_hse_fluff = i
         !    exit
+        !
         ! endif
+
      enddo
-
-     ! enddo
-
-     ! print *, "best_errors = ", best_hse_error, best_ad_error
-
-     temp_zone = model_ad_excess(i-1,itemp) * (1.0d0 + 0.1d0 * real(AD_ITER/2 - best_j) / real(AD_ITER))
-     ! dens_zone = model_ad_excess(i-1,idens) * (1.0d0 + 0.1d0 * real(AD_ITER/2 - best_i) / real(AD_ITER))
 
      ! (t, rho) -> (p)
      eos_state%T     = temp_zone
@@ -1422,7 +1445,7 @@ program init_1d
 
   enddo
 
-  deallocate(base_ad, model_ad, base_gradT, base_gradr)
+  deallocate(base_ad, model_ad)!, base_gradT, base_gradr)
 
 
   !===========================================================================
