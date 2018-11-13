@@ -1,9 +1,23 @@
-! Read a MESA file and return an array containing the required data.
-
+!! Read a MESA file and return an array containing the required data.
 module mesa_reader
 
 contains
 
+  !> @brief reads a mesa file and puts data in an array
+  !!
+  !! Given the MESA input file `filename`, this shall read in the file, store all
+  !! variables listed in `var_names_model` in the array `base_state` (along with all species
+  !! required for the network) and store the radius of each point in `base_r`.
+  !! All variables are stored in cgs units.
+  !!
+  !! @param[in]     filename        name of MESA file
+  !! @param[inout]  base_state      allocatable real array where the data shall be stored
+  !! @param[inout]  base_r          allocatable real array where radius shall be stored
+  !! @param[in]     var_names_model list of variables we want to read from file and store in
+  !!                                base_state, NOT including species
+  !! @param[in]     nvars_model     Number of variables in var_names_model
+  !! @param[out]    npts_file       Number of data points in file that shall be stored in
+  !!                                base_state
   subroutine read_mesa(filename, base_state, base_r, var_names_model, nvars_model, npts_file)
 
     use bl_types
@@ -19,7 +33,7 @@ contains
     character (len=100), intent(in) :: filename
     real(kind=dp_t), allocatable, intent(inout) :: base_state(:,:)
     real(kind=dp_t), allocatable, intent(inout) :: base_r(:)
-    character (len=MAX_VARNAME_LENGTH), allocatable, intent(inout) :: var_names_model(:)
+    character (len=MAX_VARNAME_LENGTH), intent(in) :: var_names_model(:)
     integer, intent(in) :: nvars_model
     integer, intent(out) :: npts_file
 
