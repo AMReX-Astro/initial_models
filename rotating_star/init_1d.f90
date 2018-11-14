@@ -14,6 +14,52 @@
 !!
 !!***
 
+module model_params
+  !! Set up the model parameters
+
+  use bl_types
+
+  integer, parameter :: nx = 6144
+
+  ! define convenient indices for the scalars
+  integer, parameter :: idens = 1, &
+       itemp = 2, &
+       ipres = 3, &
+       ientr = 4, &
+       isndspd = 5, &
+       imass = 6, &
+       igradr = 7, &
+       ispec = 8
+
+  real (kind=dp_t), parameter :: TOL = 1.d-10
+
+  integer, parameter :: MAX_ITER = 250, AD_ITER = 2500
+
+  integer, parameter :: MAX_VARNAME_LENGTH=80
+
+  real(kind=dp_t), parameter :: anelastic_cutoff = 9.e4  ! this is for diagnostics only -- not used in the HSEing
+  real (kind=dp_t), parameter :: smallx = 1.d-10
+
+  character (len=100), parameter :: model_file = "18m_500_s_rot_b_eq_1.dat"
+
+  real (kind=dp_t), parameter :: xmin = 0.d0, xmax = 1.d10
+  real (kind=dp_t), parameter :: delx = (xmax - xmin) / dble(nx)
+
+  real (kind=dp_t), save :: low_density_cutoff =1.d-7
+
+  ! temp_fluff_cutoff is the density below which we hold the temperature
+  ! constant for the MESA model
+
+  ! MAESTRO
+  ! temp_fluff_cutoff = 1.d-4
+
+  ! CASTRO
+  real (kind=dp_t), save :: temp_fluff_cutoff = 2.d-7
+  real (kind=dp_t), save :: temp_fluff = 1.d5
+
+end module model_params
+
+
 program init_1d
 
   use bl_types
@@ -25,10 +71,11 @@ program init_1d
   use fundamental_constants_module
   use extern_probin_module, only: use_eos_coulomb
   use mesa_reader
+  use model_params
 
   implicit none
 
-  integer :: i, j, k, n
+  integer :: i, k, n
 
   real (kind=dp_t), allocatable :: xzn_hse(:), xznl(:), xznr(:)
   real (kind=dp_t), allocatable :: M_enclosed(:)
@@ -41,20 +88,7 @@ program init_1d
   real (kind=dp_t), allocatable :: entropy_want(:)
   real (kind=dp_t), allocatable :: model_ener(:)
 
-  integer, parameter :: nx = 6144
-
-  ! define convenient indices for the scalars
-  integer, parameter :: idens = 1, &
-       itemp = 2, &
-       ipres = 3, &
-       ientr = 4, &
-       isndspd = 5, &
-       imass = 6, &
-       igradT = 7, &
-       ispec = 8
-  integer, parameter :: nvar = igradT + nspec
-
-  real (kind=dp_t), save :: xmin, xmax, delx
+  integer, parameter :: nvar = igradr + nspec
 
   real (kind=dp_t) :: dens_zone, temp_zone, pres_zone, entropy, temp_min, temp_max
 
@@ -63,81 +97,46 @@ program init_1d
 
   real (kind=dp_t) :: central_density
 
-  real (kind=dp_t) :: p_want, drho, dtemp, gradP
+  real (kind=dp_t) :: p_want, drho, dtemp
 
-  real (kind=dp_t) :: g_zone, hse_error, ad_error, ad_tol, adiabatic_excess, err_min, err_max
+  real (kind=dp_t) :: g_zone, ad_error, ad_tol, adiabatic_excess, err_min, err_max
 
   real (kind=dp_t) :: max_hse_error, dpdr, rhog
-
-  real (kind=dp_t), parameter :: TOL = 1.d-10
-
-  integer, parameter :: MAX_ITER = 250, AD_ITER = 2500
 
   integer :: iter, iter_dens, status
 
   integer :: igood
-  real (kind=dp_t) :: slope
 
   logical :: converged_hse, converged_central_density, fluff, isentropic, print_n
 
   real (kind=dp_t) :: max_temp
 
-  integer :: index_hse_fluff
+  integer :: index_hse_fluff = 1
 
   real (kind=dp_t), dimension(nspec) :: xn
-
-  real (kind=dp_t), save :: low_density_cutoff, temp_fluff, temp_fluff_cutoff, smallx
-
-  integer, parameter :: MAX_VARNAME_LENGTH=80
-  integer :: npts_model, nvars_model_file, nparams_model
+  integer :: npts_model
 
   real(kind=dp_t), allocatable :: base_state(:,:), base_r(:), base_ener(:)
   real(kind=dp_t), allocatable :: base_ad(:), model_ad(:)
-  real(kind=dp_t), allocatable :: vars_stored(:), params_stored(:)
-  character(len=MAX_VARNAME_LENGTH), allocatable :: paramnames_stored(:)
   character(len=MAX_VARNAME_LENGTH), allocatable :: varnames_stored(:)
-  logical :: found
 
   integer :: ipos
-  character (len=5000) :: header_line, model_file, outfile
+  character (len=500) :: outfile, model_name
   character (len=8) num
 
   real(kind=dp_t) :: summ
 
   integer :: ibegin
   integer :: i_isentropic
-
-  real(kind=dp_t) :: anelastic_cutoff = 9.e4  ! this is for diagnostics only -- not used in the HSEing
   real(kind=dp_t) :: M_enclosed_anel
   real(kind=dp_t) :: grav_ener, M_center
   real(kind=dp_t) :: eint_hybrid
 
   type (eos_t) :: eos_state
 
-  smallx = 1.d-10
-
-  ! set the parameters
-  model_file = "18m_500_s_rot_b_eq_1.dat"
-
-  xmin = 0.d0
-  xmax = 1.d10
-
-  low_density_cutoff =1.d-7
-
-  ! temp_fluff_cutoff is the density below which we hold the temperature
-  ! constant for the MESA model
-
-  ! MAESTRO
-  ! temp_fluff_cutoff = 1.d-4
-
-  ! CASTRO
-  temp_fluff_cutoff = 2.d-7
-  temp_fluff = 1.d5
-
   ! this comes in via extern_probin_module -- override the default
   ! here if we want
   use_eos_coulomb = .true.
-
 
   ! initialize the EOS and network
   call eos_init()
@@ -160,7 +159,6 @@ program init_1d
   allocate(entropy_want(nx))
 
   ! compute the coordinates of the new gridded function
-  delx = (xmax - xmin) / dble(nx)
 
   do i = 1, nx
      xznl(i) = xmin + (dble(i) - 1.0d0)*delx
@@ -179,7 +177,7 @@ program init_1d
   varnames_stored(ientr) = "entropy"
   varnames_stored(isndspd) = "csound"
   varnames_stored(imass) = "mass"
-  varnames_stored(igradT) = "gradT"
+  varnames_stored(igradr) = "gradr"
 
   call read_mesa(model_file, base_state, base_r, varnames_stored, 7, npts_model)
 
@@ -880,8 +878,7 @@ program init_1d
   ! compute the conservative model
   !===========================================================================
 
-  print *, 'creating conservative model...'
-  print *, ' '
+  print *, 'creating mass conservative model...'
 
   allocate(model_conservative(nx,nvar+1))
 
@@ -1067,10 +1064,10 @@ program init_1d
      !    print *, "gradr = ", base_gradr(i), "drhodr = ", (base_state(i,idens) - base_state(i-1,idens)) / (base_r(i) - base_r(i-1))
      ! endif
 
-     ! base_ad(i) = base_gradT(i) / gradP * base_state(i, ipres) / base_state(i, itemp) - &
+     ! base_ad(i) = base_gradr(i) / gradP * base_state(i, ipres) / base_state(i, itemp) - &
      !      eos_state%dpde / base_state(i,idens) / eos_state%gam1
 
-     base_ad(i) = base_state(i, igradT) - eos_state%dpde / base_state(i,idens) / eos_state%gam1
+     base_ad(i) = base_state(i, igradr) - eos_state%dpde / base_state(i,idens) / eos_state%gam1
 
   enddo
 
@@ -1107,9 +1104,6 @@ program init_1d
              base_state(:,idens))
      endif
 
-     ! model_ad_excess(i,nvar+1) = centered_interpolate(xzn_hse(i), npts_model, &
-     !      base_r, base_m)
-
   enddo
 
   do i = 1, nx
@@ -1125,8 +1119,6 @@ program init_1d
      enddo
 
   enddo
-
-  ! print *, model_ad_excess(:, itemp)
 
 
   !-------------------
@@ -1200,8 +1192,8 @@ program init_1d
 
      enddo
 
-     temp_min = temp_zone!model_ad_excess(i-1,itemp)
-     temp_max = temp_zone!model_ad_excess(i-1,itemp)
+     temp_min = temp_zone
+     temp_max = temp_zone
      err_min = 1.0d0
      err_max = 1.0d0
      ad_tol = 1.d-10
@@ -1247,10 +1239,10 @@ program init_1d
 
      print_n = .FALSE.
 
-     if (n > 5) then
-        print *, 'err_min =' , err_min, "err_max = ", err_max, "n = ", n, "logR = ", log10(xzn_hse(i)/R_solar)
-        print_n = .TRUE.
-     endif
+     ! if (n > 5) then
+     !    print *, 'err_min =' , err_min, "err_max = ", err_max, "n = ", n, "logR = ", log10(xzn_hse(i)/R_solar)
+     !    print_n = .TRUE.
+     ! endif
 
      if (err_min * err_max > 0.0d0) then
 
@@ -1365,10 +1357,16 @@ program init_1d
 
         ! enddo
 
-        if (print_n) then
-           print *, "error = ", ad_error, "rel_err = ", ad_error / model_ad(i), "n = ", n, "logR = ", log10(xzn_hse(i)/R_solar)
-        endif
+        ! if (print_n) then
+        !    print *, "error = ", ad_error, "rel_err = ", ad_error / model_ad(i), "n = ", n, "logR = ", log10(xzn_hse(i)/R_solar)
+        ! endif
      endif
+
+     ! if (abs(temp_zone - model_mesa_hse(i,itemp)) / model_mesa_hse(i,itemp) > 1.d-1) then
+     !    temp_zone = model_mesa_hse(i,itemp)
+     !    ! print *, "temp_ad = ", temp_zone, "temp_hse = ", model_mesa_hse(i,itemp), &
+     !    !      "rel_err = ", abs(temp_zone - model_mesa_hse(i,itemp)) / model_mesa_hse(i,itemp)
+     ! endif
 
      !------------------------
      ! Now do HSE
@@ -1424,11 +1422,9 @@ program init_1d
      eos_state%rho   = dens_zone
      eos_state%xn(:) = xn(:)
 
-     call eos(eos_input_rp, eos_state)
+     call eos(eos_input_rt, eos_state)
 
      pres_zone = eos_state%p
-
-     temp_zone = eos_state%T
 
      ! update the thermodynamics in this zone
      ! model_conservative(i,idens) = dens_zone
@@ -1445,7 +1441,7 @@ program init_1d
 
   enddo
 
-  deallocate(base_ad, model_ad)!, base_gradT, base_gradr)
+  deallocate(base_ad, model_ad)
 
 
   !===========================================================================
@@ -1456,39 +1452,9 @@ program init_1d
   ! MESA model
   !---------------------------------------------------------------------------
 
-  ipos = index(model_file, '.dat')
-  outfile = model_file(1:ipos-1) // '.hse'
+  model_name = 'hse'
 
-  write(num,'(i8)') nx
-
-  outfile = trim(outfile) // '.' // trim(adjustl(num))
-
-  print *, 'writing HSE MESA model to ', trim(outfile)
-
-  open (unit=50, file=outfile, status="unknown")
-
-  write (50,1001) "# npts = ", nx
-  write (50,1001) "# num of variables = ", 3 + nspec
-  write (50,1002) "# density"
-  write (50,1002) "# temperature"
-  write (50,1002) "# pressure"
-
-  do n = 1, nspec
-     write (50,1003) "# ", spec_names(n)
-  enddo
-
-1001 format(a, i5)
-1002 format(a)
-1003 format(a,a)
-
-  do i = 1, nx
-
-     write (50,1000) xzn_hse(i), model_mesa_hse(i,idens), model_mesa_hse(i,itemp), model_mesa_hse(i,ipres), &
-          (model_mesa_hse(i,ispec-1+n), n=1,nspec)
-
-  enddo
-
-  close (unit=50)
+  call write_model(model_name, model_hybrid_hse)
 
   ! compute the enclosed mass
   M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_mesa_hse(1,idens)
@@ -1521,26 +1487,9 @@ program init_1d
   ! isentropic model
   !---------------------------------------------------------------------------
 
-  ipos = index(model_file, '.dat')
-  outfile = model_file(1:ipos-1) // '.isentropic.hse'
+  model_name = 'isentropic.hse'
 
-  write(num,'(i8)') nx
-
-  outfile = trim(outfile) // '.' // trim(adjustl(num))
-
-  print *, 'writing HSE isentropic model to ', trim(outfile)
-
-  open (unit=50, file=outfile, status="unknown")
-
-  write (50,1001) "# npts = ", nx
-  write (50,1001) "# num of variables = ", 3 + nspec
-  write (50,1002) "# density"
-  write (50,1002) "# temperature"
-  write (50,1002) "# pressure"
-
-  do n = 1, nspec
-     write (50,1003) "# ", spec_names(n)
-  enddo
+  call write_model(model_name, model_isentropic_hse)
 
   do i = 1, nx
 
@@ -1584,35 +1533,9 @@ program init_1d
   ! hybrid model
   !---------------------------------------------------------------------------
 
-  ipos = index(model_file, '.dat')
-  outfile = model_file(1:ipos-1) // '.hybrid.hse'
+  model_name = 'hybrid.hse'
 
-  write(num,'(i8)') nx
-
-  outfile = trim(outfile) // '.' // trim(adjustl(num))
-
-  print *, 'writing HSE hybrid model to ', trim(outfile)
-
-  open (unit=50, file=outfile, status="unknown")
-
-  write (50,1001) "# npts = ", nx
-  write (50,1001) "# num of variables = ", 3 + nspec
-  write (50,1002) "# density"
-  write (50,1002) "# temperature"
-  write (50,1002) "# pressure"
-
-  do n = 1, nspec
-     write (50,1003) "# ", spec_names(n)
-  enddo
-
-  do i = 1, nx
-
-     write (50,1000) xzn_hse(i), model_hybrid_hse(i,idens), model_hybrid_hse(i,itemp), model_hybrid_hse(i,ipres), &
-          (model_hybrid_hse(i,ispec-1+n), n=1,nspec)
-
-  enddo
-
-  close (unit=50)
+  call write_model(model_name, model_hybrid_hse)
 
   ! compute the enclosed mass
   M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_hybrid_hse(1,idens)
@@ -1649,7 +1572,7 @@ program init_1d
   print *, 'maximum HSE error = ', max_hse_error
 
   ! output the entropy
-
+  ipos = index(model_file, '.dat')
   outfile = model_file(1:ipos-1) // '.entropy'
   outfile = trim(outfile) // '.' // trim(adjustl(num))
 
@@ -1711,102 +1634,20 @@ program init_1d
   ! conservative model
   !---------------------------------------------------------------------------
 
-  ipos = index(model_file, '.dat')
-  outfile = model_file(1:ipos-1) // '.conservative'
+  model_name = 'conservative'
 
-  write(num,'(i8)') npts_model
+  call write_model(model_name, model_conservative)
 
-  outfile = trim(outfile) // '.' // trim(adjustl(num))
-
-  print *, 'writing conservative model to ', trim(outfile)
-
-  open (unit=50, file=outfile, status="unknown")
-
-  write (50,1001) "# npts = ", nx !npts_model
-  write (50,1001) "# num of variables = ", 3 + nspec + 1
-  write (50,1002) "# density"
-  write (50,1002) "# temperature"
-  write (50,1002) "# pressure"
-
-  do n = 1, nspec
-     write (50,1003) "# ", spec_names(n)
-  enddo
-
-  write (50,1002) "# mass"
-
-  do i = 1, nx
-
-     write (50,1000) xzn_hse(i), model_conservative(i,idens), model_conservative(i,itemp), model_conservative(i,ipres), &
-          (model_conservative(i,ispec-1+n), n=1,nspec), model_conservative(i,nvar+1)
-
-  enddo
-
-  close (unit=50)
+  print *, ' '
 
 
   !---------------------------------------------------------------------------
-  ! conservative model
+  ! adiabatic excess model
   !---------------------------------------------------------------------------
 
-  ipos = index(model_file, '.dat')
-  outfile = model_file(1:ipos-1) // '.adiabatic'
+  model_name = 'adiabatic'
 
-  write(num,'(i8)') npts_model
-
-  outfile = trim(outfile) // '.' // trim(adjustl(num))
-
-  print *, 'writing conserved adiabatic excess model to ', trim(outfile)
-
-  open (unit=50, file=outfile, status="unknown")
-
-  write (50,1001) "# npts = ", nx !npts_model
-  write (50,1001) "# num of variables = ", 3 + nspec
-  write (50,1002) "# density"
-  write (50,1002) "# temperature"
-  write (50,1002) "# pressure"
-
-  do n = 1, nspec
-     write (50,1003) "# ", spec_names(n)
-  enddo
-
-  write (50,1002) "# mass"
-
-  do i = 1, nx
-
-     write (50,1000) xzn_hse(i), model_ad_excess(i,idens), model_ad_excess(i,itemp), model_ad_excess(i,ipres), &
-          (model_ad_excess(i,ispec-1+n), n=1,nspec)
-
-  enddo
-
-  close (unit=50)
-
-  ! ! compute the enclosed mass
-  ! M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_conservative(1,idens)
-  !
-  ! do i = 2, nx
-  !    M_enclosed(i) = M_enclosed(i-1) + &
-  !         FOUR3RD*M_PI*(xznr(i) - xznl(i)) * &
-  !         (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_conservative(i,idens)
-  ! enddo
-  !
-  ! print *, 'summ mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
-
-
-  ! ! compute the maximum HSE error
-  ! max_hse_error = -1.d30
-  !
-  ! do i = 2, nx-1
-  !    g_zone = -Gconst*M_enclosed(i-1)/xznr(i-1)**2
-  !    dpdr = (model_conservative(i,ipres) - model_conservative(i-1,ipres))/delx
-  !    rhog = HALF*(model_conservative(i,idens) + model_conservative(i-1,idens))*g_zone
-  !
-  !    if (dpdr /= ZERO .and. model_conservative(i+1,idens) > low_density_cutoff) then
-  !       max_hse_error = max(max_hse_error, abs(dpdr - rhog)/abs(dpdr))
-  !    endif
-  ! enddo
-  !
-  ! print *, 'maximum HSE error = ', max_hse_error
-  ! print *, ' '
+  call write_model(model_name, model_ad_excess)
 
 contains
 
@@ -2020,5 +1861,56 @@ contains
     end if
 
   end subroutine locate_sub
+
+  subroutine write_model(model_name, model_state)
+
+    use model_params
+
+    implicit none
+
+    character (len=100), intent(in) :: model_name
+    ! integer, intent(in) :: nx, nvar
+    real(kind=dp_t), intent(in) :: model_state(nx, nvar)
+
+    character(len=100) :: outfile
+    integer :: ipos
+
+1000 format (1x, 30(g26.16, 1x))
+1001 format(a, i5)
+1002 format(a)
+1003 format(a,a)
+
+    ipos = index(model_file, '.dat')
+    outfile = model_file(1:ipos-1) // '.' // trim(adjustl(model_name))
+
+    write(num,'(i8)') nx
+
+    outfile = trim(outfile) // '.' // trim(adjustl(num))
+
+    print *, 'writing ', trim(adjustl(model_name)), ' model to ', trim(outfile)
+
+    open (unit=50, file=outfile, status="unknown")
+
+    write (50,1001) "# npts = ", nx
+    write (50,1001) "# num of variables = ", 3 + nspec
+    write (50,1002) "# density"
+    write (50,1002) "# temperature"
+    write (50,1002) "# pressure"
+
+    do n = 1, nspec
+       write (50,1003) "# ", spec_names(n)
+    enddo
+
+    do i = 1, nx
+
+       write (50,1000) xzn_hse(i), model_state(i,idens), model_state(i,itemp), &
+            model_state(i,ipres), (model_state(i,ispec-1+n), n=1,nspec)
+
+    enddo
+
+    close (unit=50)
+
+
+  end subroutine write_model
 
 end program init_1d
