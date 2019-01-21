@@ -36,7 +36,7 @@ program init_1d
   real (kind=dp_t), allocatable :: model_hybrid_hse(:,:)
   real (kind=dp_t), allocatable :: entropy_want(:)
 
-  integer, parameter :: nx = 1280
+  integer, parameter :: nx = 2560
 
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 5 + nspec
@@ -100,7 +100,7 @@ program init_1d
   integer :: i_isentropic
 
   !  real(kind=dp_t), parameter :: M_solar = 1.98892d33
-  real(kind=dp_t) :: anelastic_cutoff = 3.e6  ! this is for diagnostics only -- not used in the HSEing
+  real(kind=dp_t) :: anelastic_cutoff = 1.e6  ! this is for diagnostics only -- not used in the HSEing
   real(kind=dp_t) :: M_enclosed_anel
   real(kind=dp_t) :: grav_ener, M_center
   real(kind=dp_t) :: eint_hybrid
@@ -113,7 +113,7 @@ program init_1d
   model_file = "kepler_xinlong_ONe6040-final.raw"
 
   xmin = 0_dp_t
-  xmax = 5.d8
+  xmax = 1.5d8
 
   low_density_cutoff =1.d-4
 
@@ -121,10 +121,10 @@ program init_1d
   ! constant for the kepler model
 
   ! MAESTRO
-  ! temp_fluff_cutoff = 1.d-4
+  temp_fluff_cutoff = 1.d0
 
   ! CASTRO
-  temp_fluff_cutoff = 1.d3
+  ! temp_fluff_cutoff = 1.d3
 
   temp_fluff = 5.d6
 
