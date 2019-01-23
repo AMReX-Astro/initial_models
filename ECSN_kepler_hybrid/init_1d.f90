@@ -36,7 +36,7 @@ program init_1d
   real (kind=dp_t), allocatable :: model_hybrid_hse(:,:)
   real (kind=dp_t), allocatable :: entropy_want(:)
 
-  integer, parameter :: nx = 2560
+  integer, parameter :: nx = 20480
 
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 5 + nspec
@@ -113,7 +113,7 @@ program init_1d
   model_file = "kepler_xinlong_ONe6040-final.raw"
 
   xmin = 0_dp_t
-  xmax = 1.5d8
+  xmax = 2.5d8
 
   low_density_cutoff =1.d-4
 
