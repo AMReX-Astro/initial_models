@@ -11,8 +11,8 @@ MKVERBOSE := t
 # EOS and network
 EOS_DIR := helmholtz
 
-NETWORK_DIR := ECSN_net
-GENERAL_NET_INPUTS := $(MICROPHYSICS_HOME)/networks/$(NETWORK_DIR)/ignition_wdconvect.net
+NETWORK_DIR := general_null
+GENERAL_NET_INPUTS := $(MICROPHYSICS_HOME)/networks/$(NETWORK_DIR)/ECSN.net
 
 
 # the local sources needed to build the initial model generator
