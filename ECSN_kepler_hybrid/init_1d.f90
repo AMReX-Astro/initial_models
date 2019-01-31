@@ -36,7 +36,7 @@ program init_1d
   real (kind=dp_t), allocatable :: model_hybrid_hse(:,:)
   real (kind=dp_t), allocatable :: entropy_want(:)
 
-  integer, parameter :: nx = 20480
+  integer, parameter :: nx = 5120
 
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 5 + nspec
@@ -114,6 +114,7 @@ program init_1d
 
   xmin = 0_dp_t
   xmax = 2.5d8
+
 
   low_density_cutoff =1.d-4
 
@@ -373,22 +374,32 @@ program init_1d
 
   do iter_dens = 1, max_iter
 
+     print*, "iter_dens =", iter_dens
      ! compute the enclosed mass
      M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_kepler_hse(1,idens)
 
      do i = 2, ibegin
+        print*, "go into the loop: do i = 2, ibegin"
         M_enclosed(i) = M_enclosed(i-1) + &
              FOUR3RD*M_PI*(xznr(i) - xznl(i)) * &
              (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_kepler_hse(i,idens)
      enddo
 
+     print*, eos_state%p
+     print*, model_kepler_hse(1,ipres)
 
      ! now start at ibegin and integrate inward
      eos_state%T     = model_kepler_hse(ibegin,itemp)
      eos_state%rho   = model_kepler_hse(ibegin,idens)
      eos_state%xn(:) = model_kepler_hse(ibegin,ispec:nvar)
 
+     print*, eos_state%p
+     print*, model_kepler_hse(1,ipres)
+
      call eos(eos_input_rt, eos_state)
+
+     print*, eos_state%p
+     print*, model_kepler_hse(1,ipres)
 
      model_kepler_hse(ibegin,ipres) = eos_state%p
      model_kepler_hse(ibegin,ientr) = eos_state%s
@@ -398,9 +409,12 @@ program init_1d
      entropy_want(:) = eos_state%s
 
 
+     print*, eos_state%p
+     print*, model_kepler_hse(1,ipres)
+
      do i = ibegin-1, 1, -1
 
-
+        print*, "go into loop: do i = ibegin-1, 1, -1"
         ! as the initial guess for the temperature and density, use
         ! the previous zone
         dens_zone = model_kepler_hse(i+1,idens)
