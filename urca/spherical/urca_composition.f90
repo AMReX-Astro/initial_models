@@ -205,7 +205,7 @@ contains
     use bl_constants_module, only: ZERO, HALF, ONE
     use bl_error_module,  only: bl_error
     use network
-    use actual_network, only: k_na23_ne23, k_ne23_na23
+    use actual_network, only: k_na23__ne23, k_ne23__na23
     use actual_rhs_module, only: rate_eval_t, evaluate_rates
     use eos_type_module, only: eos_t, composition
     use burn_type_module, only: burn_t, eos_to_burn
@@ -241,8 +241,8 @@ contains
     call eos_to_burn(eos_state, burn_state)
     call evaluate_rates(burn_state, rate_eval)
 
-    r_ecap = rate_eval % screened_rates(k_na23_ne23)
-    r_beta = rate_eval % screened_rates(k_ne23_na23)
+    r_ecap = rate_eval % screened_rates(k_na23__ne23)
+    r_beta = rate_eval % screened_rates(k_ne23__na23)
 
     eos_state % xn(ine23) = na_ne_23/(ONE + r_beta/r_ecap)
     eos_state % xn(ina23) = na_ne_23 - eos_state % xn(ine23)
@@ -281,7 +281,7 @@ contains
     use bl_constants_module, only: HALF
     use eos_type_module, only: eos_t, composition
     use network
-    use actual_network, only: k_na23_ne23, k_ne23_na23
+    use actual_network, only: k_na23__ne23, k_ne23__na23
     use actual_rhs_module, only: rate_eval_t, evaluate_rates
     use burn_type_module, only: burn_t, eos_to_burn
 
@@ -301,8 +301,8 @@ contains
     call eos_to_burn(eos_state, burn_state)
     call evaluate_rates(burn_state, rate_eval)
 
-    r_ecap = rate_eval % screened_rates(k_na23_ne23)
-    r_beta = rate_eval % screened_rates(k_ne23_na23)
+    r_ecap = rate_eval % screened_rates(k_na23__ne23)
+    r_beta = rate_eval % screened_rates(k_ne23__na23)
 
     xr_ecap = burn_state % xn(ina23) * r_ecap
     xr_beta = burn_state % xn(ine23) * r_beta
