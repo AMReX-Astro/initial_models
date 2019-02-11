@@ -18,6 +18,7 @@ module model_params
   !! Set up the model parameters
 
   use bl_types
+  use network
 
   integer, parameter :: nx = 6144
 
@@ -29,7 +30,9 @@ module model_params
        isndspd = 5, &
        imass = 6, &
        igradr = 7, &
-       ispec = 8
+       igrav = 8, &
+       ibrunt = 9, &
+       ispec = 10
 
   real (kind=dp_t), parameter :: TOL = 1.d-10
 
@@ -56,6 +59,10 @@ module model_params
   ! CASTRO
   real (kind=dp_t), save :: temp_fluff_cutoff = 2.d-7
   real (kind=dp_t), save :: temp_fluff = 1.d5
+
+  character(len=MAX_VARNAME_LENGTH), allocatable :: varnames_stored(:)
+
+  integer, parameter :: nvar = ispec - 1 + nspec
 
 end module model_params
 
@@ -85,10 +92,9 @@ program init_1d
   real (kind=dp_t), allocatable :: model_conservative(:,:)
   real (kind=dp_t), allocatable :: model_convective(:,:)
   real (kind=dp_t), allocatable :: model_ad_excess(:,:)
+  real (kind=dp_t), allocatable :: model_ledoux(:,:)
   real (kind=dp_t), allocatable :: entropy_want(:)
   real (kind=dp_t), allocatable :: model_ener(:)
-
-  integer, parameter :: nvar = igradr + nspec
 
   real (kind=dp_t) :: dens_zone, temp_zone, pres_zone, entropy, temp_min, temp_max
 
@@ -97,7 +103,7 @@ program init_1d
 
   real (kind=dp_t) :: central_density
 
-  real (kind=dp_t) :: p_want, drho, dtemp
+  real (kind=dp_t) :: p_want, drho, dtemp, chiT, chirho, p_old, eos_p_old,  ledoux
 
   real (kind=dp_t) :: g_zone, ad_error, ad_tol, adiabatic_excess, err_min, err_max
 
@@ -118,7 +124,7 @@ program init_1d
 
   real(kind=dp_t), allocatable :: base_state(:,:), base_r(:), base_ener(:)
   real(kind=dp_t), allocatable :: base_ad(:), model_ad(:)
-  character(len=MAX_VARNAME_LENGTH), allocatable :: varnames_stored(:)
+  real(kind=dp_t), allocatable :: base_led(:), model_led(:)
 
   integer :: ipos
   character (len=500) :: outfile, model_name
@@ -170,16 +176,18 @@ program init_1d
   ! read in the MESA model
   !===========================================================================
 
-  allocate(varnames_stored(7))
+  allocate(varnames_stored(nvar-nspec))
   varnames_stored(idens) = "rho"
   varnames_stored(itemp) = "temperature"
   varnames_stored(ipres) = "pressure"
   varnames_stored(ientr) = "entropy"
   varnames_stored(isndspd) = "csound"
   varnames_stored(imass) = "mass"
-  varnames_stored(igradr) = "gradr"
+  varnames_stored(igradr) = "gradT"
+  varnames_stored(igrav) = "grav"
+  varnames_stored(ibrunt) = "brunt_N2"
 
-  call read_mesa(model_file, base_state, base_r, varnames_stored, 7, npts_model)
+  call read_mesa(model_file, base_state, base_r, varnames_stored, nvar-nspec, npts_model)
 
   !===========================================================================
   ! put the model onto our new uniform grid
@@ -1073,8 +1081,6 @@ program init_1d
 
   do i = 1, nx
 
-     model_ad_excess(i,n) = model_mesa_hse(i,n)
-
      call conservative_interpolate(model_ad(i), xzn_hse(i),npts_model,base_r, base_ad, delx, status)
 
      if (model_ad(i) /= model_ad(i) .or. (status .eq. 1)) then
@@ -1441,7 +1447,518 @@ program init_1d
 
   enddo
 
-  deallocate(base_ad, model_ad)
+  deallocate(base_ad)
+
+  !===========================================================================
+  ! compute the Ledoux model
+  !===========================================================================
+
+  print *, 'creating ledoux model...'
+  print *, ' '
+
+  allocate(model_ledoux(nx,nvar))
+
+  model_ledoux(:,:) = model_mesa_hse(:,:)
+
+  allocate(base_led(npts_model))
+  allocate(model_led(nx))
+
+  low_density_cutoff =1.d-8
+  temp_fluff_cutoff = 2.d-8
+  temp_fluff = 1.d4
+
+  eos_state%rho = base_state(1,idens)
+  eos_state%T = base_state(1,itemp)
+  eos_state%xn(:) = base_state(1,ispec:ispec-1+nspec)
+
+  call eos(eos_input_rt, eos_state)
+
+  p_old = base_state(1,ipres)
+  eos_p_old = eos_state%p
+
+  ! first calculate N**2 in the model
+  do i = 2, npts_model-1
+
+     eos_state%rho = base_state(i,idens)
+     eos_state%T = base_state(i,itemp)
+     eos_state%xn(:) = base_state(i,ispec:ispec-1+nspec)
+
+     call eos(eos_input_rt, eos_state)
+
+     chiT = eos_state%T / eos_state%p * eos_state%dpdT
+     chirho = eos_state%rho / eos_state%p * eos_state%dpdr
+
+     ! base_led(i) = base_state(i,igrav)**2 * eos_state%rho / eos_state%p * chiT / chirho * &
+     !      (-base_state(i, igradr) + eos_state%dpde / base_state(i,idens) / eos_state%gam1 - &
+     !      1 / chiT *(log(eos_state%p) - log(eos_p_old)) / (log(base_state(i,ipres)) - log(p_old)))
+
+     base_led(i) = base_state(i,igrav)**2 * eos_state%rho / eos_state%p * chiT / chirho * &
+          (-(log(base_state(i+1,itemp)) - log(base_state(i, itemp))) /&
+          (log(base_state(i+1,ipres)) - log(base_state(i, ipres))) + &
+          eos_state%dpde / base_state(i,idens) / eos_state%gam1 - &
+          1 / chiT *(log(eos_state%p) - log(eos_p_old)) / (log(base_state(i,ipres)) - log(p_old)))
+
+     ! print *, "base_led = ", base_led(i), "N**2 = ", base_state(i, ibrunt), "logR = ", log10(base_r(i)/R_solar)
+
+     p_old = base_state(i,ipres)
+     eos_p_old = eos_state%p
+
+  enddo
+
+  ! call exit(0)
+
+  do i = 1, nx
+
+     call conservative_interpolate(model_led(i), xzn_hse(i),npts_model,base_r, base_led, delx, status)
+
+     if (model_led(i) /= model_led(i) .or. (status .eq. 1)) then
+        print *, "conservative interpolate of eden_model failed :("
+        model_led(i) = centered_interpolate(xzn_hse(i),npts_model,base_r,base_led)
+     endif
+
+     call conservative_interpolate(model_ledoux(i,igrav), xzn_hse(i),npts_model,base_r, base_state(:,igrav), delx, status)
+
+     do k = 1, nspec
+        call conservative_interpolate(model_ledoux(i,ispec-1+k),xzn_hse(i),npts_model,&
+             base_r,base_state(:,ispec-1+k)*base_state(:,idens), delx, status)
+
+        if (model_ledoux(i,ispec-1+k) < 0.0d0 .or. &
+             model_ledoux(i,ispec-1+k) /= model_ledoux(i,ispec-1+k) .or. &
+             (status .eq. 1)) then
+           print *, "conservative interpolate of X_i*dens_model failed :(", model_ledoux(i,ispec-1+k)
+           model_ledoux(i,ispec-1+k) = centered_interpolate(xzn_hse(i),npts_model,base_r,&
+                base_state(:,ispec-1+k)*base_state(:,idens))
+        endif
+     enddo
+
+     model_ledoux(i,idens) = sum(model_ledoux(i,ispec:ispec+nspec-1))
+
+     if (model_ledoux(i,idens) < 0.0d0 .or. &
+          model_ledoux(i,idens) /= model_ledoux(i,idens)) then
+        print *, "summming of species' partial densities failed"
+        model_ledoux(i,idens) = centered_interpolate(xzn_hse(i),npts_model,base_r,&
+             base_state(:,idens))
+     endif
+
+  enddo
+
+  do i = 1, nx
+
+     ! make sure that the species (mass fractions) sum to 1
+     summ = 0.0d0
+     do n = 1, nspec
+        summ = summ + model_ledoux(i,ispec+n-1)
+     enddo
+
+     do n = 1,nspec
+        model_ledoux(i,ispec+n-1) = max(smallx, model_ledoux(i,ispec+n-1)/summ)
+     enddo
+
+  enddo
+
+
+  !-------------------
+  ! Now do HSE
+  !--------------------
+
+  ! compute the enclosed mass
+  M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_ledoux(1,idens)
+
+  fluff = .FALSE.
+
+  do i = 2, nx
+
+     xn(:) = model_ledoux(i,ispec:ispec+nspec-1)
+
+     ! compute the gravitational acceleration on the interface between zones
+     ! i-1 and i
+     g_zone = -Gconst*M_enclosed(i-1)/(xznr(i-1)*xznr(i-1))
+
+     !-----------------------------------------------------------------------
+     ! iteration loop
+     !-----------------------------------------------------------------------
+
+     !------------------------
+     ! first try HSE
+     !-----------------------
+
+     converged_hse = .FALSE.
+     dens_zone = model_ledoux(i-1,idens)
+     temp_zone = model_ledoux(i-1,itemp)
+
+     do iter = 1, MAX_ITER
+
+        ! HSE differencing
+        p_want = model_ledoux(i-1,ipres) + &
+             delx*0.5d0*(dens_zone + model_ledoux(i-1,idens))*g_zone
+
+        ! if (model_ad_excess(i-1,idens) .lt. temp_fluff_cutoff) then
+        !    temp_zone = temp_fluff
+        ! end if
+
+        ! (t, rho) -> (p)
+        eos_state%T     = temp_zone
+        eos_state%rho   = dens_zone
+        eos_state%xn(:) = xn(:)
+
+        call eos(eos_input_rt, eos_state)
+
+        pres_zone = eos_state%p
+
+        dpd = eos_state%dpdr
+        drho = (p_want - pres_zone)/(dpd - 0.5d0*delx*g_zone)
+
+        dens_zone = max(0.9d0*dens_zone, &
+             min(dens_zone + drho, 1.1d0*dens_zone))
+
+        if (abs(drho) < TOL*dens_zone) then
+           converged_hse = .TRUE.
+           exit
+        endif
+
+        ! if (dens_zone < low_density_cutoff) then
+        !    dens_zone = low_density_cutoff
+        !    temp_zone = temp_fluff
+        !    converged_hse = .TRUE.
+        !    fluff = .TRUE.
+        !    index_hse_fluff = i
+        !    exit
+        !
+        ! endif
+
+     enddo
+
+     temp_min = temp_zone
+     temp_max = temp_zone
+     err_min = 1.0d0
+     err_max = 1.0d0
+     ad_tol = 1.d-10
+
+     n = 0
+
+     eos_state%rho = model_ledoux(i-1,idens)
+     eos_state%T = model_ledoux(i-1,itemp)
+     eos_state%xn(:) = model_ledoux(i-1,ispec:ispec-1+nspec)
+
+     call eos(eos_input_rt, eos_state)
+
+     p_old = model_ledoux(i-1,ipres)
+     eos_p_old = eos_state%p
+
+     do while (err_min * err_max > 0.0d0 .and. n < 10)
+
+        temp_min = temp_min * 0.99d0
+        temp_max = temp_max * 1.01d0
+
+        eos_state%T = temp_min
+        eos_state%rho = dens_zone
+        eos_state%xn = xn(:)
+
+        call eos(eos_input_rt, eos_state)
+
+        pres_zone = eos_state%p
+
+        chiT = eos_state%T / eos_state%p * eos_state%dpdT
+        chirho = eos_state%rho / eos_state%p * eos_state%dpdr
+
+        if (model_led(i) > 0.0d0) then
+
+           ledoux = model_ledoux(i,igrav)**2 * eos_state%rho / eos_state%p * chiT / chirho * &
+                (-(temp_min - model_ledoux(i-1,itemp)) / &
+                (pres_zone - model_ledoux(i-1,ipres)) * pres_zone / temp_min + &
+                eos_state%dpde / model_ledoux(i,idens) / eos_state%gam1 - &
+                1 / chiT *(log(eos_state%p) - log(eos_p_old)) / (log(model_ledoux(i,ipres)) - log(p_old)))
+
+           err_min =  model_led(i) - ledoux
+        else
+
+           adiabatic_excess = (temp_min - model_ad_excess(i-1,itemp)) / &
+                (pres_zone - model_ad_excess(i-1,ipres)) * pres_zone / temp_min - &
+                eos_state%dpde / dens_zone / eos_state%gam1
+
+           err_min = model_ad(i) - adiabatic_excess
+        endif
+
+
+        eos_state%T = temp_max
+        eos_state%rho = dens_zone
+        eos_state%xn = xn(:)
+
+        call eos(eos_input_rt, eos_state)
+
+        pres_zone = eos_state%p
+
+        chiT = eos_state%T / eos_state%p * eos_state%dpdT
+        chirho = eos_state%rho / eos_state%p * eos_state%dpdr
+
+        if (model_led(i) > 0.0d0) then
+
+           ledoux = model_ledoux(i,igrav)**2 * eos_state%rho / eos_state%p * chiT / chirho * &
+                (-(temp_max - model_ledoux(i-1,itemp)) / &
+                (pres_zone - model_ledoux(i-1,ipres)) * pres_zone / temp_max + &
+                eos_state%dpde / model_ledoux(i,idens) / eos_state%gam1 - &
+                1 / chiT *(log(eos_state%p) - log(eos_p_old)) / (log(model_ledoux(i,ipres)) - log(p_old)))
+
+           err_max = model_led(i) - ledoux
+        else
+
+           adiabatic_excess = (temp_max - model_ad_excess(i-1,itemp)) / &
+                (pres_zone - model_ad_excess(i-1,ipres)) * pres_zone / temp_max - &
+                eos_state%dpde / dens_zone / eos_state%gam1
+
+           err_max = model_ad(i) - adiabatic_excess
+        endif
+
+        n = n + 1
+
+     enddo
+
+     print_n = .FALSE.
+
+     if (n > 5) then
+        print *, 'err_min =' , err_min, "err_max = ", err_max, "n = ", n, "logR = ", log10(xzn_hse(i)/R_solar)
+        print_n = .TRUE.
+     endif
+
+     ! call exit(0)
+
+     if (err_min * err_max > 0.0d0) then
+
+        ! set temperature to the one that minimises the error
+        temp_zone = model_mesa_hse(i,itemp)
+
+        eos_state%T = temp_max
+        eos_state%rho = dens_zone
+        eos_state%xn = xn(:)
+
+        call eos(eos_input_rt, eos_state)
+
+        pres_zone = eos_state%p
+
+        chiT = eos_state%T / eos_state%p * eos_state%dpdT
+        chirho = eos_state%rho / eos_state%p * eos_state%dpdr
+
+        if (model_led(i) > 0.0d0) then
+
+           ledoux = model_ledoux(i,igrav)**2 * eos_state%rho / eos_state%p * chiT / chirho * &
+                (-(temp_max - model_ledoux(i-1,itemp)) / &
+                (pres_zone - model_ledoux(i-1,ipres)) * pres_zone / temp_max + &
+                eos_state%dpde / model_ledoux(i,idens) / eos_state%gam1 - &
+                1 / chiT *(log(eos_state%p) - log(eos_p_old)) / (log(model_ledoux(i,ipres)) - log(p_old)))
+
+           ad_error = model_led(i) - ledoux
+        else
+
+           adiabatic_excess = (temp_max - model_ad_excess(i-1,itemp)) / &
+                (pres_zone - model_ad_excess(i-1,ipres)) * pres_zone / temp_max - &
+                eos_state%dpde / dens_zone / eos_state%gam1
+
+           ad_error = model_ad(i) - adiabatic_excess
+        endif
+
+        if (err_min < ad_error .and. err_min < err_max) then
+           temp_zone = temp_min
+        else if (err_max < ad_error) then
+           temp_zone = temp_max
+        endif
+
+        dens_zone = model_mesa_hse(i, idens)
+
+        eos_state%T = temp_zone
+        eos_state%rho = dens_zone
+        eos_state%xn = xn(:)
+
+        call eos(eos_input_rt, eos_state)
+
+        pres_zone = eos_state%p
+
+        p_want = model_ledoux(i-1,ipres) + &
+             delx*0.5d0*(dens_zone + model_ledoux(i-1,idens))*g_zone
+     else
+
+        n = 0
+        ad_error = 1.0d0
+
+        do while (abs(ad_error) > ad_tol .and. n < AD_ITER)
+
+           temp_zone = 0.5d0 * (temp_min + temp_max)
+
+           ! HSE differencing
+           p_want = model_ledoux(i-1,ipres) + &
+                delx*0.5d0*(dens_zone + model_ledoux(i-1,idens))*g_zone
+
+           eos_state%T = temp_zone
+           eos_state%rho = dens_zone
+           eos_state%xn = xn(:)
+
+           call eos(eos_input_rt, eos_state)
+
+           pres_zone = eos_state%p
+
+           if (temp_zone .eq. 0.0d0 .or. dens_zone .eq. 0.0d0) then
+              print *, "temp_zone =", temp_zone, "dens_zone =", dens_zone
+           endif
+
+           if (abs(pres_zone - model_ledoux(i-1,ipres) ) < 1e-12) then
+
+              if (model_led(i) > 0.0d0) then
+                 chiT = eos_state%T / eos_state%p * eos_state%dpdT
+                 chirho = eos_state%rho / eos_state%p * eos_state%dpdr
+
+                 ledoux = model_ledoux(i,igrav)**2 * eos_state%rho / eos_state%p * chiT / chirho * &
+                      (-(temp_zone - model_ledoux(i-1,itemp)) / &
+                      smallx * pres_zone / temp_zone + eos_state%dpde / model_ledoux(i,idens) / eos_state%gam1 - &
+                      1 / chiT *(log(eos_state%p) - log(eos_p_old)) / (log(model_ledoux(i,ipres)) - log(p_old)))
+
+                 ad_error =  model_led(i) - ledoux
+              else
+
+                 adiabatic_excess = (temp_zone - model_ad_excess(i-1,itemp)) / &
+                      smallx * pres_zone / temp_zone - &
+                      eos_state%dpde / dens_zone / eos_state%gam1
+
+                 ad_error = model_ad(i) - adiabatic_excess
+              endif
+
+              ! print *, "hack"
+
+           else
+
+              if (model_led(i) > 0.0d0) then
+
+                 chiT = eos_state%T / eos_state%p * eos_state%dpdT
+                 chirho = eos_state%rho / eos_state%p * eos_state%dpdr
+
+                 ledoux = model_ledoux(i,igrav)**2 * eos_state%rho / eos_state%p * chiT / chirho * &
+                      (-(temp_zone - model_ledoux(i-1,itemp)) / &
+                      (pres_zone - model_ledoux(i-1,ipres)) * pres_zone / temp_zone +&
+                      eos_state%dpde / model_ledoux(i,idens) / eos_state%gam1 - &
+                      1 / chiT *(log(eos_state%p) - log(eos_p_old)) / (log(model_ledoux(i,ipres)) - log(p_old)))
+              else
+
+                 adiabatic_excess = (temp_zone - model_ad_excess(i-1,itemp)) / &
+                      (pres_zone - model_ad_excess(i-1,ipres)) * pres_zone / temp_zone - &
+                      eos_state%dpde / dens_zone / eos_state%gam1
+
+                 ad_error = model_ad(i) - adiabatic_excess
+              endif
+           endif
+
+           ! print * , adiabatic_excess, model_ad(i)
+
+           if (err_min * ad_error < 0) then
+              temp_max = temp_zone
+           else
+              temp_min = temp_zone
+           endif
+
+           n = n + 1
+
+        enddo
+
+        if (abs(ad_error) > ad_tol) then
+           temp_zone = model_mesa_hse(i,itemp)
+           dens_zone = model_mesa_hse(i, idens)
+
+           eos_state%T = temp_zone
+           eos_state%rho = dens_zone
+           eos_state%xn = xn(:)
+
+           call eos(eos_input_rt, eos_state)
+
+           pres_zone = eos_state%p
+
+           p_want = model_ledoux(i-1,ipres) + &
+                delx*0.5d0*(dens_zone + model_ledoux(i-1,idens))*g_zone
+        endif
+
+        ! enddo
+
+        ! if (print_n) then
+        !    print *, "error = ", ad_error, "rel_err = ", ad_error / model_ad(i), "n = ", n, "logR = ", log10(xzn_hse(i)/R_solar)
+        ! endif
+     endif
+
+     ! if (abs(temp_zone - model_mesa_hse(i,itemp)) / model_mesa_hse(i,itemp) > 1.d-1) then
+     !    temp_zone = model_mesa_hse(i,itemp)
+     !    ! print *, "temp_ad = ", temp_zone, "temp_hse = ", model_mesa_hse(i,itemp), &
+     !    !      "rel_err = ", abs(temp_zone - model_mesa_hse(i,itemp)) / model_mesa_hse(i,itemp)
+     ! endif
+
+     !------------------------
+     ! Now do HSE
+     !-----------------------
+
+     converged_hse = .FALSE.
+
+     do iter = 1, MAX_ITER
+
+        ! HSE differencing
+        p_want = model_ledoux(i-1,ipres) + &
+             delx*0.5d0*(dens_zone + model_ledoux(i-1,idens))*g_zone
+
+        ! if (model_ad_excess(i-1,idens) .lt. temp_fluff_cutoff) then
+        !    temp_zone = temp_fluff
+        ! end if
+
+        ! (t, rho) -> (p)
+        eos_state%T     = temp_zone
+        eos_state%rho   = dens_zone
+        eos_state%xn(:) = xn(:)
+
+        call eos(eos_input_rt, eos_state)
+
+        pres_zone = eos_state%p
+
+        dpd = eos_state%dpdr
+        drho = (p_want - pres_zone)/(dpd - 0.5d0*delx*g_zone)
+
+        dens_zone = max(0.9d0*dens_zone, &
+             min(dens_zone + drho, 1.1d0*dens_zone))
+
+        if (abs(drho) < TOL*dens_zone) then
+           converged_hse = .TRUE.
+           exit
+        endif
+
+        ! if (dens_zone < low_density_cutoff) then
+        !    dens_zone = low_density_cutoff
+        !    temp_zone = temp_fluff
+        !    converged_hse = .TRUE.
+        !    fluff = .TRUE.
+        !    index_hse_fluff = i
+        !    exit
+        !
+        ! endif
+
+     enddo
+
+     ! (t, rho) -> (p)
+     eos_state%T     = temp_zone
+     eos_state%p     = p_want
+     eos_state%rho   = dens_zone
+     eos_state%xn(:) = xn(:)
+
+     call eos(eos_input_rt, eos_state)
+
+     pres_zone = eos_state%p
+
+     ! update the thermodynamics in this zone
+     ! model_conservative(i,idens) = dens_zone
+     model_ledoux(i,itemp) = temp_zone
+     model_ledoux(i,ipres) = pres_zone
+     model_ledoux(i,ientr) = eos_state%s
+     model_ledoux(i,isndspd) = &
+          sqrt(eos_state%gam1*eos_state%p/eos_state%rho)
+     model_ledoux(i,ispec:ispec+nspec-1) = eos_state%xn
+
+     M_enclosed(i) = M_enclosed(i-1) + &
+          FOUR3RD*M_PI*(xznr(i) - xznl(i)) * &
+          (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_ledoux(i,idens)
+
+  enddo
+
+  deallocate(base_led, model_led, model_ad)
 
 
   !===========================================================================
@@ -1648,6 +2165,17 @@ program init_1d
   model_name = 'adiabatic'
 
   call write_model(model_name, model_ad_excess)
+
+  print *, ' '
+
+
+  !---------------------------------------------------------------------------
+  ! ledoux model
+  !---------------------------------------------------------------------------
+
+  model_name = 'ledoux'
+
+  call write_model(model_name, model_ledoux)
 
 contains
 
@@ -1863,6 +2391,8 @@ contains
   end subroutine locate_sub
 
   subroutine write_model(model_name, model_state)
+
+    !! Write data stored in `model_state` array to file
 
     use model_params
 
