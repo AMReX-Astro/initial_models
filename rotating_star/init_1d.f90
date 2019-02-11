@@ -916,7 +916,11 @@ program init_1d
 
   do i = 1, nx
 
-     model_conservative(i,n) = model_mesa_hse(i,n)
+     do n = 1, nvar
+
+        model_conservative(i,n) = model_mesa_hse(i,n)
+
+     enddo
 
      call conservative_interpolate(model_ener(i), xzn_hse(i),npts_model,base_r, base_ener, delx, status)
 
