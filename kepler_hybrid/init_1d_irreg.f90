@@ -1074,7 +1074,7 @@ program init_1d_irreg
      write (50,1003) "# ", spec_names(n)
   enddo
 
-1001 format(a, i5)
+1001 format(a, i6)
 1002 format(a)
 1003 format(a,a)
 
