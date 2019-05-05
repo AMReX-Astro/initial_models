@@ -36,7 +36,7 @@ program init_1d
   real (kind=dp_t), allocatable :: model_hybrid_hse(:,:)
   real (kind=dp_t), allocatable :: entropy_want(:)
 
-  integer, parameter :: nx = 5120
+  integer, parameter :: nx = 20480
 
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 5 + nspec
@@ -107,10 +107,10 @@ program init_1d
 
   type (eos_t) :: eos_state
 
-  smallx = 1.d-10
+  smallx = 1.d-20
 
   ! set the parameters
-  model_file = "kepler_xinlong_ONe6040-final.raw"
+  model_file = "ECSN-ONe6040-final.raw"
 
   xmin = 0_dp_t
   xmax = 2.5d8
