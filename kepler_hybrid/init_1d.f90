@@ -36,7 +36,7 @@ program init_1d
   real (kind=dp_t), allocatable :: model_hybrid_hse(:,:)
   real (kind=dp_t), allocatable :: entropy_want(:)
 
-  integer, parameter :: nx = 1280
+  integer, parameter :: nx = 2560
 
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 5 + nspec
@@ -99,7 +99,6 @@ program init_1d
   integer :: ibegin
   integer :: i_isentropic
 
-  real(kind=dp_t), parameter :: M_solar = 1.98892d33
   real(kind=dp_t) :: anelastic_cutoff = 3.e6  ! this is for diagnostics only -- not used in the HSEing
   real(kind=dp_t) :: M_enclosed_anel
   real(kind=dp_t) :: grav_ener, M_center

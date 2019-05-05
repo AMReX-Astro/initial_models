@@ -331,7 +331,7 @@ program init_1d
 
   open (unit=30, file="model.uniform", status="unknown")
 
-1000 format (1x, 12(g26.16, 1x))
+1000 format (1x, 15(g26.16, 1x))
 
   write (30,*) "# initial model just after putting onto a uniform grid"
 
