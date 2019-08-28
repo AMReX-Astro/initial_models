@@ -36,7 +36,7 @@ program init_1d
   real (kind=dp_t), allocatable :: model_hybrid_hse(:,:)
   real (kind=dp_t), allocatable :: entropy_want(:)
 
-  integer, parameter :: nx = 20480
+  integer, parameter :: nx = 102400
 
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 5 + nspec
@@ -107,13 +107,13 @@ program init_1d
 
   type (eos_t) :: eos_state
 
-  smallx = 1.d-20
+  smallx = 1.d-30
 
   ! set the parameters
   model_file = "ECSN-ONe6040-final.raw"
 
   xmin = 0_dp_t
-  xmax = 2.5d8
+  xmax = 2.d8
 
 
   low_density_cutoff =1.d-4
@@ -1058,7 +1058,7 @@ program init_1d
      write (50,1003) "# ", spec_names(n)
   enddo
 
-1001 format(a, i5)
+1001 format(a, i6)
 1002 format(a)
 1003 format(a,a)
 
