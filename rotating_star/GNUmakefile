@@ -1,6 +1,6 @@
 # Makefile for the init_1d initial model generator
 
-NDEBUG :=
+NDEBUG := t
 MPI    :=
 OMP    :=
 

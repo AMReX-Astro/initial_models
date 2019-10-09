@@ -177,7 +177,7 @@ contains
 
     enddo
 
-    print *, base_state(1,:)
+    ! print *, base_state(1,:)
 
     open (unit=50, file="model.orig", status="unknown")
 
