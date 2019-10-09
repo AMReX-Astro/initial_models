@@ -10,18 +10,31 @@ network_module = StarKillerMicrophysics.Network()
 # define some constants 
 Gconst = 6.67428e-8
 M_solar = 1.9884e33
+R_solar = 6.957e10
 
 class InitModel(object):
+    """
+    Take an initial model from a Lagrangian code and put it onto
+    a uniform grid and make sure that it is happy with the EOS in
+    our code.  The output is a .hse file that can be read directly
+    by Maestro.
+
+    The model is placed into HSE by the following differencing:
+
+    (1/dr) [ <P>_i - <P>_{i-1} ] = (1/2) [ <rho>_i + <rho>_{i-1} ] g
+
+
+    We take the temperature structure directly from the original
+    initial model.  We adjust the density and pressure according to
+    HSE using the EOS.
+    """
 
     def __init__(self):
         self.nx = 6400 
 
         self.TOL = 1.e-10
         self.MAX_ITER = 250 
-        self.AD_ITER = 2500
-        self.MAX_VARNAME_LENGTH = 80
 
-        self.anelastic_cutoff = 1.e-2
         self.smallx = 1.e-10
 
         self.model_file = "15m_500_sec.txt"
@@ -42,16 +55,85 @@ class InitModel(object):
         self.temp_fluff_cutoff = 2.e-7 
         self.temp_fluff = 1.e5
 
-        self.varnames_stored = []
         self.nspec = StarKillerMicrophysics.actual_network.nspec
         self.nvar = self.idx['spec'] + self.nspec
 
     def read_mesa(self, filename=None):
+        """
+        This is designed specifically to read MESA files
+        """
 
         if filename is None:
             filename = self.model_file
 
+        with open(filename, 'r') as f:
+            # count number of lines 
+            npts_file = sum([1 for line in f])
+
+            # go back to start and read first line in file to get number of parameters 
+            f.seek(0)
+            l = f.readline() 
+            nparams_file = int(l.split(' ')[-1])
+
+            # skip lines 2-4
+            for i in range(3):
+                f.readline()
+
+            # the fifth line will give us the number of variables 
+            l = f.readline() 
+            nvars_file = int(l.split(' ')[-1])
+
+            # subtract header rows 
+            npts_file -= 6
+
+            print(f'{nvars_file} variables found in the initial model file')
+            print(f'{npts_file} points found in the initial model file')
+
+            var_idx_map = {}
+            logR_idx = -1
+
+            # read in the names of the variables 
+            for i in range(nvars_file):
+                var_name_file = f.readline().strip()
+                if var_name_file.lower() == 'n':
+                    var_name_file = 'neut'
+                elif var_name_file == 'p':
+                    var_name_file = 'prot'
+
+                if var_name_file == 'logR':
+                    logR_idx = i
+                    continue
+
+                # create map of file indices to model indices 
+                try:
+                    var_idx_map[self.idx[var_name_file]] = i
+                except KeyError:
+                    var_idx_map[self.idx['spec'] - 1 + network_module.network_species_index(var_name_file.lower())] = i
+
+            base_r = np.zeros(npts_file)
+            base_state = np.zeros((npts_file, self.nvar))
+
+            # read in model data 
+            for i, line in enumerate(f):
+                variables = [float(v) for v in line.split(' ')]
+
+                # need to reverse the inputs file here
+
+                n = npts_file - i - 1
+
+                base_r[n] = R_solar * 10**variables[logR_idx]
+
+                for j in range(self.nvar):
+                    if j in var_idx_map:
+                        base_state[n, j] = variables[var_idx_map[j]]
+
+            return npts_file, base_r, base_state    
+
     def read_file(self, filename=None):
+        """
+        This is designed specifically to read files in the format of 
+        15_500_sec.txt
+        """
 
         if filename is None:
             filename = self.model_file
@@ -131,7 +213,6 @@ class InitModel(object):
                 else:
                     f.write(f"{xzn_hse[i]} {model_state[i, self.idx['dens']]} {model_state[i, self.idx['temp']]} {model_state[i, self.idx['pres']]} {' '.join([str(i) for i in model_state[i, self.idx['spec']:]])}\n")
 
-
     @staticmethod
     def interpolate(r, npts, model_r, model_var):
         # find location in the coordinate array where we want to interpolate 
@@ -158,7 +239,7 @@ class InitModel(object):
 
         return inter
 
-    def init_1d(self):
+    def init_1d_hse(self):
 
         eos_state = eos_type_module.eos_t()
 
@@ -187,6 +268,7 @@ class InitModel(object):
 
         # output initial model after putting onto uniform grid 
         with open('model.uniform', 'w') as f:
+            f.write('# initial model just after putting onto a uniform grid\n')
             for i in range(self.nx):
                 f.write(f"{xzn_hse[i]} {model_hse[i, self.idx['dens']]} {model_hse[i, self.idx['temp']]} {model_hse[i, self.idx['pres']]} {' '.join([str(s) for s in model_hse[i, self.idx['spec']:]])} \n")
 
@@ -207,8 +289,6 @@ class InitModel(object):
             if xzn_hse[i] >= base_r[0]:
                 ibegin = i 
                 break 
-
-        print(f'ibegin = {ibegin}')
 
         # store the central density. We will iterate until the central density converges 
         central_density = model_hse[0, self.idx['dens']]
@@ -331,7 +411,6 @@ class InitModel(object):
 
         if not converged_central_density:
             print(f'ERROR: central density iterations did not converge')
-
         
         print(f'converged central density = {central_density}')
 
@@ -431,8 +510,7 @@ class InitModel(object):
 
             M_enclosed[i] = M_enclosed[i-1] + 4/3 * np.pi * (xznr[i] - xznl[i]) * \
                 (xznr[i]**2 + xznr[i] * xznl[i] + xznl[i]**2) * model_hse[i, self.idx['dens']]
-
-            
+       
         ###################################################################
         # output 
         ###################################################################
@@ -459,4 +537,4 @@ class InitModel(object):
 if __name__ == "__main__":
 
     m = InitModel()
-    m.init_1d()
+    m.init_1d_hse()
