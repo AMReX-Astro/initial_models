@@ -3,12 +3,13 @@ import numpy as np
 
 # initialize starkiller
 StarKillerMicrophysics.starkiller_initialization_module.starkiller_initialize("probin")
-print('initialized')
 eos_type_module = StarKillerMicrophysics.Eos_Type_Module()
 eos_module = StarKillerMicrophysics.Eos_Module()
 network_module = StarKillerMicrophysics.Network()
 
-Gconst = 6.674e-8
+# define some constants 
+Gconst = 6.67428e-8
+M_solar = 1.9884e33
 
 class InitModel(object):
 
@@ -20,7 +21,7 @@ class InitModel(object):
         self.AD_ITER = 2500
         self.MAX_VARNAME_LENGTH = 80
 
-        self.anelastic_cutoff = 9.e4
+        self.anelastic_cutoff = 1.e-2
         self.smallx = 1.e-10
 
         self.model_file = "15m_500_sec.txt"
@@ -31,11 +32,11 @@ class InitModel(object):
         else:
             idxs = ['dens', 'temp', 'pres', 'entr', 'enuc', 'spec']
 
-        self.idx = {name: v for (name, v) in zip(idxs, range(1, len(idxs)+1))}
+        self.idx = {name: v for (name, v) in zip(idxs, range(len(idxs)))}
 
         self.xmin = 0
         self.xmax = 1.75e10
-        self.dx = (self.xmax - self.xmin) / self.nx
+        self.dx = (self.xmax - self.xmin) / float(self.nx)
         self.low_density_cutoff = 1.e-7
 
         self.temp_fluff_cutoff = 2.e-7 
@@ -43,7 +44,7 @@ class InitModel(object):
 
         self.varnames_stored = []
         self.nspec = StarKillerMicrophysics.actual_network.nspec
-        self.nvar = self.idx['spec'] - 1 + self.nspec
+        self.nvar = self.idx['spec'] + self.nspec
 
     def read_mesa(self, filename=None):
 
@@ -55,7 +56,7 @@ class InitModel(object):
         if filename is None:
             filename = self.model_file
 
-        with open(filename) as f:
+        with open(filename, 'r') as f:
             # count number of lines 
             npts_file = sum([1 for line in f])
 
@@ -76,18 +77,20 @@ class InitModel(object):
             # read in the names of the variables 
             for i in range(nvars_file):
                 var_name_file = f.readline().strip()
+                if var_name_file.lower() == 'n':
+                    var_name_file = 'neut'
+                elif var_name_file == 'p':
+                    var_name_file = 'prot'
 
                 # create map of file indices to model indices 
                 try:
-                    var_idx_map[i] = self.idx[var_name_file]
+                    var_idx_map[self.idx[var_name_file]] = i+1
                 except KeyError:
-                    var_idx_map[i] = network_module.network_species_index(var_name_file.title())
-                except:
-                    var_idx_map[i] = -1
+                    var_idx_map[self.idx['spec'] - 1+ network_module.network_species_index(var_name_file.lower())] = i+1
 
 
             base_r = np.zeros(npts_file)
-            base_state = np.zeros((npts_file, self.nvar+self.nspec))
+            base_state = np.zeros((npts_file, self.nvar))
 
             # read in model data 
             for i, line in enumerate(f):
@@ -95,23 +98,50 @@ class InitModel(object):
 
                 base_r[i] = variables[0]
 
-                for j in range(nvars_file):
-                    if var_idx_map[j] > 0:
+                for j in range(self.nvar):
+                    if j in var_idx_map:
                         base_state[i, j] = variables[var_idx_map[j]]
 
-
             return npts_file, base_r, base_state
+
+
+    def write_model(self, model_name, model_state, xzn_hse):
+        outfile = self.model_file[:-3] + model_name + f'.{self.nx}' 
+
+        print(f'writing {model_name} model to {outfile}')
+
+        spec_names = [] 
+        for i in range(self.nspec):
+            name = StarKillerMicrophysics.actual_network.spec_names[:,i]
+            spec_names.append(''.join([chr(l) for l in name]).strip())
+
+        with open(outfile, 'w') as f:
+            f.write(f'# npts = {self.nx}\n')
+            f.write(f'# num of variables = {3 + self.nspec}\n')
+            f.write(f'# density\n')
+            f.write(f'# temperature\n')
+            f.write(f'# pressure\n')
+
+            for spec in spec_names:
+                f.write(f'# {spec}\n')
+            
+            for i in range(self.nx):
+                if self.mesa:
+                    pass 
+                else:
+                    f.write(f"{xzn_hse[i]} {model_state[i, self.idx['dens']]} {model_state[i, self.idx['temp']]} {model_state[i, self.idx['pres']]} {' '.join([str(i) for i in model_state[i, self.idx['spec']:]])}\n")
+
 
     @staticmethod
     def interpolate(r, npts, model_r, model_var):
         # find location in the coordinate array where we want to interpolate 
-        id = npts
+        id = npts - 1
         for i in range(npts):
             if model_r[i] >= r:
                 id = i 
                 break
 
-        if id == 1:
+        if id == 0:
 
             slope = (model_var[id+1] - model_var[id]) / (model_r[id+1] - model_r[id])
             inter = slope * (r - model_r[id]) + model_var[id]
@@ -133,8 +163,8 @@ class InitModel(object):
         eos_state = eos_type_module.eos_t()
 
         # create coordinates 
-        xznl = self.xmin + np.array(range(self.nx)) * self.dx
-        xznr = self.xmin + np.array(range(1, self.nx+1)) * self.dx
+        xznl = self.xmin + np.arange(0, self.nx) * self.dx
+        xznr = self.xmin + np.arange(1, self.nx+1) * self.dx
         xzn_hse = 0.5 * (xznl + xznr)
 
         # read in the model 
@@ -145,18 +175,20 @@ class InitModel(object):
 
         # put the model onto our new uniform grid
         model_hse = np.zeros((self.nx, self.nvar))
-        igood = -1 
         for i in range(self.nx):
             for n in range(self.nvar):
                 if xzn_hse[i] < base_r[-1]:
-                    model_hse[i, n] = self.interpolate(xzn_hse[i], npts_file, base_r, base_state[:,n])
-
-                    igood = i
+                    model_hse[i, n] = max(self.interpolate(xzn_hse[i], npts_file, base_r, base_state[:,n]), self.smallx)
                 else:
-                    model_hse[i] = base_state[-1, n]
+                    model_hse[i] = max(base_state[-1, n], self.smallx)
 
-        # make sure the species fractions sum to 1
-        model_hse[:, self.idx['spec']:] /= np.sum(model_hse[:, self.idx['spec']:], axis=1)[:, np.newaxis]
+            # make sure the species fractions sum to 1
+            model_hse[i, self.idx['spec']:] /= np.sum(model_hse[i, self.idx['spec']:])
+
+        # output initial model after putting onto uniform grid 
+        with open('model.uniform', 'w') as f:
+            for i in range(self.nx):
+                f.write(f"{xzn_hse[i]} {model_hse[i, self.idx['dens']]} {model_hse[i, self.idx['temp']]} {model_hse[i, self.idx['pres']]} {' '.join([str(s) for s in model_hse[i, self.idx['spec']:]])} \n")
 
         ###################################################################
         # iterate to find the central density
@@ -175,6 +207,8 @@ class InitModel(object):
             if xzn_hse[i] >= base_r[0]:
                 ibegin = i 
                 break 
+
+        print(f'ibegin = {ibegin}')
 
         # store the central density. We will iterate until the central density converges 
         central_density = model_hse[0, self.idx['dens']]
@@ -198,7 +232,7 @@ class InitModel(object):
 
             eos_state.t = model_hse[ibegin, self.idx['temp']]
             eos_state.rho = model_hse[ibegin, self.idx['dens']]
-            eos_state.xn = model_hse[ibegin, self.idx['spec']:]
+            eos_state.xn[:] = model_hse[ibegin, self.idx['spec']:]
 
             eos_module.eos(eos_type_module.eos_input_rt, eos_state)
 
@@ -318,8 +352,108 @@ class InitModel(object):
             # use previous zone as initial guess for T, rho 
             dens_zone = model_hse[i-1, self.idx['dens']]
             temp_zone = model_hse[i-1, self.idx['temp']]
-            xn = model_hse[i-1, self.idx['spec']:]
+            xn = model_hse[i, self.idx['spec']:]
 
+            g_zone = -Gconst * M_enclosed[i-1] / xznr[i-1]**2
+
+            converged_HSE = False 
+
+            if not fluff:
+
+                for iter in range(self.MAX_ITER):
+
+                    # HSE differencing 
+                    p_want = model_hse[i-1, self.idx['pres']] + self.dx * 0.5 * (dens_zone + model_hse[i-1, self.idx['dens']]) * g_zone
+
+                    temp_zone = model_hse[i, self.idx['temp']]
+
+                    if model_hse[i-1, self.idx['dens']] < self.temp_fluff_cutoff:
+                        temp_zone = self.temp_fluff
+
+                    # (t, rho) -> p
+                    eos_state.t = temp_zone
+                    eos_state.rho = dens_zone
+                    eos_state.xn = xn 
+
+                    eos_module.eos(eos_type_module.eos_input_rt, eos_state)
+
+                    pres_zone = eos_state.p 
+
+                    dpd = eos_state.dpdr 
+                    drho = (p_want - pres_zone) / (dpd - 0.5 * self.dx * g_zone)
+
+                    dens_zone = max(0.9 * dens_zone, min(dens_zone + drho, 1.1 * dens_zone))
+
+                    if abs(drho) < self.TOL * dens_zone:
+                        converged_HSE = True 
+                        break 
+
+                    if dens_zone < self.low_density_cutoff:
+                        dens_zone = self.low_density_cutoff
+                        temp_zone = self.temp_fluff
+                        converged_HSE = True 
+                        fluff = True 
+                        index_hse_fluff = i
+                        break 
+
+                if not converged_HSE:
+                    print(f'Error zone {i} did not converge in init_1d')
+                    print('integrate up')
+                    print(f'dens_zone, temp_zone = {dens_zone}, {temp_zone}')
+                    print(f'p_want = {p_want}')
+                    print(f'drho = {drho}')
+                    exit()
+
+                if temp_zone < self.temp_fluff:
+                    temp_zone = self.temp_fluff
+
+            else:
+                dens_zone = self.low_density_cutoff
+                temp_zone = self.temp_fluff
+
+            
+            # call the EoS one more time for this zone and then go on to the next one 
+            # (t, rho) -> p
+            eos_state.t = temp_zone
+            eos_state.rho = dens_zone
+            eos_state.xn = xn 
+
+            eos_module.eos(eos_type_module.eos_input_rt, eos_state)
+
+            pres_zone = eos_state.p 
+
+            # update the thermodynamics in this zone 
+            model_hse[i, self.idx['dens']] = dens_zone
+            model_hse[i, self.idx['temp']] = temp_zone
+            model_hse[i, self.idx['pres']] = pres_zone
+            model_hse[i, self.idx['entr']] = eos_state.s 
+            model_hse[i, self.idx['spec']:] = xn
+
+            M_enclosed[i] = M_enclosed[i-1] + 4/3 * np.pi * (xznr[i] - xznl[i]) * \
+                (xznr[i]**2 + xznr[i] * xznl[i] + xznl[i]**2) * model_hse[i, self.idx['dens']]
+
+            
+        ###################################################################
+        # output 
+        ###################################################################
+
+        self.write_model('hse', model_hse, xzn_hse)
+
+        print(f'sum mass = {M_enclosed[-1]} g,  {M_enclosed[-1]/M_solar} solar masses')
+
+        # compute the maximum HSE error 
+        max_hse_error = -1.e30 
+
+        for i in range(1, self.nx-1):
+            g_zone = -Gconst * M_enclosed[i-1] / xznr[i-1]**2
+
+            dpdr = (model_hse[i, self.idx['pres']] - model_hse[i-1, self.idx['pres']]) / self.dx
+            rhog = 0.5 * (model_hse[i, self.idx['dens']] + model_hse[i-1, self.idx['dens']]) * g_zone
+
+            if dpdr != 0 and model_hse[i+1, self.idx['dens']] > self.low_density_cutoff:
+                max_hse_error = max(max_hse_error, abs(dpdr - rhog) / abs(dpdr))
+
+        print(f'maximum HSE error = {max_hse_error}')
 
 
 if __name__ == "__main__":

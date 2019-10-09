@@ -43,7 +43,7 @@ module model_params
 
   integer, parameter :: MAX_VARNAME_LENGTH=80
 
-  real(kind=dp_t), parameter :: anelastic_cutoff = 9.e4  ! this is for diagnostics only -- not used in the HSEing
+  real(kind=dp_t), parameter :: anelastic_cutoff = 9.d4  ! this is for diagnostics only -- not used in the HSEing
   real (kind=dp_t), parameter :: smallx = 1.d-10
 
 !   character (len=100), parameter :: model_file = "18m_500_s_rot_b_eq_1.dat"
@@ -52,7 +52,7 @@ module model_params
   character (len=100), parameter :: model_file = "15m_500_sec.txt"
   logical, parameter :: mesa = .false.
 
-  real (kind=dp_t), parameter :: xmin = 0.d0, xmax = 1.75e10 !1.732050808d10
+  real (kind=dp_t), parameter :: xmin = 0.d0, xmax = 1.75d10 !1.732050808d10
   real (kind=dp_t), parameter :: delx = (xmax - xmin) / dble(nx)
 
   real (kind=dp_t), save :: low_density_cutoff =1.d-7
