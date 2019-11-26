@@ -1,8 +1,8 @@
 # Makefile for the init_1d initial model generator
 
 NDEBUG := t
-MPI    :=
-OMP    :=
+MPI    := TRUE
+OMP    := FALSE
 
 COMP := gfortran
 
