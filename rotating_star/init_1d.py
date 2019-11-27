@@ -57,6 +57,7 @@ class InitModel(object):
 
         self.nspec = StarKillerMicrophysics.actual_network.nspec
         self.nvar = self.idx['spec'] + self.nspec
+        print(self.nspec,self.nvar)
 
     def read_mesa(self, filename=None):
         """
@@ -112,7 +113,6 @@ class InitModel(object):
 
             base_r = np.zeros(npts_file)
             base_state = np.zeros((npts_file, self.nvar))
-
             # read in model data
             for i, line in enumerate(f):
                 variables = [float(v) for v in line.split(' ')]
@@ -185,7 +185,6 @@ class InitModel(object):
                         base_state[i, j] = variables[var_idx_map[j]]
 
             return npts_file, base_r, base_state
-
 
     def write_model(self, model_name, model_state, xzn_hse):
         outfile = self.model_file[:-3] + model_name + f'.{self.nx}'
