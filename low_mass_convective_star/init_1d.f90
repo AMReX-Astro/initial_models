@@ -11,12 +11,12 @@ program init_1d
   use eos_type_module, only: eos_t, eos_input_rt
   use network
   use fundamental_constants_module, only: Gconst
+  use runtime_init_module
+  use probin_module
 
   implicit none
 
   integer :: i, n
-
-  integer :: nx
 
   real (kind=dp_t), DIMENSION(nspec) :: xn_core
 
@@ -36,14 +36,13 @@ program init_1d
 
   ! we'll get the composition indices from the network module
   integer, save :: ih1, ihe4
-  real (kind=dp_t) :: hefrac
 
   integer :: lun
 
   integer :: narg
   character(len=128) :: params_file
 
-  real (kind=dp_t), save :: xmin, xmax, dCoord
+  real (kind=dp_t) :: dCoord
 
   real (kind=dp_t) :: dens_zone, temp_zone, pres_zone, entropy
   real (kind=dp_t) :: dpd, dpt, dsd, dst
@@ -65,12 +64,11 @@ program init_1d
 
   real (kind=dp_t), dimension(nspec) :: xn
 
-  real (kind=dp_t), save :: low_density_cutoff, temp_core, smallx, M_tot, temp_fluff
   real (kind=dp_t) :: rho_c, rho_c_old, drho_c
 
   logical :: isentropic
 
-  character (len=256) :: outfile, prefix
+  character (len=256) :: outfile
   character (len=8) num, mass
 
   real (kind=dp_t) :: max_hse_error, dpdr, rhog
@@ -81,48 +79,13 @@ program init_1d
 
   real, parameter :: TOL_MASS = 1.e-6_dp_t
 
-  namelist /params/ nx, temp_core, &
-                    low_density_cutoff, M_tot, temp_fluff, &
-                    xmin, xmax, &
-                    hefrac, prefix
-
-
-  ! determine if we specified a runtime parameters file or use the default
-  narg = command_argument_count()
-
-  if (narg == 0) then
-     params_file = "_params"
-  else
-     call get_command_argument(1, value = params_file)
-  endif
-
-
-  ! define the defaults parameters for this model
-  nx = 1280
-
-  smallx = 1.d-10
-
-  xmin = 0_dp_t
-  xmax = 5.d8
-
-  low_density_cutoff =1.d-4
-  temp_fluff = 1.d7
-
-  hefrac = 0.3_dp_t
-
-  prefix = "convective"
-
-
-  ! check the namelist for any changed parameters
-  open(newunit=lun, file=params_file, status="old", action="read")
-  read(unit=lun, nml=params)
-  close(unit=lun)
 
 
   ! initialize the EOS and network
 
   ! use_eos_coulomb comes in from extern_probin_module -- override
   ! here if desired
+  call runtime_init(.true.)
   call eos_init()
   call network_init()
 

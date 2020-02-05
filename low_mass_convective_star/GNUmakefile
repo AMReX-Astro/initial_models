@@ -8,7 +8,7 @@ MKVERBOSE := t
 
 
 # EOS and network
-EOS_DIR := helmholtz
+EOS_DIR := gamma_law_general
 
 NETWORK_DIR := general_null
 GENERAL_NET_INPUTS := $(MICROPHYSICS_HOME)/networks/$(NETWORK_DIR)/H_He.net
