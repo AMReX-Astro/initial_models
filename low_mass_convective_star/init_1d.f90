@@ -38,6 +38,8 @@ program init_1d
   integer, save :: ih1, ihe4
   real (kind=dp_t) :: hefrac
 
+  integer :: lun
+
   integer :: narg
   character(len=128) :: params_file
 
@@ -69,7 +71,7 @@ program init_1d
   logical :: isentropic
 
   character (len=256) :: outfile, prefix
-  character (len=8) num
+  character (len=8) num, mass
 
   real (kind=dp_t) :: max_hse_error, dpdr, rhog
 
@@ -112,9 +114,9 @@ program init_1d
 
 
   ! check the namelist for any changed parameters
-  open(unit=11, file=params_file, status="old", action="read")
-  read(unit=11, nml=params)
-  close(unit=11)
+  open(newunit=lun, file=params_file, status="old", action="read")
+  read(unit=lun, nml=params)
+  close(unit=lun)
 
 
   ! initialize the EOS and network
@@ -427,8 +429,8 @@ program init_1d
         rho_c_old = rho_c
         mass_star_old = mass_star
 
-        rho_c = min(1.1_dp_t*rho_c_old, &
-             max((rho_c + drho_c), 0.9_dp_t*rho_c_old))
+        rho_c = min(1.5_dp_t*rho_c_old, &
+             max((rho_c + drho_c), 0.5_dp_t*rho_c_old))
 
      endif
 
@@ -441,20 +443,21 @@ program init_1d
 
 
   write(num,'(i8)') nx
-  outfile = trim(prefix) // ".hse." // trim(adjustl(num))
+  write(mass,'(f8.2)') M_tot
+  outfile = trim(prefix) // "_M_" // trim(adjustl(mass)) // ".hse." // trim(adjustl(num))
 
 
 
-  open (unit=50, file=outfile, status="unknown")
+  open (newunit=lun, file=outfile, status="unknown")
 
-  write (50,1001) "# npts = ", nx
-  write (50,1001) "# num of variables = ", nvar
-  write (50,1002) "# density"
-  write (50,1002) "# temperature"
-  write (50,1002) "# pressure"
+  write (lun,1001) "# npts = ", nx
+  write (lun,1001) "# num of variables = ", nvar
+  write (lun,1002) "# density"
+  write (lun,1002) "# temperature"
+  write (lun,1002) "# pressure"
 
   do n = 1, nspec
-     write (50,1003) "# ", spec_names(n)
+     write (lun,1003) "# ", spec_names(n)
   enddo
 
 1000 format (1x, 12(g26.16, 1x))
@@ -464,7 +467,7 @@ program init_1d
 
   do i = 1, nx
 
-     write (50,1000) xzn_hse(i), model_hse(i,idens), model_hse(i,itemp), model_hse(i,ipres), &
+     write (lun,1000) xzn_hse(i), model_hse(i,idens), model_hse(i,itemp), model_hse(i,ipres), &
           (model_hse(i,ispec-1+n), n=1,nspec)
 
   enddo
@@ -495,6 +498,6 @@ program init_1d
 
 
 
-  close (unit=50)
+  close (unit=lun)
 
 end program init_1d
