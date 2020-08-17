@@ -2,18 +2,19 @@
 !! uniform composition.  Here we take a base density and temperature
 !! and use HSE and constant entropy to generate the model.
 
-program init_1d
+subroutine init_1d()
 
-  use bl_types
-  use bl_constants_module
-  use bl_error_module
-  use eos_module, only: eos, eos_input_rt, eos_init
-  use eos_type_module, only: eos_t
+  use amrex_fort_module, only : rt => amrex_real
+  use amrex_constants_module
+  use amrex_error_module
+  use eos_module, only: eos, eos_init
+  use eos_type_module, only: eos_t, eos_input_rt
   use extern_probin_module, only: use_eos_coulomb
   use network
   use actual_burner_module, only: actual_burner_init
   use fundamental_constants_module, only: Gconst
   use urca_composition_module
+  use initialization_module
 
   implicit none
 
@@ -21,10 +22,10 @@ program init_1d
 
   integer :: nx
 
-  real (kind=dp_t) :: temp_base, dens_base
+  real (kind=rt) :: temp_base, dens_base
 
-  real (kind=dp_t), allocatable :: xzn_hse(:), xznl(:), xznr(:)
-  real (kind=dp_t), allocatable :: model_hse(:,:), M_enclosed(:)
+  real (kind=rt), allocatable :: xzn_hse(:), xznl(:), xznr(:)
+  real (kind=rt), allocatable :: model_hse(:,:), M_enclosed(:)
 
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 3 + nspec
@@ -33,7 +34,7 @@ program init_1d
                         ipres = 3, &
                         ispec = 4
 
-  real (kind=dp_t), parameter :: M_sun = 1.9891e33
+  real (kind=rt), parameter :: M_sun = 1.9891e33
 
   ! we'll get the composition indices from the network module
   integer, save :: ihe4, ic12, io16, ine20, ine23, ina23, img23
@@ -41,17 +42,17 @@ program init_1d
   integer :: narg
   character(len=128) :: params_file
 
-  real (kind=dp_t), save :: xmin, xmax, dCoord
+  real (kind=rt), save :: xmin, xmax, dCoord
 
-  real (kind=dp_t) :: dens_zone, temp_zone, pres_zone
-  real (kind=dp_t) :: dpd, dpt, dsd, dst
+  real (kind=rt) :: dens_zone, temp_zone, pres_zone
+  real (kind=rt) :: dpd, dpt, dsd, dst
 
-  real (kind=dp_t) :: p_want, drho, dtemp, delx
-  real (kind=dp_t), allocatable :: entropy_store(:), entropy_want(:)
+  real (kind=rt) :: p_want, drho, dtemp, delx
+  real (kind=rt), allocatable :: entropy_store(:), entropy_want(:)
 
-  real (kind=dp_t) :: g_zone, try_tol
+  real (kind=rt) :: g_zone, try_tol
 
-  real (kind=dp_t) :: TOL = 1.e-11
+  real (kind=rt) :: TOL = 1.e-11
 
   integer :: MAX_ITER = 1000000
   integer :: MAX_RETRY = 50
@@ -60,11 +61,11 @@ program init_1d
 
   logical :: converged_hse, fluff
 
-  real (kind=dp_t), save :: low_density_cutoff, smallx, dens_conv_zone, M_conv_zone
+  real (kind=rt), save :: low_density_cutoff, smallx, dens_conv_zone, M_conv_zone
 
   logical :: test_hse_convergence = .true.
 
-  real (kind=dp_t), save :: temp_before_fluff, temp_fluff
+  real (kind=rt), save :: temp_before_fluff, temp_fluff
 
   character (len=128) :: fluff_type = "continuous"
 
@@ -73,13 +74,14 @@ program init_1d
   character (len=256) :: outfile, prefix
   character (len=8) num
 
-  real (kind=dp_t) :: max_hse_error, dpdr, rhog
+  real (kind=rt) :: max_hse_error, dpdr, rhog
 
-  real (kind=dp_t) :: dtol_fac = 0.000001_dp_t
+  real (kind=rt) :: dtol_fac = 0.000001_rt
 
   integer :: i_conv, i_fluff
 
   type (eos_t) :: eos_state
+
 
   namelist /params/ nx, dens_base, temp_base, &
        low_density_cutoff, dens_conv_zone, M_conv_zone, temp_fluff, &
@@ -101,13 +103,12 @@ program init_1d
      call get_command_argument(1, value = params_file)
   endif
 
-
   ! define the defaults parameters for this model
   nx = 1280
 
   smallx = 1.d-10
 
-  xmin = 0_dp_t
+  xmin = 0_rt
   xmax = 5.d8
 
   dens_base = 2.6d9
@@ -120,14 +121,14 @@ program init_1d
   low_density_cutoff =1.d-4
   temp_fluff = 1.d7
 
-  c12_in   = 0.0_dp_t
-  c12_out  = 0.0_dp_t
-  o16_in   = 0.0_dp_t
-  o16_out  = 0.0_dp_t
-  ne23_in  = 0.0_dp_t
-  ne23_out = 0.0_dp_t
-  na23_in  = 0.0_dp_t
-  na23_out = 0.0_dp_t
+  c12_in   = 0.0_rt
+  c12_out  = 0.0_rt
+  o16_in   = 0.0_rt
+  o16_out  = 0.0_rt
+  ne23_in  = 0.0_rt
+  ne23_out = 0.0_rt
+  na23_in  = 0.0_rt
+  na23_out = 0.0_rt
 
   prefix = "spherical"
 
@@ -140,15 +141,6 @@ program init_1d
   ! Initialize the temperature interior to fluff
   ! (used to calculate fluff temperature for various values of fluff_type)
   temp_before_fluff = temp_fluff
-
-  ! initialize the EOS and network
-
-  ! use_eos_coulomb comes in from extern_probin_module -- override
-  ! here if desired
-  use_eos_coulomb = .true.
-  call eos_init()
-  call network_init()
-  call actual_burner_init()
 
   ! Initialize the composition module
   call init_urca_composition()
@@ -171,9 +163,9 @@ program init_1d
   dCoord = (xmax - xmin) / dble(nx)
 
   do i = 1, nx
-     xznl(i) = xmin + (dble(i) - 1.0_dp_t)*dCoord
+     xznl(i) = xmin + (dble(i) - 1.0_rt)*dCoord
      xznr(i) = xmin + (dble(i))*dCoord
-     xzn_hse(i) = 0.5_dp_t*(xznl(i) + xznr(i))
+     xzn_hse(i) = 0.5_rt*(xznl(i) + xznr(i))
   enddo
 
   fluff = .false.
@@ -250,7 +242,7 @@ program init_1d
            if (converged_hse) then
               exit
            else if (iretry == MAX_RETRY) then
-              call bl_error("ERROR: HSE non-convergence with retries!")
+              call amrex_error("ERROR: HSE non-convergence with retries!")
            end if
         enddo
 
@@ -365,7 +357,7 @@ program init_1d
 
   close (unit=50)
 
-end program init_1d
+end subroutine init_1d
 
 
 subroutine get_fluff_temperature(temp, temp_fluff, temp_previous, fluff_type)
@@ -375,13 +367,13 @@ subroutine get_fluff_temperature(temp, temp_fluff, temp_previous, fluff_type)
   ! 2) fluff_type = "continuous" : fluff is at the same temperature as the material
   !                                immediately interior to the fluff.
 
-  use bl_types, only: dp_t
-  use bl_error_module
+  use amrex_fort_module, only : rt => amrex_real
+  use amrex_error_module
 
   implicit none
 
-  real (kind=dp_t), intent(out)   :: temp
-  real (kind=dp_t), intent(in)    :: temp_fluff, temp_previous
+  real (kind=rt), intent(out)   :: temp
+  real (kind=rt), intent(in)    :: temp_fluff, temp_previous
   character (len=128), intent(in) :: fluff_type
 
   if (fluff_type .eq. "constant") then
@@ -389,7 +381,7 @@ subroutine get_fluff_temperature(temp, temp_fluff, temp_previous, fluff_type)
   else if (fluff_type .eq. "continuous") then
      temp = temp_previous
   else
-     call bl_error("ERROR: invalid fluff_type")
+     call amrex_error("ERROR: invalid fluff_type")
   end if
 
 end subroutine get_fluff_temperature
@@ -402,18 +394,18 @@ subroutine iter_dens_temp(dens_zone, temp_zone, eos_state_inwards, &
                           i_fluff, i_conv, izone)
 
   ! Do one rho, T iteration
-  use bl_constants_module
-  use bl_types, only: dp_t
-  use bl_error_module
-  use eos_type_module, only: eos_t
-  use eos_module, only: eos, eos_input_rt
+  use amrex_constants_module
+  use amrex_fort_module, only : rt => amrex_real
+  use amrex_error_module
+  use eos_type_module, only: eos_t, eos_input_rt
+  use eos_module, only: eos
   use urca_composition_module
-
+  
   implicit none
 
-  real (kind=dp_t), intent(inout) :: dens_zone, temp_zone
+  real (kind=rt), intent(inout) :: dens_zone, temp_zone
   type (eos_t), intent(in) :: eos_state_inwards
-  real (kind=dp_t), intent(in) :: g_zone, dens_conv_zone, delx, tol, dtol_fac, low_density_cutoff, temp_fluff
+  real (kind=rt), intent(in) :: g_zone, dens_conv_zone, delx, tol, dtol_fac, low_density_cutoff, temp_fluff
   logical, intent(inout) :: isentropic
   logical, intent(in) :: test_hse_convergence
   logical, intent(out) :: converged_hse, fluff
@@ -422,16 +414,16 @@ subroutine iter_dens_temp(dens_zone, temp_zone, eos_state_inwards, &
   character (len=128), intent(in) :: fluff_type
 
   type (eos_t) :: eos_state
-  real (kind=dp_t) :: pres_zone, entropy
-  real (kind=dp_t) :: A, B, dAdT, dAdrho, dBdT, dBdrho
-  real (kind=dp_t) :: dpd, dpt, dsd, dst
-  real (kind=dp_t) :: p_want, drho, dtemp
-  real (kind=dp_t) :: dpdr, rhog, temp_before_fluff
+  real (kind=rt) :: pres_zone, entropy
+  real (kind=rt) :: A, B, dAdT, dAdrho, dBdT, dBdrho
+  real (kind=rt) :: dpd, dpt, dsd, dst
+  real (kind=rt) :: p_want, drho, dtemp
+  real (kind=rt) :: dpdr, rhog, temp_before_fluff
 
   if (isentropic) then
 
      p_want = eos_state_inwards % p + &
-          delx*0.5_dp_t*(dens_zone + eos_state_inwards % rho)*g_zone
+          delx*0.5_rt*(dens_zone + eos_state_inwards % rho)*g_zone
 
      ! now we have two functions to zero:
      !   A = p_want - p(rho,T)

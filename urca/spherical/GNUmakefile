@@ -1,21 +1,31 @@
-NDEBUG := 
-MPI    :=
-OMP    :=
+PRECISION = DOUBLE
+PROFILE = FALSE
 
-COMP := gfortran
+DEBUG = FALSE
 
-MKVERBOSE := t
+DIM = 1
 
-SDC    :=
+COMP = g++
+FCOMP = gfortran
+
+USE_MPI = FALSE
+USE_OMP = FALSE
+
+USE_REACT = TRUE
+
+# programs to be compiled
+ALL: initialmodel.ex
 
 # EOS and network
 EOS_DIR := helmholtz
 
-NETWORK_TOP_DIR := $(MICROPHYSICS_HOME)/networks
 NETWORK_DIR := ignition_reaclib/URCA-simple
 
-# the local sources needed to build the initial model generator
-MODEL_SOURCES := init_1d.f90
-MODEL_SOURCES += urca_composition.f90
+Bpack := ./Make.package
+Blocs := .
 
-include GInitModels.mak
+include $(MICROPHYSICS_HOME)/Make.Microphysics
+
+initialmodel.ex: $(objForExecs)
+	@echo Linking $@ ...                                                    
+	$(SILENT) $(PRELINK) $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(libraries)
