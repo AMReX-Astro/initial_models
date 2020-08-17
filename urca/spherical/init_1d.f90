@@ -1,627 +1,634 @@
-!! generate an initial model for spherical geometry with a
-!! uniform composition.  Here we take a base density and temperature
-!! and use HSE and constant entropy to generate the model.
+module init_1d_module
 
-subroutine init_1d()
+contains
 
-  use amrex_fort_module, only : rt => amrex_real
-  use amrex_constants_module
-  use amrex_error_module
-  use eos_module, only: eos, eos_init
-  use eos_type_module, only: eos_t, eos_input_rt
-  use extern_probin_module, only: use_eos_coulomb
-  use network
-  use actual_burner_module, only: actual_burner_init
-  use fundamental_constants_module, only: Gconst
-  use urca_composition_module
-  use initialization_module
+  !! generate an initial model for spherical geometry with a
+  !! uniform composition.  Here we take a base density and temperature
+  !! and use HSE and constant entropy to generate the model.
 
-  implicit none
+  subroutine init_1d(inputs_name, inputs_len) bind(C, name="init_1d")
 
-  integer :: i, j, n
+    use amrex_fort_module, only : rt => amrex_real
+    use amrex_constants_module
+    use amrex_error_module
+    use eos_module, only: eos, eos_init
+    use eos_type_module, only: eos_t, eos_input_rt
+    use network
+    use actual_burner_module, only: actual_burner_init
+    use fundamental_constants_module, only: Gconst
+    use urca_composition_module
+    use initialization_module
 
-  integer :: nx
+    implicit none
 
-  real (kind=rt) :: temp_base, dens_base
+    integer, value :: inputs_len
+    integer :: inputs_name(inputs_len)
 
-  real (kind=rt), allocatable :: xzn_hse(:), xznl(:), xznr(:)
-  real (kind=rt), allocatable :: model_hse(:,:), M_enclosed(:)
+    integer :: i, j, n
 
-  ! define convenient indices for the scalars
-  integer, parameter :: nvar = 3 + nspec
-  integer, parameter :: idens = 1, &
-                        itemp = 2, &
-                        ipres = 3, &
-                        ispec = 4
+    integer :: nx
 
-  real (kind=rt), parameter :: M_sun = 1.9891e33
+    real (kind=rt) :: temp_base, dens_base
 
-  ! we'll get the composition indices from the network module
-  integer, save :: ihe4, ic12, io16, ine20, ine23, ina23, img23
+    real (kind=rt), allocatable :: xzn_hse(:), xznl(:), xznr(:)
+    real (kind=rt), allocatable :: model_hse(:,:), M_enclosed(:)
 
-  integer :: narg
-  character(len=128) :: params_file
+    ! define convenient indices for the scalars
+    integer, parameter :: nvar = 3 + nspec
+    integer, parameter :: idens = 1, &
+         itemp = 2, &
+         ipres = 3, &
+         ispec = 4
 
-  real (kind=rt), save :: xmin, xmax, dCoord
+    real (kind=rt), parameter :: M_sun = 1.9891e33
 
-  real (kind=rt) :: dens_zone, temp_zone, pres_zone
-  real (kind=rt) :: dpd, dpt, dsd, dst
+    ! we'll get the composition indices from the network module
+    integer, save :: ihe4, ic12, io16, ine20, ine23, ina23, img23
 
-  real (kind=rt) :: p_want, drho, dtemp, delx
-  real (kind=rt), allocatable :: entropy_store(:), entropy_want(:)
+    integer :: narg
+    character(len=128) :: params_file
 
-  real (kind=rt) :: g_zone, try_tol
+    real (kind=rt), save :: xmin, xmax, dCoord
 
-  real (kind=rt) :: TOL = 1.e-11
+    real (kind=rt) :: dens_zone, temp_zone, pres_zone
+    real (kind=rt) :: dpd, dpt, dsd, dst
 
-  integer :: MAX_ITER = 1000000
-  integer :: MAX_RETRY = 50
+    real (kind=rt) :: p_want, drho, dtemp, delx
+    real (kind=rt), allocatable :: entropy_store(:), entropy_want(:)
 
-  integer :: iter, iretry
+    real (kind=rt) :: g_zone, try_tol
 
-  logical :: converged_hse, fluff
+    real (kind=rt) :: TOL = 1.e-11
 
-  real (kind=rt), save :: low_density_cutoff, smallx, dens_conv_zone, M_conv_zone
+    integer :: MAX_ITER = 1000000
+    integer :: MAX_RETRY = 50
 
-  logical :: test_hse_convergence = .true.
+    integer :: iter, iretry
 
-  real (kind=rt), save :: temp_before_fluff, temp_fluff
+    logical :: converged_hse, fluff
 
-  character (len=128) :: fluff_type = "continuous"
+    real (kind=rt), save :: low_density_cutoff, smallx, dens_conv_zone, M_conv_zone
 
-  logical :: isentropic
+    logical :: test_hse_convergence = .true.
 
-  character (len=256) :: outfile, prefix
-  character (len=8) num
+    real (kind=rt), save :: temp_before_fluff, temp_fluff
 
-  real (kind=rt) :: max_hse_error, dpdr, rhog
+    character (len=128) :: fluff_type = "continuous"
 
-  real (kind=rt) :: dtol_fac = 0.000001_rt
+    logical :: isentropic
 
-  integer :: i_conv, i_fluff
+    character (len=256) :: outfile, prefix
+    character (len=8) num
 
-  type (eos_t) :: eos_state
+    real (kind=rt) :: max_hse_error, dpdr, rhog
 
+    real (kind=rt) :: dtol_fac = 0.000001_rt
 
-  namelist /params/ nx, dens_base, temp_base, &
-       low_density_cutoff, dens_conv_zone, M_conv_zone, temp_fluff, &
-       test_hse_convergence, TOL, MAX_ITER, dtol_fac, &
-       xmin, xmax, &
-       fluff_type, &
-       c12_in, c12_out, o16_in, o16_out, &
-       ne23_in, ne23_out, na23_in, na23_out, &
-       urca_23_dens, urca_shell_type, shell_atan_kappa, &
-       na_ne_23, prefix
+    integer :: i_conv, i_fluff
 
+    type (eos_t) :: eos_state
 
-  ! determine if we specified a runtime parameters file or use the default
-  narg = command_argument_count()
 
-  if (narg == 0) then
-     params_file = "_params"
-  else
-     call get_command_argument(1, value = params_file)
-  endif
+    namelist /params/ nx, dens_base, temp_base, &
+         low_density_cutoff, dens_conv_zone, M_conv_zone, temp_fluff, &
+         test_hse_convergence, TOL, MAX_ITER, dtol_fac, &
+         xmin, xmax, &
+         fluff_type, &
+         c12_in, c12_out, o16_in, o16_out, &
+         ne23_in, ne23_out, na23_in, na23_out, &
+         urca_23_dens, urca_shell_type, shell_atan_kappa, &
+         na_ne_23, prefix
 
-  ! define the defaults parameters for this model
-  nx = 1280
 
-  smallx = 1.d-10
+    ! convert the params file back to string
+    params_file = ""
+    do i = 1, inputs_len
+       params_file(i:i) = char(inputs_name(i))
+    end do
+    print *, "inputs_len = ", inputs_len
+    print *, "params_file = ", trim(params_file)
 
-  xmin = 0_rt
-  xmax = 5.d8
+    ! define the defaults parameters for this model
+    nx = 1280
 
-  dens_base = 2.6d9
-  temp_base = 6.d8
+    smallx = 1.d-10
 
-  dens_conv_zone = -1.d0
-  M_conv_zone = 2.0d0
+    xmin = 0_rt
+    xmax = 5.d8
 
+    dens_base = 2.6d9
+    temp_base = 6.d8
 
-  low_density_cutoff =1.d-4
-  temp_fluff = 1.d7
+    dens_conv_zone = -1.d0
+    M_conv_zone = 2.0d0
 
-  c12_in   = 0.0_rt
-  c12_out  = 0.0_rt
-  o16_in   = 0.0_rt
-  o16_out  = 0.0_rt
-  ne23_in  = 0.0_rt
-  ne23_out = 0.0_rt
-  na23_in  = 0.0_rt
-  na23_out = 0.0_rt
 
-  prefix = "spherical"
+    low_density_cutoff =1.d-4
+    temp_fluff = 1.d7
 
+    c12_in   = 0.0_rt
+    c12_out  = 0.0_rt
+    o16_in   = 0.0_rt
+    o16_out  = 0.0_rt
+    ne23_in  = 0.0_rt
+    ne23_out = 0.0_rt
+    na23_in  = 0.0_rt
+    na23_out = 0.0_rt
 
-  ! check the namelist for any changed parameters
-  open(unit=11, file=params_file, status="old", action="read")
-  read(unit=11, nml=params)
-  close(unit=11)
+    prefix = "spherical"
 
-  ! Initialize the temperature interior to fluff
-  ! (used to calculate fluff temperature for various values of fluff_type)
-  temp_before_fluff = temp_fluff
 
-  ! Initialize the composition module
-  call init_urca_composition()
+    ! check the namelist for any changed parameters
+    open(unit=11, file=params_file, status="old", action="read")
+    read(unit=11, nml=params)
+    close(unit=11)
 
-!-----------------------------------------------------------------------------
-! Create a 1-d uniform grid that is identical to the mesh that we are
-! mapping onto, and then we want to force it into HSE on that mesh.
-!-----------------------------------------------------------------------------
+    ! Initialize the temperature interior to fluff
+    ! (used to calculate fluff temperature for various values of fluff_type)
+    temp_before_fluff = temp_fluff
 
-! allocate storage
-  allocate(xzn_hse(nx))
-  allocate(xznl(nx))
-  allocate(xznr(nx))
-  allocate(model_hse(nx,nvar))
-  allocate(M_enclosed(nx))
-  allocate(entropy_want(nx))
-  allocate(entropy_store(nx))
+    ! Initialize the composition module
+    call init_urca_composition()
 
-! compute the coordinates of the new gridded function
-  dCoord = (xmax - xmin) / dble(nx)
+    !-----------------------------------------------------------------------------
+    ! Create a 1-d uniform grid that is identical to the mesh that we are
+    ! mapping onto, and then we want to force it into HSE on that mesh.
+    !-----------------------------------------------------------------------------
 
-  do i = 1, nx
-     xznl(i) = xmin + (dble(i) - 1.0_rt)*dCoord
-     xznr(i) = xmin + (dble(i))*dCoord
-     xzn_hse(i) = 0.5_rt*(xznl(i) + xznr(i))
-  enddo
+    ! allocate storage
+    allocate(xzn_hse(nx))
+    allocate(xznl(nx))
+    allocate(xznr(nx))
+    allocate(model_hse(nx,nvar))
+    allocate(M_enclosed(nx))
+    allocate(entropy_want(nx))
+    allocate(entropy_store(nx))
 
-  fluff = .false.
+    ! compute the coordinates of the new gridded function
+    dCoord = (xmax - xmin) / dble(nx)
 
-  ! call the EOS one more time for this zone and then go on to the next
-  eos_state%T     = temp_base
-  eos_state%rho   = dens_base
-  call set_urca_composition(eos_state)
+    do i = 1, nx
+       xznl(i) = xmin + (dble(i) - 1.0_rt)*dCoord
+       xznr(i) = xmin + (dble(i))*dCoord
+       xzn_hse(i) = 0.5_rt*(xznl(i) + xznr(i))
+    enddo
 
-  ! (t, rho) -> (p, s)
-  call eos(eos_input_rt, eos_state)
+    fluff = .false.
 
-  ! make the initial guess be completely uniform
-  model_hse(:,idens) = eos_state%rho
-  model_hse(:,itemp) = eos_state%T
-  model_hse(:,ipres) = eos_state%p
+    ! call the EOS one more time for this zone and then go on to the next
+    eos_state%T     = temp_base
+    eos_state%rho   = dens_base
+    call set_urca_composition(eos_state)
 
-  do i = 1, nspec
-     model_hse(:,ispec-1+i) = eos_state%xn(i)
-  enddo
+    ! (t, rho) -> (p, s)
+    call eos(eos_input_rt, eos_state)
 
-  entropy_want(:) = eos_state%s
+    ! make the initial guess be completely uniform
+    model_hse(:,idens) = eos_state%rho
+    model_hse(:,itemp) = eos_state%T
+    model_hse(:,ipres) = eos_state%p
 
+    do i = 1, nspec
+       model_hse(:,ispec-1+i) = eos_state%xn(i)
+    enddo
 
-  ! keep track of the mass enclosed below the current zone
-  M_enclosed(1) = FOUR3RD*M_PI*(xznr(1)**3 - xznl(1)**3)*model_hse(1,idens)
+    entropy_want(:) = eos_state%s
 
 
-!-----------------------------------------------------------------------------
-! HSE + entropy solve
-!-----------------------------------------------------------------------------
+    ! keep track of the mass enclosed below the current zone
+    M_enclosed(1) = FOUR3RD*M_PI*(xznr(1)**3 - xznl(1)**3)*model_hse(1,idens)
 
-  isentropic = .true.
 
-  do i = 2, nx
+    !-----------------------------------------------------------------------------
+    ! HSE + entropy solve
+    !-----------------------------------------------------------------------------
 
-     delx = xzn_hse(i) - xzn_hse(i-1)
+    isentropic = .true.
 
-     ! as the initial guess for the temperature and density, use the previous
-     ! zone
-     dens_zone = model_hse(i-1,idens)
-     temp_zone = model_hse(i-1,itemp)
-     eos_state % rho = dens_zone
-     eos_state % T = temp_zone
-     call set_urca_composition(eos_state)
-     eos_state % p = model_hse(i-1, ipres)
-     eos_state % s = entropy_want(i)
+    do i = 2, nx
 
-     g_zone = -Gconst*M_enclosed(i-1)/(xznl(i)*xznl(i))
+       delx = xzn_hse(i) - xzn_hse(i-1)
 
+       ! as the initial guess for the temperature and density, use the previous
+       ! zone
+       dens_zone = model_hse(i-1,idens)
+       temp_zone = model_hse(i-1,itemp)
+       eos_state % rho = dens_zone
+       eos_state % T = temp_zone
+       call set_urca_composition(eos_state)
+       eos_state % p = model_hse(i-1, ipres)
+       eos_state % s = entropy_want(i)
 
-     !-----------------------------------------------------------------------
-     ! iteration loop
-     !-----------------------------------------------------------------------
+       g_zone = -Gconst*M_enclosed(i-1)/(xznl(i)*xznl(i))
 
-     ! start off the Newton loop by saying that the zone has not converged
-     converged_hse = .FALSE.
 
+       !-----------------------------------------------------------------------
+       ! iteration loop
+       !-----------------------------------------------------------------------
 
-     if (.not. fluff) then
+       ! start off the Newton loop by saying that the zone has not converged
+       converged_hse = .FALSE.
 
-        do iretry = 1, MAX_RETRY
-           try_tol = TOL*(1.1d0**(iretry-1))
-           do iter = 1, MAX_ITER
-              call iter_dens_temp(dens_zone, temp_zone, eos_state, &
-                                  g_zone, delx, tol, dtol_fac, dens_conv_zone, low_density_cutoff, temp_fluff, &
-                                  isentropic, test_hse_convergence, converged_hse, fluff, &
-                                  fluff_type, &
-                                  i_fluff, i_conv, i)
-              if (converged_hse) then
-                 exit
-              end if
-           enddo
-           if (converged_hse) then
-              exit
-           else if (iretry == MAX_RETRY) then
-              call amrex_error("ERROR: HSE non-convergence with retries!")
-           end if
-        enddo
 
-        if (temp_zone < temp_fluff) then
-           if (fluff_type .eq. "constant") then
-              call get_fluff_temperature(temp_zone, temp_fluff, temp_before_fluff, fluff_type)
-           endif
-           isentropic = .false.
-        endif
+       if (.not. fluff) then
 
-     else
-        dens_zone = low_density_cutoff
-        call get_fluff_temperature(temp_zone, temp_fluff, temp_before_fluff, fluff_type)
-     endif
+          do iretry = 1, MAX_RETRY
+             try_tol = TOL*(1.1d0**(iretry-1))
+             do iter = 1, MAX_ITER
+                call iter_dens_temp(dens_zone, temp_zone, eos_state, &
+                     g_zone, delx, tol, dtol_fac, dens_conv_zone, low_density_cutoff, temp_fluff, &
+                     isentropic, test_hse_convergence, converged_hse, fluff, &
+                     fluff_type, &
+                     i_fluff, i_conv, i)
+                if (converged_hse) then
+                   exit
+                end if
+             enddo
+             if (converged_hse) then
+                exit
+             else if (iretry == MAX_RETRY) then
+                call amrex_error("ERROR: HSE non-convergence with retries!")
+             end if
+          enddo
 
+          if (temp_zone < temp_fluff) then
+             if (fluff_type .eq. "constant") then
+                call get_fluff_temperature(temp_zone, temp_fluff, temp_before_fluff, fluff_type)
+             endif
+             isentropic = .false.
+          endif
 
-     ! call the EOS one more time for this zone and then go on to the next
-     eos_state%T     = temp_zone
-     eos_state%rho   = dens_zone
-     call set_urca_composition(eos_state)
+       else
+          dens_zone = low_density_cutoff
+          call get_fluff_temperature(temp_zone, temp_fluff, temp_before_fluff, fluff_type)
+       endif
 
-     ! (t, rho) -> (p, s)
-     call eos(eos_input_rt, eos_state)
 
-     pres_zone = eos_state%p
+       ! call the EOS one more time for this zone and then go on to the next
+       eos_state%T     = temp_zone
+       eos_state%rho   = dens_zone
+       call set_urca_composition(eos_state)
 
-     dpd = eos_state%dpdr
+       ! (t, rho) -> (p, s)
+       call eos(eos_input_rt, eos_state)
 
-     ! update the thermodynamics in this zone
-     model_hse(i,idens) = dens_zone
-     model_hse(i,itemp) = temp_zone
-     model_hse(i,ipres) = pres_zone
-     do j = 1, nspec
-        model_hse(i,ispec-1+j) = eos_state%xn(j)
-     enddo
+       pres_zone = eos_state%p
 
-     print *, i, dens_zone, temp_zone
+       dpd = eos_state%dpdr
 
-     M_enclosed(i) = M_enclosed(i-1) + &
-          FOUR3RD*M_PI*(xznr(i) - xznl(i))* &
+       ! update the thermodynamics in this zone
+       model_hse(i,idens) = dens_zone
+       model_hse(i,itemp) = temp_zone
+       model_hse(i,ipres) = pres_zone
+       do j = 1, nspec
+          model_hse(i,ispec-1+j) = eos_state%xn(j)
+       enddo
+
+       print *, i, dens_zone, temp_zone
+
+       M_enclosed(i) = M_enclosed(i-1) + &
+            FOUR3RD*M_PI*(xznr(i) - xznl(i))* &
             (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_hse(i,idens)
 
-     if (M_enclosed(i) > M_conv_zone*M_sun .and. isentropic) then
+       if (M_enclosed(i) > M_conv_zone*M_sun .and. isentropic) then
 
-        i_conv = i
-        isentropic = .false.
+          i_conv = i
+          isentropic = .false.
 
-     endif
+       endif
 
-  enddo
-
-
-  print *, 'mass = ', M_enclosed(nx)/M_sun
-
-  write(num,'(i8)') nx
-  outfile = trim(prefix) // ".hse." // trim(adjustl(num))
+    enddo
 
 
+    print *, 'mass = ', M_enclosed(nx)/M_sun
 
-  open (unit=50, file=outfile, status="unknown")
+    write(num,'(i8)') nx
+    outfile = trim(prefix) // ".hse." // trim(adjustl(num))
 
-  write (50,1001) "# npts = ", nx
-  write (50,1001) "# num of variables = ", nvar
-  write (50,1002) "# density"
-  write (50,1002) "# temperature"
-  write (50,1002) "# pressure"
 
-  do n = 1, nspec
-     write (50,1003) "# ", spec_names(n)
-  enddo
+
+    open (unit=50, file=outfile, status="unknown")
+
+    write (50,1001) "# npts = ", nx
+    write (50,1001) "# num of variables = ", nvar
+    write (50,1002) "# density"
+    write (50,1002) "# temperature"
+    write (50,1002) "# pressure"
+
+    do n = 1, nspec
+       write (50,1003) "# ", spec_names(n)
+    enddo
 
 1000 format (1x, 12(g26.16, 1x))
 1001 format(a, i5)
 1002 format(a)
 1003 format(a,a)
 
-  do i = 1, nx
+    do i = 1, nx
 
-     write (50,1000) xzn_hse(i), model_hse(i,idens), model_hse(i,itemp), model_hse(i,ipres), &
-          (model_hse(i,ispec-1+n), n=1,nspec)
+       write (50,1000) xzn_hse(i), model_hse(i,idens), model_hse(i,itemp), model_hse(i,ipres), &
+            (model_hse(i,ispec-1+n), n=1,nspec)
 
-  enddo
+    enddo
 
 
-  ! compute the maximum HSE error
-  max_hse_error = -1.d30
+    ! compute the maximum HSE error
+    max_hse_error = -1.d30
 
-  do i = 2, nx-1
-     g_zone = -Gconst*M_enclosed(i-1)/xznr(i-1)**2
-     dpdr = (model_hse(i,ipres) - model_hse(i-1,ipres))/delx
-     rhog = HALF*(model_hse(i,idens) + model_hse(i-1,idens))*g_zone
+    do i = 2, nx-1
+       g_zone = -Gconst*M_enclosed(i-1)/xznr(i-1)**2
+       dpdr = (model_hse(i,ipres) - model_hse(i-1,ipres))/delx
+       rhog = HALF*(model_hse(i,idens) + model_hse(i-1,idens))*g_zone
 
-     if (dpdr /= ZERO .and. model_hse(i,idens) > low_density_cutoff) then
-        max_hse_error = max(max_hse_error, abs(dpdr - rhog)/abs(dpdr))
-     endif
+       if (dpdr /= ZERO .and. model_hse(i,idens) > low_density_cutoff) then
+          max_hse_error = max(max_hse_error, abs(dpdr - rhog)/abs(dpdr))
+       endif
 
-     if (dpdr /= 0) then
-        print *, i, real(model_hse(i,idens)), real(model_hse(i,itemp)), real(dpdr), real(rhog), abs(dpdr - rhog)/abs(dpdr)
-     endif
-  enddo
+       if (dpdr /= 0) then
+          print *, i, real(model_hse(i,idens)), real(model_hse(i,itemp)), real(dpdr), real(rhog), abs(dpdr - rhog)/abs(dpdr)
+       endif
+    enddo
 
-  print *, 'maximum HSE error = ', max_hse_error
-  print *, ' '
+    print *, 'maximum HSE error = ', max_hse_error
+    print *, ' '
 
 
-  print *, 'total mass (Msun) = ', M_enclosed(i_fluff)/M_sun
-  print *, 'convective zone mass (Msun) = ', M_enclosed(i_conv)/M_sun
-  print *, 'convective zone boundary density (g/cm^3) = ', model_hse(i_conv, idens)
-  print *, 'convective zone boundary radius (cm) = ', xzn_hse(i_conv)
-  print *, 'convective zone boundary index = ', i_conv
+    print *, 'total mass (Msun) = ', M_enclosed(i_fluff)/M_sun
+    print *, 'convective zone mass (Msun) = ', M_enclosed(i_conv)/M_sun
+    print *, 'convective zone boundary density (g/cm^3) = ', model_hse(i_conv, idens)
+    print *, 'convective zone boundary radius (cm) = ', xzn_hse(i_conv)
+    print *, 'convective zone boundary index = ', i_conv
 
 
-  close (unit=50)
+    close (unit=50)
 
-end subroutine init_1d
+  end subroutine init_1d
 
 
-subroutine get_fluff_temperature(temp, temp_fluff, temp_previous, fluff_type)
+  subroutine get_fluff_temperature(temp, temp_fluff, temp_previous, fluff_type)
 
-  ! There are 2 kinds of fluff temperature handling:
-  ! 1) fluff_type = "constant"   : fluff is at the temperature temp_fluff in the inputs
-  ! 2) fluff_type = "continuous" : fluff is at the same temperature as the material
-  !                                immediately interior to the fluff.
+    ! There are 2 kinds of fluff temperature handling:
+    ! 1) fluff_type = "constant"   : fluff is at the temperature temp_fluff in the inputs
+    ! 2) fluff_type = "continuous" : fluff is at the same temperature as the material
+    !                                immediately interior to the fluff.
 
-  use amrex_fort_module, only : rt => amrex_real
-  use amrex_error_module
+    use amrex_fort_module, only : rt => amrex_real
+    use amrex_error_module
 
-  implicit none
+    implicit none
 
-  real (kind=rt), intent(out)   :: temp
-  real (kind=rt), intent(in)    :: temp_fluff, temp_previous
-  character (len=128), intent(in) :: fluff_type
+    real (kind=rt), intent(out)   :: temp
+    real (kind=rt), intent(in)    :: temp_fluff, temp_previous
+    character (len=128), intent(in) :: fluff_type
 
-  if (fluff_type .eq. "constant") then
-     temp = temp_fluff
-  else if (fluff_type .eq. "continuous") then
-     temp = temp_previous
-  else
-     call amrex_error("ERROR: invalid fluff_type")
-  end if
+    if (fluff_type .eq. "constant") then
+       temp = temp_fluff
+    else if (fluff_type .eq. "continuous") then
+       temp = temp_previous
+    else
+       call amrex_error("ERROR: invalid fluff_type")
+    end if
 
-end subroutine get_fluff_temperature
+  end subroutine get_fluff_temperature
 
 
-subroutine iter_dens_temp(dens_zone, temp_zone, eos_state_inwards, &
-                          g_zone, delx, tol, dtol_fac, dens_conv_zone, low_density_cutoff, temp_fluff, &
-                          isentropic, test_hse_convergence, converged_hse, fluff, &
-                          fluff_type, &
-                          i_fluff, i_conv, izone)
+  subroutine iter_dens_temp(dens_zone, temp_zone, eos_state_inwards, &
+       g_zone, delx, tol, dtol_fac, dens_conv_zone, low_density_cutoff, temp_fluff, &
+       isentropic, test_hse_convergence, converged_hse, fluff, &
+       fluff_type, &
+       i_fluff, i_conv, izone)
 
-  ! Do one rho, T iteration
-  use amrex_constants_module
-  use amrex_fort_module, only : rt => amrex_real
-  use amrex_error_module
-  use eos_type_module, only: eos_t, eos_input_rt
-  use eos_module, only: eos
-  use urca_composition_module
-  
-  implicit none
+    ! Do one rho, T iteration
+    use amrex_constants_module
+    use amrex_fort_module, only : rt => amrex_real
+    use amrex_error_module
+    use eos_type_module, only: eos_t, eos_input_rt
+    use eos_module, only: eos
+    use urca_composition_module
 
-  real (kind=rt), intent(inout) :: dens_zone, temp_zone
-  type (eos_t), intent(in) :: eos_state_inwards
-  real (kind=rt), intent(in) :: g_zone, dens_conv_zone, delx, tol, dtol_fac, low_density_cutoff, temp_fluff
-  logical, intent(inout) :: isentropic
-  logical, intent(in) :: test_hse_convergence
-  logical, intent(out) :: converged_hse, fluff
-  integer, intent(out) :: i_fluff, i_conv
-  integer, intent(in) :: izone
-  character (len=128), intent(in) :: fluff_type
+    implicit none
 
-  type (eos_t) :: eos_state
-  real (kind=rt) :: pres_zone, entropy
-  real (kind=rt) :: A, B, dAdT, dAdrho, dBdT, dBdrho
-  real (kind=rt) :: dpd, dpt, dsd, dst
-  real (kind=rt) :: p_want, drho, dtemp
-  real (kind=rt) :: dpdr, rhog, temp_before_fluff
+    real (kind=rt), intent(inout) :: dens_zone, temp_zone
+    type (eos_t), intent(in) :: eos_state_inwards
+    real (kind=rt), intent(in) :: g_zone, dens_conv_zone, delx, tol, dtol_fac, low_density_cutoff, temp_fluff
+    logical, intent(inout) :: isentropic
+    logical, intent(in) :: test_hse_convergence
+    logical, intent(out) :: converged_hse, fluff
+    integer, intent(out) :: i_fluff, i_conv
+    integer, intent(in) :: izone
+    character (len=128), intent(in) :: fluff_type
 
-  if (isentropic) then
+    type (eos_t) :: eos_state
+    real (kind=rt) :: pres_zone, entropy
+    real (kind=rt) :: A, B, dAdT, dAdrho, dBdT, dBdrho
+    real (kind=rt) :: dpd, dpt, dsd, dst
+    real (kind=rt) :: p_want, drho, dtemp
+    real (kind=rt) :: dpdr, rhog, temp_before_fluff
 
-     p_want = eos_state_inwards % p + &
-          delx*0.5_rt*(dens_zone + eos_state_inwards % rho)*g_zone
+    if (isentropic) then
 
-     ! now we have two functions to zero:
-     !   A = p_want - p(rho,T)
-     !   B = entropy_want - s(rho,T)
-     ! We use a two dimensional Taylor expansion and find the deltas
-     ! for both density and temperature
+       p_want = eos_state_inwards % p + &
+            delx*0.5_rt*(dens_zone + eos_state_inwards % rho)*g_zone
 
-     eos_state%T     = temp_zone
-     eos_state%rho   = dens_zone
-     call set_urca_composition(eos_state)
+       ! now we have two functions to zero:
+       !   A = p_want - p(rho,T)
+       !   B = entropy_want - s(rho,T)
+       ! We use a two dimensional Taylor expansion and find the deltas
+       ! for both density and temperature
 
-     ! (t, rho) -> (p, s)
-     call eos(eos_input_rt, eos_state)
+       eos_state%T     = temp_zone
+       eos_state%rho   = dens_zone
+       call set_urca_composition(eos_state)
 
-     entropy = eos_state%s
-     pres_zone = eos_state%p
+       ! (t, rho) -> (p, s)
+       call eos(eos_input_rt, eos_state)
 
-     dpt = eos_state%dpdt
-     dpd = eos_state%dpdr
-     dst = eos_state%dsdt
-     dsd = eos_state%dsdr
+       entropy = eos_state%s
+       pres_zone = eos_state%p
 
-     A = p_want - pres_zone
-     B = eos_state_inwards % s - entropy
+       dpt = eos_state%dpdt
+       dpd = eos_state%dpdr
+       dst = eos_state%dsdt
+       dsd = eos_state%dsdr
 
-     dAdT = -dpt
-     dAdrho = 0.5d0*delx*g_zone - dpd
-     dBdT = -dst
-     dBdrho = -dsd
+       A = p_want - pres_zone
+       B = eos_state_inwards % s - entropy
 
-     dtemp = (B - (dBdrho/dAdrho)*A)/ &
-          ((dBdrho/dAdrho)*dAdT - dBdT)
+       dAdT = -dpt
+       dAdrho = 0.5d0*delx*g_zone - dpd
+       dBdT = -dst
+       dBdrho = -dsd
 
-     drho = -(A + dAdT*dtemp)/dAdrho
+       dtemp = (B - (dBdrho/dAdrho)*A)/ &
+            ((dBdrho/dAdrho)*dAdT - dBdT)
 
-     dens_zone = max((ONE-dtol_fac)*dens_zone, &
-          min(dens_zone + drho, (ONE+dtol_fac)*dens_zone))
+       drho = -(A + dAdT*dtemp)/dAdrho
 
-     temp_zone = max((ONE-dtol_fac)*temp_zone, &
-          min(temp_zone + dtemp, (ONE+dtol_fac)*temp_zone))
+       dens_zone = max((ONE-dtol_fac)*dens_zone, &
+            min(dens_zone + drho, (ONE+dtol_fac)*dens_zone))
 
+       temp_zone = max((ONE-dtol_fac)*temp_zone, &
+            min(temp_zone + dtemp, (ONE+dtol_fac)*temp_zone))
 
-     ! check if the density falls below our minimum cut-off --
-     ! if so, floor it
-     if (dens_zone < low_density_cutoff) then
 
-        i_fluff = izone
+       ! check if the density falls below our minimum cut-off --
+       ! if so, floor it
+       if (dens_zone < low_density_cutoff) then
 
-        dens_zone = low_density_cutoff
+          i_fluff = izone
 
-        temp_before_fluff = eos_state_inwards % T
+          dens_zone = low_density_cutoff
 
-        call get_fluff_temperature(temp_zone, temp_fluff, temp_before_fluff, fluff_type)
+          temp_before_fluff = eos_state_inwards % T
 
-        converged_hse = .TRUE.
-        fluff = .TRUE.
-        return
+          call get_fluff_temperature(temp_zone, temp_fluff, temp_before_fluff, fluff_type)
 
-     endif
+          converged_hse = .TRUE.
+          fluff = .TRUE.
+          return
 
-     if (dens_zone < dens_conv_zone .and. isentropic) then
+       endif
 
-        i_conv = izone
-        isentropic = .false.
+       if (dens_zone < dens_conv_zone .and. isentropic) then
 
-     endif
+          i_conv = izone
+          isentropic = .false.
 
-     if (test_hse_convergence) then
+       endif
 
-        ! Check to see if HSE is satisfied to relative tolerance TOL
+       if (test_hse_convergence) then
 
-        ! Call EOS again using the new values of dens_zone and temp_zone
-        ! to get pres_zone ...
-        eos_state%T     = temp_zone
-        eos_state%rho   = dens_zone
-        call set_urca_composition(eos_state)
+          ! Check to see if HSE is satisfied to relative tolerance TOL
 
-        ! (t, rho) -> (p, s)
-        call eos(eos_input_rt, eos_state)
+          ! Call EOS again using the new values of dens_zone and temp_zone
+          ! to get pres_zone ...
+          eos_state%T     = temp_zone
+          eos_state%rho   = dens_zone
+          call set_urca_composition(eos_state)
 
-        pres_zone = eos_state%p
+          ! (t, rho) -> (p, s)
+          call eos(eos_input_rt, eos_state)
 
-        ! Compute dpdr
-        dpdr = (pres_zone - eos_state_inwards % p)/delx
+          pres_zone = eos_state%p
 
-        ! Compute rho*g
-        rhog = HALF*(dens_zone + eos_state_inwards % rho)*g_zone
+          ! Compute dpdr
+          dpdr = (pres_zone - eos_state_inwards % p)/delx
 
-        if (abs(dpdr - rhog) < TOL*abs(dpdr)) then
-           converged_hse = .TRUE.
-           return
-        endif
+          ! Compute rho*g
+          rhog = HALF*(dens_zone + eos_state_inwards % rho)*g_zone
 
-     else
+          if (abs(dpdr - rhog) < TOL*abs(dpdr)) then
+             converged_hse = .TRUE.
+             return
+          endif
 
-        ! Check to see if drho and dtemp are under the relative tolerance TOL
-        if (abs(drho) < TOL*dens_zone .and. abs(dtemp) < TOL*temp_zone) then
-           converged_hse = .TRUE.
-           return
-        endif
+       else
 
-     endif
+          ! Check to see if drho and dtemp are under the relative tolerance TOL
+          if (abs(drho) < TOL*dens_zone .and. abs(dtemp) < TOL*temp_zone) then
+             converged_hse = .TRUE.
+             return
+          endif
 
-  else
+       endif
 
-     ! do isothermal
-     p_want = eos_state_inwards % p + &
-          delx*0.5*(dens_zone + eos_state_inwards % rho)*g_zone
+    else
 
-     temp_zone = eos_state_inwards % T
+       ! do isothermal
+       p_want = eos_state_inwards % p + &
+            delx*0.5*(dens_zone + eos_state_inwards % rho)*g_zone
 
+       temp_zone = eos_state_inwards % T
 
-     eos_state%T     = temp_zone
-     eos_state%rho   = dens_zone
-     call set_urca_composition(eos_state)
 
-     ! (t, rho) -> (p, s)
-     call eos(eos_input_rt, eos_state)
+       eos_state%T     = temp_zone
+       eos_state%rho   = dens_zone
+       call set_urca_composition(eos_state)
 
-     entropy = eos_state%s
-     pres_zone = eos_state%p
+       ! (t, rho) -> (p, s)
+       call eos(eos_input_rt, eos_state)
 
-     dpd = eos_state%dpdr
+       entropy = eos_state%s
+       pres_zone = eos_state%p
 
-     drho = (p_want - pres_zone)/(dpd - 0.5*delx*g_zone)
+       dpd = eos_state%dpdr
 
-     dens_zone = max(0.9*dens_zone, &
-          min(dens_zone + drho, 1.1*dens_zone))
+       drho = (p_want - pres_zone)/(dpd - 0.5*delx*g_zone)
 
-     if (dens_zone < low_density_cutoff) then
+       dens_zone = max(0.9*dens_zone, &
+            min(dens_zone + drho, 1.1*dens_zone))
 
-        i_fluff = izone
+       if (dens_zone < low_density_cutoff) then
 
-        dens_zone = low_density_cutoff
+          i_fluff = izone
 
-        temp_before_fluff = eos_state_inwards % T
+          dens_zone = low_density_cutoff
 
-        call get_fluff_temperature(temp_zone, temp_fluff, temp_before_fluff, fluff_type)
+          temp_before_fluff = eos_state_inwards % T
 
-        converged_hse = .TRUE.
-        fluff = .TRUE.
-        return
+          call get_fluff_temperature(temp_zone, temp_fluff, temp_before_fluff, fluff_type)
 
-     endif
+          converged_hse = .TRUE.
+          fluff = .TRUE.
+          return
 
-     if (test_hse_convergence) then
+       endif
 
-        ! Check to see if HSE is satisfied to relative tolerance TOL
+       if (test_hse_convergence) then
 
-        ! Call EOS again using the new values of dens_zone and temp_zone
-        ! to get pres_zone ...
-        eos_state%T     = temp_zone
-        eos_state%rho   = dens_zone
-        call set_urca_composition(eos_state)
+          ! Check to see if HSE is satisfied to relative tolerance TOL
 
-        ! (t, rho) -> (p, s)
-        call eos(eos_input_rt, eos_state)
+          ! Call EOS again using the new values of dens_zone and temp_zone
+          ! to get pres_zone ...
+          eos_state%T     = temp_zone
+          eos_state%rho   = dens_zone
+          call set_urca_composition(eos_state)
 
-        pres_zone = eos_state%p
+          ! (t, rho) -> (p, s)
+          call eos(eos_input_rt, eos_state)
 
-        ! Compute dpdr
-        dpdr = (pres_zone - eos_state_inwards % p)/delx
+          pres_zone = eos_state%p
 
-        ! Compute rho*g
-        rhog = HALF*(dens_zone + eos_state_inwards % rho)*g_zone
+          ! Compute dpdr
+          dpdr = (pres_zone - eos_state_inwards % p)/delx
 
-        if (abs(dpdr - rhog) < TOL*abs(dpdr)) then
-           converged_hse = .TRUE.
-           return
-        endif
+          ! Compute rho*g
+          rhog = HALF*(dens_zone + eos_state_inwards % rho)*g_zone
 
-     else
+          if (abs(dpdr - rhog) < TOL*abs(dpdr)) then
+             converged_hse = .TRUE.
+             return
+          endif
 
-        ! Check to see if drho is under the relative tolerance TOL
-        if (abs(drho) < TOL*dens_zone) then
-           converged_hse = .TRUE.
-           return
-        endif
+       else
 
-     endif
+          ! Check to see if drho is under the relative tolerance TOL
+          if (abs(drho) < TOL*dens_zone) then
+             converged_hse = .TRUE.
+             return
+          endif
 
-  endif
+       endif
 
-  ! if (.NOT. converged_hse) then
-  !    print *, 'Error zone did not converge in init_1d'
-  !    print *, 'integrate up'
-  !    print *, 'trial density (dens_zone): ', dens_zone
-  !    print *, 'trial temperature (temp_zone): ', temp_zone
-  !    print *, 'current pressure (pres_zone): ', pres_zone
-  !    print *, 'desired pressure (p_want): ', p_want
-  !    print *, 'desired pressure rel tolerance: ', abs(pres_zone-p_want)/pres_zone
-  !    print *, 'delta density (drho): ', drho
-  !    print *, 'delta temperature (dtemp): ', dtemp
-  !    print *, 'pressure gradient (dpdr): ', dpdr
-  !    print *, 'density * gravitational accel. (rhog): ', rhog
-  !    print *, 'difference... abs(dpdr-rhog): ', abs(dpdr-rhog)
-  !    print *, 'target... TOL*abs(dpdr): ', TOL*abs(dpdr)
-  !    call bl_error('Error: HSE non-convergence')
-  ! endif
+    endif
 
-end subroutine iter_dens_temp
+    ! if (.NOT. converged_hse) then
+    !    print *, 'Error zone did not converge in init_1d'
+    !    print *, 'integrate up'
+    !    print *, 'trial density (dens_zone): ', dens_zone
+    !    print *, 'trial temperature (temp_zone): ', temp_zone
+    !    print *, 'current pressure (pres_zone): ', pres_zone
+    !    print *, 'desired pressure (p_want): ', p_want
+    !    print *, 'desired pressure rel tolerance: ', abs(pres_zone-p_want)/pres_zone
+    !    print *, 'delta density (drho): ', drho
+    !    print *, 'delta temperature (dtemp): ', dtemp
+    !    print *, 'pressure gradient (dpdr): ', dpdr
+    !    print *, 'density * gravitational accel. (rhog): ', rhog
+    !    print *, 'difference... abs(dpdr-rhog): ', abs(dpdr-rhog)
+    !    print *, 'target... TOL*abs(dpdr): ', TOL*abs(dpdr)
+    !    call bl_error('Error: HSE non-convergence')
+    ! endif
+
+  end subroutine iter_dens_temp
+
+end module init_1d_module
