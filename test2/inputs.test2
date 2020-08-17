@@ -1,11 +1,9 @@
-&params
+&extern
 
   ! this set of parameters appears to reproduce the
   ! model.hse.cool.coulomb in test2.
 
   nx = 640
-
-  do_coulomb = .true.
 
   xmin = 0.0d0
   xmax = 3.6d8

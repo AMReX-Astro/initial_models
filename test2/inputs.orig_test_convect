@@ -1,4 +1,4 @@
-&params
+&extern
 
   ! this set of parameters appears to reproduce the original initial
   ! model in test_convect, which was used in paper III.  Note: Coulomb

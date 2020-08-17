@@ -1,0 +1,23 @@
+
+nx                   integer      640
+
+xmin                 real         0.0
+
+xmax                 real         3.6e8
+
+base_height          real         1.e8
+
+entropy_jump         real         3.0
+
+entropy_end          real         6.e0
+
+dens_base            real         2.6e9
+
+temp_base            real         7.e8
+
+g_zone               real         -1.5e10
+
+low_density_cutoff   real         1.e-4
+
+temp_fluff           real         1.e7
+
