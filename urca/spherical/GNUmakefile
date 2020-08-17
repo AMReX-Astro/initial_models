@@ -14,7 +14,7 @@ USE_OMP = FALSE
 USE_REACT = TRUE
 
 # programs to be compiled
-ALL: initialmodel.ex
+EBASE := initialmodel
 
 # EOS and network
 EOS_DIR := helmholtz
@@ -25,7 +25,3 @@ Bpack := ./Make.package
 Blocs := .
 
 include $(MICROPHYSICS_HOME)/Make.Microphysics
-
-initialmodel.ex: $(objForExecs)
-	@echo Linking $@ ...                                                    
-	$(SILENT) $(PRELINK) $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(libraries)
