@@ -2,28 +2,31 @@
 !! uniform composition.  Here we take a base density and temperature
 !! and use HSE and constant entropy to generate the model.
 
-program init_1d
+module init_1d_module
 
-  use bl_types
-  use bl_constants_module
-  use bl_error_module
+contains
+
+subroutine init_1d() bind(C, name="init_1d")
+
+  use amrex_fort_module, only : rt => amrex_real
+  use amrex_constants_module
+  use amrex_error_module
   use eos_module, only: eos, eos_init
   use eos_type_module, only: eos_t, eos_input_rt
   use network
   use fundamental_constants_module, only: Gconst
-  use runtime_init_module
-  use probin_module
+  use extern_probin_module
 
   implicit none
 
   integer :: i, n
 
-  real (kind=dp_t), DIMENSION(nspec) :: xn_core
+  real (kind=rt), DIMENSION(nspec) :: xn_core
 
-  real (kind=dp_t), allocatable :: xzn_hse(:), xznl(:), xznr(:)
-  real (kind=dp_t), allocatable :: model_hse(:,:), M_enclosed(:)
+  real (kind=rt), allocatable :: xzn_hse(:), xznl(:), xznr(:)
+  real (kind=rt), allocatable :: model_hse(:,:), M_enclosed(:)
 
-  real (kind=dp_t) :: A, B, dAdT, dAdrho, dBdT, dBdrho
+  real (kind=rt) :: A, B, dAdT, dAdrho, dBdT, dBdrho
 
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 3 + nspec
@@ -32,7 +35,7 @@ program init_1d
                         ipres = 3, &
                         ispec = 4
 
-  real (kind=dp_t), parameter :: M_sun = 1.9891e33
+  real (kind=rt), parameter :: M_sun = 1.9891e33
 
   ! we'll get the composition indices from the network module
   integer, save :: ih1, ihe4
@@ -42,17 +45,17 @@ program init_1d
   integer :: narg
   character(len=128) :: params_file
 
-  real (kind=dp_t) :: dCoord
+  real (kind=rt) :: dCoord
 
-  real (kind=dp_t) :: dens_zone, temp_zone, pres_zone, entropy
-  real (kind=dp_t) :: dpd, dpt, dsd, dst
+  real (kind=rt) :: dens_zone, temp_zone, pres_zone, entropy
+  real (kind=rt) :: dpd, dpt, dsd, dst
 
-  real (kind=dp_t) :: p_want, drho, dtemp, delx
-  real (kind=dp_t), allocatable :: entropy_store(:), entropy_want(:)
+  real (kind=rt) :: p_want, drho, dtemp, delx
+  real (kind=rt), allocatable :: entropy_store(:), entropy_want(:)
 
-  real (kind=dp_t) :: g_zone
+  real (kind=rt) :: g_zone
 
-  real (kind=dp_t), parameter :: TOL = 1.e-10
+  real (kind=rt), parameter :: TOL = 1.e-10
 
   integer, parameter :: MAX_ITER = 250
 
@@ -60,35 +63,24 @@ program init_1d
 
   logical :: converged_hse, mass_converged, fluff
 
-  real (kind=dp_t) :: mass_star, mass_star_old
+  real (kind=rt) :: mass_star, mass_star_old
 
-  real (kind=dp_t), dimension(nspec) :: xn
+  real (kind=rt), dimension(nspec) :: xn
 
-  real (kind=dp_t) :: rho_c, rho_c_old, drho_c
+  real (kind=rt) :: rho_c, rho_c_old, drho_c
 
   logical :: isentropic
 
   character (len=256) :: outfile
   character (len=8) num, mass
 
-  real (kind=dp_t) :: max_hse_error, dpdr, rhog
+  real (kind=rt) :: max_hse_error, dpdr, rhog
 
   integer :: i_fluff
 
   type (eos_t) :: eos_state
 
-  real, parameter :: TOL_MASS = 1.e-6_dp_t
-
-
-
-  ! initialize the EOS and network
-
-  ! use_eos_coulomb comes in from extern_probin_module -- override
-  ! here if desired
-  call runtime_init(.true.)
-  call eos_init()
-  call network_init()
-
+  real, parameter :: TOL_MASS = 1.e-6_rt
 
   ! get the species indices
   ih1  = network_species_index("hydrogen-1")
@@ -96,16 +88,16 @@ program init_1d
 
 
   if (ih1 < 0 .or. ihe4 < 0) then
-     call bl_error("ERROR: species not defined")
+     call amrex_error("ERROR: species not defined")
   endif
 
-  if (hefrac < 0.0_dp_t .or. hefrac > 1.0_dp_t) then
-     call bl_error("ERROR: cfrac must be between 0 and 1")
+  if (hefrac < 0.0_rt .or. hefrac > 1.0_rt) then
+     call amrex_error("ERROR: cfrac must be between 0 and 1")
   endif
 
-  xn_core(:) = 0.0_dp_t
+  xn_core(:) = 0.0_rt
   xn_core(ihe4) = hefrac
-  xn_core(ih1) = 1.0_dp_t - hefrac
+  xn_core(ih1) = 1.0_rt - hefrac
 
 
 
@@ -127,9 +119,9 @@ program init_1d
   dCoord = (xmax - xmin) / dble(nx)
 
   do i = 1, nx
-     xznl(i) = xmin + (dble(i) - 1.0_dp_t)*dCoord
+     xznl(i) = xmin + (dble(i) - 1.0_rt)*dCoord
      xznr(i) = xmin + (dble(i))*dCoord
-     xzn_hse(i) = 0.5_dp_t*(xznl(i) + xznr(i))
+     xzn_hse(i) = 0.5_rt*(xznl(i) + xznr(i))
   enddo
 
   ! We don't know what central density will give the desired total
@@ -139,8 +131,8 @@ program init_1d
   ! the central density and rho_c is the current guess.  After 2
   ! loops, we can start estimating the density required to yield our
   ! desired mass
-  rho_c_old = -1.0_dp_t
-  rho_c     = 1.e3_dp_t     ! 1.e3 is a reasonable starting low mass star density
+  rho_c_old = -1.0_rt
+  rho_c     = 1.e3_rt     ! 1.e3 is a reasonable starting low mass star density
 
   mass_converged = .false.
 
@@ -206,7 +198,7 @@ program init_1d
               if (isentropic) then
 
                  p_want = model_hse(i-1,ipres) + &
-                      delx*0.5_dp_t*(dens_zone + model_hse(i-1,idens))*g_zone
+                      delx*0.5_rt*(dens_zone + model_hse(i-1,idens))*g_zone
 
 
                  ! now we have two functions to zero:
@@ -243,11 +235,11 @@ program init_1d
 
                  drho = -(A + dAdT*dtemp)/dAdrho
 
-                 dens_zone = max(0.9_dp_t*dens_zone, &
-                      min(dens_zone + drho, 1.1_dp_t*dens_zone))
+                 dens_zone = max(0.9_rt*dens_zone, &
+                      min(dens_zone + drho, 1.1_rt*dens_zone))
 
-                 temp_zone = max(0.9_dp_t*temp_zone, &
-                      min(temp_zone + dtemp, 1.1_dp_t*temp_zone))
+                 temp_zone = max(0.9_rt*temp_zone, &
+                      min(temp_zone + dtemp, 1.1_rt*temp_zone))
 
 
                  ! check if the density falls below our minimum cut-off --
@@ -327,7 +319,7 @@ program init_1d
               print *, dens_zone, temp_zone
               print *, p_want
               print *, drho
-              call bl_error('Error: HSE non-convergence')
+              call amrex_error('Error: HSE non-convergence')
 
            endif
 
@@ -369,7 +361,7 @@ program init_1d
 
      print *, 'mass = ', M_enclosed(nx)/M_sun
 
-     if (rho_c_old < 0.0_dp_t) then
+     if (rho_c_old < 0.0_rt) then
         ! not enough iterations yet -- store the old central density and
         ! mass and pick a new value
         rho_c_old = rho_c
@@ -392,8 +384,8 @@ program init_1d
         rho_c_old = rho_c
         mass_star_old = mass_star
 
-        rho_c = min(1.5_dp_t*rho_c_old, &
-             max((rho_c + drho_c), 0.5_dp_t*rho_c_old))
+        rho_c = min(1.5_rt*rho_c_old, &
+             max((rho_c + drho_c), 0.5_rt*rho_c_old))
 
      endif
 
@@ -401,7 +393,7 @@ program init_1d
 
   if (.not. mass_converged) then
      print *, 'ERROR: star mass did not converge'
-     call bl_error("ERROR: mass did not converge")
+     call amrex_error("ERROR: mass did not converge")
   endif
 
 
@@ -463,4 +455,6 @@ program init_1d
 
   close (unit=lun)
 
-end program init_1d
+end subroutine init_1d
+end module init_1d_module
+
