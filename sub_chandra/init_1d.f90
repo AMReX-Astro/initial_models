@@ -1,44 +1,36 @@
-!! generate an initial model for an arbitrary-mass, isothermal C WD 
+!! generate an initial model for an arbitrary-mass, isothermal C WD
 !! with an isentropic He envelope on the surface.
 
-program init_1d
+subroutine init_1d() bind(C, name="init_1d")
 
-  use bl_types
-  use bl_constants_module
-  use bl_error_module
-  use extern_probin_module, only: use_eos_coulomb
+  use amrex_fort_module, only : rt => amrex_real
+  use amrex_constants_module
+  use amrex_error_module
+  use extern_probin_module
   use eos_module, only: eos, eos_init
   use eos_type_module, only: eos_input_rt, eos_t
   use network
   use fundamental_constants_module, only: Gconst
-  use f2kcli
 
   implicit none
 
   integer :: i, n
 
-  character(len=128) :: params_file
-      
-  real (kind=dp_t) :: temp_core, temp_base, delta
-  real (kind=dp_t), DIMENSION(nspec) :: xn_core, xn_he
+  real (kind=rt), DIMENSION(nspec) :: xn_core, xn_he
 
-  logical :: mixed_co_wd
+  real (kind=rt), allocatable :: xzn_hse(:), xznl(:), xznr(:)
+  real (kind=rt), allocatable :: model_hse(:,:), M_enclosed(:)
+  real (kind=rt), allocatable :: cs_hse(:), s_hse(:)
 
-  real (kind=dp_t), allocatable :: xzn_hse(:), xznl(:), xznr(:)
-  real (kind=dp_t), allocatable :: model_hse(:,:), M_enclosed(:)
-  real (kind=dp_t), allocatable :: cs_hse(:), s_hse(:)
+  real (kind=rt) :: rho_c, rho_c_old, mass_wd, mass_wd_old, drho_c
+  real (kind=rt) :: rho_he, rho_he_old, mass_he, mass_he_old, drho_he
 
-  real (kind=dp_t) :: rho_c, rho_c_old, mass_wd, mass_wd_old, drho_c
-  real (kind=dp_t) :: rho_he, rho_he_old, mass_he, mass_he_old, drho_he
+  real (kind=rt) :: slope_T, slope_xn(nspec)
 
-  real (kind=dp_t) :: slope_T, slope_xn(nspec)
-
-  real (kind=dp_t) :: A, B, dAdT, dAdrho, dBdT, dBdrho
+  real (kind=rt) :: A, B, dAdT, dAdrho, dBdT, dBdrho
   logical :: isentropic
 
-  real (kind=dp_t) :: test
-
-  integer :: nx
+  real (kind=rt) :: test
 
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 3 + nspec
@@ -50,31 +42,31 @@ program init_1d
   ! we'll get the composition indices from the network module
   integer, save :: ihe4, ic12, io16
 
-  real (kind=dp_t), save :: xmin, xmax, dCoord
+  real (kind=rt) dCoord
 
-  real (kind=dp_t) :: dens_zone, temp_zone, pres_zone, entropy
-  real (kind=dp_t) :: dpd, dpt, dsd, dst
+  real (kind=rt) :: dens_zone, temp_zone, pres_zone, entropy
+  real (kind=rt) :: dpd, dpt, dsd, dst
 
-  real (kind=dp_t) :: p_want, drho, dtemp, delx
-  real (kind=dp_t) :: entropy_base
+  real (kind=rt) :: p_want, drho, dtemp, delx
+  real (kind=rt) :: entropy_base
 
-  real (kind=dp_t) :: g_zone
+  real (kind=rt) :: g_zone
 
   ! TOL_HSE is the tolerance used when iterating over a zone to force
   ! it into HSE by adjusting the current density (and possibly
   ! temperature).  TOL_HSE should be very small (~ 1.e-10).
-  real (kind=dp_t), parameter :: TOL_HSE = 1.d-10
+  real (kind=rt), parameter :: TOL_HSE = 1.d-10
 
   ! TOL_WD_MASS is tolerance used for getting the total WD mass equal
   ! to M_tot (defined below).  It can be reasonably small, since there
   ! will always be a central density value that can give the desired
   ! WD mass on the grid we use
-  real (kind=dp_t), parameter :: TOL_WD_MASS = 1.d-4
+  real (kind=rt), parameter :: TOL_WD_MASS = 1.d-4
 
   ! TOL_HE_MASS is the tolerance used for getting the mass of the He
   ! envelope.  This should not be too small, since the values of the
   ! He envelope mass we can achieve will depend on our grid spacing.
-  real (kind=dp_t), parameter :: TOL_HE_MASS = 2.d-2
+  real (kind=rt), parameter :: TOL_HE_MASS = 2.d-2
 
 
   integer, parameter :: MAX_ITER = 250
@@ -85,62 +77,20 @@ program init_1d
 
   logical :: converged_hse, fluff, mass_converged
 
-  real (kind=dp_t), dimension(nspec) :: xn
+  real (kind=rt), dimension(nspec) :: xn
 
-  real (kind=dp_t) :: low_density_cutoff, temp_fluff, smallx, smallt
+  real (kind=rt) :: smallx
 
-  real (kind=dp_t) :: M_tot, M_He
-  real (kind=dp_t) :: solar_mass = 1.98892d33
+  real (kind=rt) :: solar_mass = 1.98892d33
 
   character (len=256) :: outfile
   character (len=8) num, mass_wd_str, mass_he_str
 
-  real (kind=dp_t) :: max_hse_error, dpdr, rhog
+  real (kind=rt) :: max_hse_error, dpdr, rhog
 
   integer :: narg
 
   type (eos_t) :: eos_state
-
-  namelist /params/ nx, M_tot, M_He, delta, xmin, xmax, &
-       temp_core, temp_base, mixed_co_wd, low_density_cutoff, temp_fluff, smallt
-
-
-  ! determine if we specified a runtime parameters file or use the default
-  narg = command_argument_count()
-
-  if (narg == 0) then
-     params_file = "_params"
-  else
-     call get_command_argument(1, value = params_file)
-  endif
-  
-
-
-  ! define the defaults parameters for this model
-  nx = 2560
-
-  M_tot = 0.6
-  M_He  = 0.2
-
-  delta = 1.d-6
-
-  xmin = 0_dp_t
-  xmax = 1.6e9_dp_t
-
-  temp_core = 1.d7
-  temp_base = 4.d8
-
-  mixed_co_wd = .true.
-
-  low_density_cutoff =1.d-4
-  temp_fluff = 1.d5
-  smallt = 1.d5
-
-  ! check the namelist for any changed parameters  
-  open(unit=11, file=trim(params_file), status="old", action="read")
-  read(unit=11, nml=params)
-  close(unit=11)
-
 
   ! convert the envelope and WD mass into solar masses
   M_tot = M_tot * solar_mass
@@ -153,33 +103,28 @@ program init_1d
   smallx = 1.d-10
 
 
-  ! initialize the EOS and network
-  call eos_init()
-  call network_init()
-
-
   ! get the species indices
   ihe4 = network_species_index("helium-4")
   ic12 = network_species_index("carbon-12")
   io16 = network_species_index("oxygen-16")
 
   if (ihe4 < 0 .or. ic12 < 0 .or. io16 < 0) then
-     call bl_error("ERROR: species not defined")
+     call amrex_error("ERROR: species not defined")
   endif
 
   if (mixed_co_wd) then
      xn_core(:)    = smallx
-     xn_core(ic12) = 0.5_dp_t - 0.5*(nspec - 1)*smallx
-     xn_core(io16) = 0.5_dp_t - 0.5*(nspec - 1)*smallx
+     xn_core(ic12) = 0.5_rt - 0.5*(nspec - 1)*smallx
+     xn_core(io16) = 0.5_rt - 0.5*(nspec - 1)*smallx
   else
      xn_core(:)    = smallx
-     xn_core(ic12) = 1.0_dp_t - (nspec - 1)*smallx
+     xn_core(ic12) = 1.0_rt - (nspec - 1)*smallx
   endif
 
 
   xn_he(:)    = smallx
-  xn_he(ihe4) = 1.0_dp_t - (nspec - 1)*smallx
-  
+  xn_he(ihe4) = 1.0_rt - (nspec - 1)*smallx
+
 
   !----------------------------------------------------------------------------
   ! Create a 1-d uniform grid that is identical to the mesh that we are
@@ -199,9 +144,9 @@ program init_1d
   dCoord = (xmax - xmin) / dble(nx)
 
   do i = 1, nx
-     xznl(i) = xmin + (dble(i) - 1.0_dp_t)*dCoord
+     xznl(i) = xmin + (dble(i) - 1.0_rt)*dCoord
      xznr(i) = xmin + (dble(i))*dCoord
-     xzn_hse(i) = 0.5_dp_t*(xznl(i) + xznr(i))
+     xzn_hse(i) = 0.5_rt*(xznl(i) + xznr(i))
   enddo
 
 
@@ -212,17 +157,17 @@ program init_1d
   ! the central density and rho_c is the current guess.  After 2
   ! loops, we can start estimating the density required to yield our
   ! desired mass
-  rho_c_old = -1.0_dp_t
-  rho_c     = 1.e9_dp_t     ! 1.e9 is a reasonable starting WD central density
+  rho_c_old = -1.0_rt
+  rho_c     = 1.e9_rt     ! 1.e9 is a reasonable starting WD central density
 
   ! rho_he_old is the old guess for the density to transition to He,
-  ! where we will be isentropic, and rho_he is the currrent guess.  
-  rho_he_old = -1.0_dp_t
+  ! where we will be isentropic, and rho_he is the currrent guess.
+  rho_he_old = -1.0_rt
   rho_he     = 0.5*rho_c
 
   mass_converged = .false.
 
-  
+
   do iter_mass = 1, MAX_ITER
 
      print *, 'mass iter = ', iter_mass, rho_c, temp_core
@@ -235,7 +180,7 @@ program init_1d
      eos_state%rho   = rho_c
      eos_state%xn(:) = xn_core(:)
 
-     ! (t, rho) -> (p, s)    
+     ! (t, rho) -> (p, s)
      call eos(eos_input_rt, eos_state)
 
      ! make the initial guess be completely uniform
@@ -287,14 +232,14 @@ program init_1d
            test = HALF*(ONE + tanh((xzn_hse(i) - xzn_hse(ihe_layer) - FOUR*delta)/delta))
 
            if (test < 0.999d0) then
- 
+
               ! small tanh ramp up regime
               xn(:) = xn_core(:) + HALF*(xn_he(:) - xn_core(:))* &
                    (ONE + tanh((xzn_hse(i) - xzn_hse(ihe_layer) - FOUR*delta)/delta))
 
               temp_zone = temp_core + HALF*(temp_base - temp_core)* &
                    (ONE + tanh((xzn_hse(i) - xzn_hse(ihe_layer) - FOUR*delta)/delta))
-              
+
               isentropic = .false.
 
            else
@@ -333,20 +278,20 @@ program init_1d
               if (isentropic) then
 
                  p_want = model_hse(i-1,ipres) + &
-                      delx*0.5_dp_t*(dens_zone + model_hse(i-1,idens))*g_zone
+                      delx*0.5_rt*(dens_zone + model_hse(i-1,idens))*g_zone
 
 
                  ! now we have two functions to zero:
                  !   A = p_want - p(rho,T)
                  !   B = entropy_base - s(rho,T)
                  ! We use a two dimensional Taylor expansion and find the deltas
-                 ! for both density and temperature   
-                 
+                 ! for both density and temperature
+
                  eos_state%T     = temp_zone
                  eos_state%rho   = dens_zone
                  eos_state%xn(:) = xn(:)
 
-                 ! (t, rho) -> (p, s) 
+                 ! (t, rho) -> (p, s)
                  call eos(eos_input_rt, eos_state)
 
                  entropy = eos_state%s
@@ -370,11 +315,11 @@ program init_1d
 
                  drho = -(A + dAdT*dtemp)/dAdrho
 
-                 dens_zone = max(0.9_dp_t*dens_zone, &
-                                 min(dens_zone + drho, 1.1_dp_t*dens_zone))
+                 dens_zone = max(0.9_rt*dens_zone, &
+                                 min(dens_zone + drho, 1.1_rt*dens_zone))
 
-                 temp_zone = max(0.9_dp_t*temp_zone, &
-                                 min(temp_zone + dtemp, 1.1_dp_t*temp_zone))
+                 temp_zone = max(0.9_rt*temp_zone, &
+                                 min(temp_zone + dtemp, 1.1_rt*temp_zone))
 
                  ! check if the density falls below our minimum
                  ! cut-off -- if so, floor it
@@ -406,34 +351,34 @@ program init_1d
                  eos_state%T     = temp_zone
                  eos_state%rho   = dens_zone
                  eos_state%xn(:) = xn(:)
-                 
+
                  ! (t, rho) -> (p, s)
                  call eos(eos_input_rt, eos_state)
-        
+
                  entropy = eos_state%s
                  pres_zone = eos_state%p
-                 
+
                  dpd = eos_state%dpdr
-              
+
                  drho = (p_want - pres_zone)/(dpd - 0.5*delx*g_zone)
-              
+
                  dens_zone = max(0.9*dens_zone, &
                       min(dens_zone + drho, 1.1*dens_zone))
-              
+
                  if (abs(drho) < TOL_HSE*dens_zone) then
                     converged_hse = .TRUE.
                     exit
                  endif
-              
+
                  if (dens_zone < low_density_cutoff) then
-                 
+
                     icutoff = i
                     dens_zone = low_density_cutoff
                     temp_zone = temp_fluff
                     converged_hse = .TRUE.
                     fluff = .TRUE.
                     exit
-                 
+
                  endif
               endif
 
@@ -446,20 +391,20 @@ program init_1d
            enddo
 
            if (.NOT. converged_hse) then
-           
+
               print *, 'Error zone', i, ' did not converge in init_1d'
               print *, dens_zone, temp_zone
               print *, p_want
               print *, drho
-              call bl_error('Error: HSE non-convergence')
-           
+              call amrex_error('Error: HSE non-convergence')
+
            endif
 
         else
            dens_zone = low_density_cutoff
            temp_zone = temp_fluff
         endif
-           
+
 
         ! call the EOS one more time for this zone and then go on
         ! to the next
@@ -467,7 +412,7 @@ program init_1d
         eos_state%rho   = dens_zone
         eos_state%xn(:) = xn(:)
 
-        ! (t, rho) -> (p, s)    
+        ! (t, rho) -> (p, s)
         call eos(eos_input_rt, eos_state)
 
         pres_zone = eos_state%p
@@ -516,7 +461,7 @@ program init_1d
      enddo
 
 
-     if (rho_c_old < 0.0_dp_t) then
+     if (rho_c_old < 0.0_rt) then
         ! not enough iterations yet -- store the old central density and
         ! mass and pick a new value
         rho_c_old = rho_c
@@ -537,15 +482,15 @@ program init_1d
         endif
 
         ! do a secant iteration:
-        ! M_tot = M(rho_c) + dM/drho |_rho_c x drho + ...        
+        ! M_tot = M(rho_c) + dM/drho |_rho_c x drho + ...
         drho_c = (M_tot - mass_wd)/ &
              ( (mass_wd  - mass_wd_old)/(rho_c - rho_c_old) )
 
         rho_c_old = rho_c
         mass_wd_old = mass_wd
 
-        rho_c = min(1.1_dp_t*rho_c_old, &
-                    max((rho_c + drho_c), 0.9_dp_t*rho_c_old))
+        rho_c = min(1.1_rt*rho_c_old, &
+                    max((rho_c + drho_c), 0.9_rt*rho_c_old))
 
 
         drho_he = (M_He - mass_he)/ &
@@ -554,18 +499,18 @@ program init_1d
         rho_he_old = rho_he
         mass_he_old = mass_he
 
-        rho_he = min(1.1_dp_t*rho_he_old, &
-                    max((rho_he + drho_he), 0.9_dp_t*rho_he_old))
+        rho_he = min(1.1_rt*rho_he_old, &
+                    max((rho_he + drho_he), 0.9_rt*rho_he_old))
 
         print *, 'current mass = ', mass_wd/solar_mass, mass_he/solar_mass
 
-     endif     
+     endif
 
   enddo  ! end mass constraint loop
 
   if (.not. mass_converged) then
      print *, 'ERROR: WD mass did not converge'
-     call bl_error("ERROR: mass did not converge")
+     call amrex_error("ERROR: mass did not converge")
   endif
 
   print *, 'final masses: '
@@ -637,7 +582,7 @@ program init_1d
   write (51,1002) "# entropy"
 
   do i = 1, nx
-     write (51,1000) xzn_hse(i), cs_hse(i), s_hse(i) 
+     write (51,1000) xzn_hse(i), cs_hse(i), s_hse(i)
   enddo
 
   close (51)
@@ -661,5 +606,4 @@ program init_1d
   print *, 'maximum HSE error = ', max_hse_error
   print *, ' '
 
-end program init_1d
-
+end subroutine init_1d

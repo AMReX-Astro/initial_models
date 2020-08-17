@@ -1,14 +1,14 @@
-&params
+&extern
 
   nx = 2560
 
-  M_tot = 1.2
-  M_He  = 0.05
+  M_tot = 0.8
+  M_He  = 0.1
 
   delta = 5.d6
 
   xmin = 0.d0
-  xmax = 5.d8
+  xmax = 8.5e8
 
   temp_core = 1.d7
   temp_base = 2.d8

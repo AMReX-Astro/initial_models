@@ -1,4 +1,4 @@
-&params
+&extern
 
   nx = 5120
 
@@ -11,7 +11,7 @@
   xmax = 1.e9
 
   temp_core = 1.d7
-  temp_base = 2.5d8
+  temp_base = 2.d8
 
   mixed_co_wd = .false.
 

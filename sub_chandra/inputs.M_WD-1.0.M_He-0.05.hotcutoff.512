@@ -1,6 +1,6 @@
-&params
+&extern
 
-  nx = 2560
+  nx = 5120
 
   M_tot = 1.0
   M_He  = 0.05
@@ -16,7 +16,7 @@
   mixed_co_wd = .false.
 
   low_density_cutoff =1.d-4
-  temp_fluff = 5.d7
+  temp_fluff = 7.5d7
   smallt = 1.d6
 
 /
