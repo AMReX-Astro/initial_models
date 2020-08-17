@@ -1,25 +1,30 @@
-# Makefile for the init_1d initial model generator
+PRECISION = DOUBLE
+PROFILE = FALSE
 
-NDEBUG := t
-MPI    :=
-OMP    :=
+DEBUG = FALSE
 
-COMP := gfortran
+DIM = 1
 
-MKVERBOSE := t
+COMP = g++
+FCOMP = gfortran
+
+USE_MPI = FALSE
+USE_OMP = FALSE
+
+USE_REACT = TRUE
+
+# programs to be compiled
+EBASE := initialmodel
 
 # EOS and network
 EOS_DIR := helmholtz
 
 NETWORK_DIR := general_null
+NETWORK_INPUTS := aprox21.net
 
-GENERAL_NET_INPUTS := $(MICROPHYSICS_HOME)/networks/$(NETWORK_DIR)/aprox21.net
+Bpack := ./Make.package ../read_mesa/Make.package
+Blocs := . ../read_mesa
 
+EXTERN_SEARCH += .
 
-# the local sources needed to build the initial model generator
-MODEL_SOURCES := init_1d.f90
-READER_SOURCES := read_mesa.f90
-# MODEL_SOURCES := init_1d_irreg.f90
-
-
-include ../GInitModels.mak
+include $(MICROPHYSICS_HOME)/Make.Microphysics
