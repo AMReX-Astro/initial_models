@@ -20,7 +20,7 @@ contains
   !!                                base_state
   subroutine read_mesa(filename, base_state, base_r, var_names_model, nvars_model, npts_file)
 
-    use bl_types
+    use amrex_fort_module, only: rt => amrex_real
     use amrex_constants_module
     use amrex_error_module
     use network
@@ -31,15 +31,15 @@ contains
     integer, parameter :: MAX_VARNAME_LENGTH=80
 
     character (len=100), intent(in) :: filename
-    real(kind=dp_t), allocatable, intent(inout) :: base_state(:,:)
-    real(kind=dp_t), allocatable, intent(inout) :: base_r(:)
+    real(kind=rt), allocatable, intent(inout) :: base_state(:,:)
+    real(kind=rt), allocatable, intent(inout) :: base_r(:)
     character (len=MAX_VARNAME_LENGTH), intent(in) :: var_names_model(:)
     integer, intent(in) :: nvars_model
     integer, intent(out) :: npts_file
 
     integer :: nparams_file, nvars_file, status, ipos
     character (len=5000) :: header_line
-    real(kind=dp_t), allocatable :: vars_stored(:), params_stored(:)
+    real(kind=rt), allocatable :: vars_stored(:), params_stored(:)
     character(len=MAX_VARNAME_LENGTH), allocatable :: paramnames_stored(:)
     character(len=MAX_VARNAME_LENGTH), allocatable :: var_names_file(:)
     integer, allocatable :: var_indices_file(:)
