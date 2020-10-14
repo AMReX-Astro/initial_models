@@ -1,18 +1,18 @@
 module init_1d_variables
 
-   use bl_types
+  use amrex_fort_module, only: rt => amrex_real
 
    implicit none
 
    ! geometry factor for computer Mencl = (4/3) pi
-   real(kind = dp_t), parameter :: M_GEOM  = 4.0d0/3.0d0 * 4.0d0*datan(1.0d0)
+   real(kind=rt), parameter :: M_GEOM  = 4.0d0/3.0d0 * 4.0d0*datan(1.0d0)
 
    ! character string constants
    integer, parameter :: MAX_VARNAME_LENGTH=80
 
    ! Newton-Raphson loop
    integer, parameter         :: MAX_NR_ITER = 250
-   real(kind=dp_t), parameter :: TOLERANCE = 1.0d-9
+   real(kind=rt), parameter :: TOLERANCE = 1.0d-9
 
    ! state storage indices and sizes
    integer, parameter :: idens = 1
@@ -26,9 +26,9 @@ module init_1d_variables
    integer            :: Nvars
 
    ! thermodynamic quantities constants
-   real(kind=dp_t), parameter :: smallX = 1.0e-6
-   real(kind=dp_t), parameter :: H1_base = 6.5d-1
-   real(kind=dp_t), parameter :: dens_fluff_cutoff = 1.0d-6
+   real(kind=rt), parameter :: smallX = 1.0e-6
+   real(kind=rt), parameter :: H1_base = 6.5d-1
+   real(kind=rt), parameter :: dens_fluff_cutoff = 1.0d-6
 
    ! smoothing constants
    integer, parameter :: SMOOTH_NONE = 0
@@ -48,7 +48,7 @@ module init_1d_variables
    integer, parameter :: CORE_OVERWR = 1
 
    ! gravity constants
-   real(kind=dp_t), parameter :: G = -6.67428d-8 ! Newton's grav constant
+   real(kind=rt), parameter :: G = -6.67428d-8 ! Newton's grav constant
    integer,         parameter :: GRAVITY_CONST = 0
    integer,         parameter :: GRAVITY_INVSQ = 1
    integer,         parameter :: GRAVITY_MENCL = 2
@@ -57,15 +57,16 @@ end module init_1d_variables
 module init_1d_grids
 
    use init_1d_variables
-   use bl_types
+   use amrex_fort_module, only: rt => amrex_real
+
 
    implicit none
 
-   real(kind=dp_t), allocatable :: Istate(:,:)   ! input grid
-   real(kind=dp_t), allocatable :: Iradius(:)    ! cell-centered radii
-   real(kind=dp_t), allocatable :: Ustate(:,:)   ! uniform grid
-   real(kind=dp_t), allocatable :: Uradius(:)    ! cell-centered radii
-   real(kind=dp_t)              :: rmin, rmax    ! grid limits
-   real(kind=dp_t)              :: dr            ! spacing of grid
+   real(kind=rt), allocatable :: Istate(:,:)   ! input grid
+   real(kind=rt), allocatable :: Iradius(:)    ! cell-centered radii
+   real(kind=rt), allocatable :: Ustate(:,:)   ! uniform grid
+   real(kind=rt), allocatable :: Uradius(:)    ! cell-centered radii
+   real(kind=rt)              :: rmin, rmax    ! grid limits
+   real(kind=rt)              :: dr            ! spacing of grid
    integer                      :: NrU, NrI      ! number of grid zones
 end module init_1d_grids

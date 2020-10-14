@@ -10,116 +10,108 @@
 ! file that shows the hydrostatic equilibrium error.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-program init_1d
+subroutine init_1d() bind(C, name="init_1d")
 
-   ! modules
-   use eos_module
-   use network
-   use init_1d_variables
-   use init_1d_grids
+  ! modules
+  use eos_module
+  use network
+  use init_1d_variables
+  use init_1d_grids
 
-   ! use implicit none or Doug will segfault your machine with his mind
-   implicit none
+  ! use implicit none or Doug will segfault your machine with his mind
+  implicit none
 
-   !===========================================================================
-   ! Declare variables
+  ! Declare variables
 
-   ! files ....................................................................
-   character(len=256) :: model_input   ! input model
-   character(len=256) :: model_initial ! original model (reprinted to check)
-   character(len=256) :: model_interp  ! interpolated model, no smoothing/HSE
-   character(len=256) :: model_integ1  ! first HSE integration, no smoothing
-   character(len=256) :: model_smooth  ! smoothed model, no final HSE integ
-   character(len=256) :: model_maestro ! MAESTRO-readable file (final output)
-   character(len=256) :: model_hse_err ! hydrostatic equilibrium error file
+  ! files ....................................................................
+  character(len=256) :: model_input   ! input model
+  character(len=256) :: model_initial ! original model (reprinted to check)
+  character(len=256) :: model_interp  ! interpolated model, no smoothing/HSE
+  character(len=256) :: model_integ1  ! first HSE integration, no smoothing
+  character(len=256) :: model_smooth  ! smoothed model, no final HSE integ
+  character(len=256) :: model_maestro ! MAESTRO-readable file (final output)
+  character(len=256) :: model_hse_err ! hydrostatic equilibrium error file
 
-   ! gravity ..................................................................
-   integer         :: g_type  ! gravity type
-   real(kind=dp_t) :: M       ! mass of underlying star
+  ! gravity ..................................................................
+  integer         :: g_type  ! gravity type
+  real(kind=rt) :: M       ! mass of underlying star
 
-   ! core profile .............................................................
-   integer :: p_type ! core profile type
-   integer :: c_edge ! extend from initial model edge or from core edge (ibase)
+  ! core profile .............................................................
+  integer :: p_type ! core profile type
+  integer :: c_edge ! extend from initial model edge or from core edge (ibase)
 
-   ! smoothing ................................................................
-   integer         :: s_type     ! smoothing type
-   real(kind=dp_t) :: s_length   !smoothing length
+  ! smoothing ................................................................
+  integer         :: s_type     ! smoothing type
+  real(kind=rt) :: s_length   !smoothing length
 
-   ! temporaries & miscellaneous ..............................................
-   integer :: i                  ! loop index
-   real(kind=dp_t) :: temp_fluff ! temperature in fluff region
+  ! temporaries & miscellaneous ..............................................
+  integer :: i                  ! loop index
+  real(kind=rt) :: temp_fluff ! temperature in fluff region
 
-   !===========================================================================
-   ! Setup
+  ! Setup
 
-   ! Set defaults and parse command-line arguments
-   g_type = GRAVITY_INVSQ           ! default: 1/r^2 gravity
-   M = 1.98892d33                   ! default: 1 solar mass
-   p_type = CORE_PROFILE_ISOTHERMAL ! default: isothermal profile
-   c_edge = CORE_EXTEND             ! default: extend initial model
-   s_type = SMOOTH_NONE             ! default: no smoothing
-   s_length = 1.0d6                 ! default: 10 km
-   NrU = 1024                       ! default: 2^10 zones
-   rmin = 6.0d10                    ! default: 60,000 km
-   rmax = 7.0d10                    ! default: 70,000 km
-   call parse_args(g_type, M, p_type, c_edge, s_type, s_length, NrU, rmin, &
-                   rmax, model_input)
+  ! Set defaults and parse command-line arguments
+  g_type = GRAVITY_INVSQ           ! default: 1/r^2 gravity
+  M = 1.98892d33                   ! default: 1 solar mass
+  p_type = CORE_PROFILE_ISOTHERMAL ! default: isothermal profile
+  c_edge = CORE_EXTEND             ! default: extend initial model
+  s_type = SMOOTH_NONE             ! default: no smoothing
+  s_length = 1.0d6                 ! default: 10 km
+  NrU = 1024                       ! default: 2^10 zones
+  rmin = 6.0d10                    ! default: 60,000 km
+  rmax = 7.0d10                    ! default: 70,000 km
+  call parse_args(g_type, M, p_type, c_edge, s_type, s_length, NrU, rmin, &
+                  rmax, model_input)
 
-   ! Initialize externals
-   call eos_init()
-   call network_init()
+  ! Initialize externals
+  call eos_init()
+  call network_init()
 
-   ! Set parameters
-   iH1 = ispec
-   Nvars = nspec + ispec - 1
+  ! Set parameters
+  iH1 = ispec
+  Nvars = nspec + ispec - 1
 
-   ! Construct file names
-   call construct_file_names(model_input , model_initial, model_interp , &
-                             model_integ1, model_smooth, model_maestro,  &
-                             model_hse_err, g_type, p_type, c_edge, s_type)
+  ! Construct file names
+  call construct_file_names(model_input , model_initial, model_interp , &
+                            model_integ1, model_smooth, model_maestro,  &
+                            model_hse_err, g_type, p_type, c_edge, s_type)
 
-   !===========================================================================
-   ! Read initial model
+  ! Read initial model
 
-   call read_input_model(model_input, temp_fluff, model_initial)
+  call read_input_model(model_input, temp_fluff, model_initial)
 
-   !===========================================================================
-   ! Interpolate model to uniform grid
+  ! Interpolate model to uniform grid
 
-   call interpolate_to_uniform(c_edge, model_interp)
+  call interpolate_to_uniform(c_edge, model_interp)
 
-   !===========================================================================
-   ! First HSE pass (must do this before smoothing to account for chaning the
-   ! profiles, because smoothing and the changing profiles may interact in
-   ! unexpected and detrimental ways); print model_integ1
+  ! First HSE pass (must do this before smoothing to account for chaning the
+  ! profiles, because smoothing and the changing profiles may interact in
+  ! unexpected and detrimental ways); print model_integ1
 
-   call integrate_HSE(g_type, M, p_type, temp_fluff, model_integ1)
+  call integrate_HSE(g_type, M, p_type, temp_fluff, model_integ1)
 
-   !===========================================================================
-   ! Smooth the model; print model_smooth
+  ! Smooth the model; print model_smooth
 
-   call smooth_model(s_type, s_length, model_smooth)
+  call smooth_model(s_type, s_length, model_smooth)
 
-   !===========================================================================
-   ! Second HSE pass (need to correct for the changes made by smoothing; the
-   ! question remains: do we do this integration isothermally or
-   ! isentropically?); print model_maestro
+  ! Second HSE pass (need to correct for the changes made by smoothing; the
+  ! question remains: do we do this integration isothermally or
+  ! isentropically?); print model_maestro
 
-   call integrate_HSE(g_type, M, CORE_PROFILE_SECOND_HSE, temp_fluff, &
-                      model_maestro)
+  call integrate_HSE(g_type, M, CORE_PROFILE_SECOND_HSE, temp_fluff, &
+                     model_maestro)
 
-   !===========================================================================
-   ! Compute and print hse_err file
+  ! Compute and print hse_err file
 
-   call compute_HSE_error(g_type, M, temp_fluff, model_hse_err)
+  call compute_HSE_error(g_type, M, temp_fluff, model_hse_err)
 
-   !===========================================================================
-   ! Cleanup
+  ! Cleanup
 
-   deallocate(Ustate)
-   deallocate(Uradius)
+  deallocate(Ustate)
+  deallocate(Uradius)
 
-end program
+end subroutine init_1d
+
 
 !------------------------------------------------------------------------------
 !==============================================================================
@@ -143,26 +135,26 @@ end program
 subroutine parse_args(g_type, M, p_type, c_edge, s_type, s_length, nx, xmin, &
                       xmax, model_file)
 
-   use bl_types
-   use bl_constants_module
-   use bl_error_module
+  use amrex_fort_module, only: rt => amrex_real
+   use amrex_constants_module
+   use amrex_error_module
    use init_1d_variables
 
    implicit none
 
    !===========================================================================
    ! Declare variables
-   
+
    ! Arguments ................................................................
    integer,            intent(inout) :: g_type
-   real(kind=dp_t),    intent(inout) :: M
+   real(kind=rt),    intent(inout) :: M
    integer,            intent(inout) :: p_type
    integer,            intent(inout) :: c_edge
    integer,            intent(inout) :: s_type
-   real(kind=dp_t),    intent(inout) :: s_length
+   real(kind=rt),    intent(inout) :: s_length
    integer,            intent(inout) :: nx
-   real(kind=dp_t),    intent(inout) :: xmin
-   real(kind=dp_t),    intent(inout) :: xmax
+   real(kind=rt),    intent(inout) :: xmin
+   real(kind=rt),    intent(inout) :: xmax
    character(len=256), intent(  out) :: model_file
 
    ! Locals ...................................................................
@@ -235,7 +227,7 @@ subroutine parse_args(g_type, M, p_type, c_edge, s_type, s_length, nx, xmin, &
          write (*,*) "    '--model_file filename' to set name of input model &
                             &file; REQUIRED"
          stop
-      
+
       !------------------------------------------------------------------------
       ! Gravity options
 
@@ -378,7 +370,7 @@ subroutine parse_args(g_type, M, p_type, c_edge, s_type, s_length, nx, xmin, &
 
    !===========================================================================
    ! Verify command-line arguments
-   
+
    ! If we are going to smooth the model, the smoothing length must be positive
    if ((s_type /= SMOOTH_NONE) .and. (s_length .le. ZERO)) then
       call bl_error("ERROR: smoothing length must be greater than zero.")
@@ -475,7 +467,7 @@ subroutine construct_file_names(model_input , model_initial, model_interp , &
    case default
       model_maestro = trim(model_base) // '_G-----'
    end select
-   
+
    model_maestro = trim(model_maestro) // '_P'
    select case(p_type)
    case(CORE_PROFILE_ISOTHERMAL)
@@ -485,7 +477,7 @@ subroutine construct_file_names(model_input , model_initial, model_interp , &
    case default
       model_maestro = trim(model_maestro) // '--'
    end select
-   
+
    select case(c_edge)
    case(CORE_EXTEND)
       model_maestro = trim(model_maestro) // 'ex' ! EXtend
@@ -494,7 +486,7 @@ subroutine construct_file_names(model_input , model_initial, model_interp , &
    case default
       model_maestro = trim(model_maestro) // '--'
    end select
-   
+
    select case(s_type)
    case(SMOOTH_NONE)
       model_maestro = trim(model_maestro) // '_Snone'
@@ -513,8 +505,7 @@ subroutine construct_file_names(model_input , model_initial, model_interp , &
    case default
       model_maestro = trim(model_maestro) // '_S----'
    end select
-   
+
    model_maestro = trim(model_maestro) // '.hse'
 
 end subroutine construct_file_names
-

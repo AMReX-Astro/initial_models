@@ -11,8 +11,8 @@ subroutine interpolate_to_uniform(c_edge, outfile)
    use network
    use init_1d_variables
    use init_1d_grids
-   use bl_types
-   use bl_constants_module
+   use amrex_fort_module, only: rt => amrex_real
+   use amrex_constants_module
 
    implicit none
 
@@ -27,12 +27,12 @@ subroutine interpolate_to_uniform(c_edge, outfile)
    integer :: i, j, n               ! loop indices
    logical :: at_H1_base = .false.  ! have we found base of the H1 layer yet?
    logical :: at_Tpeak = .false.    ! have we found peak temperature yet?
-   real(kind=dp_t), dimension(nspec) :: composition
-   real(kind=dp_t) :: Xsum ! accumulator
-   real(kind=dp_t) :: Tmin ! minimum core temperature
+   real(kind=rt), dimension(nspec) :: composition
+   real(kind=rt) :: Xsum ! accumulator
+   real(kind=rt) :: Tmin ! minimum core temperature
 
    ! Functions ................................................................
-   real(kind=dp_t) :: interpolate   ! interpolate a quantity
+   real(kind=rt) :: interpolate   ! interpolate a quantity
 
    !===========================================================================
    ! Allocate uniform grid and compute radii
@@ -153,7 +153,8 @@ end subroutine interpolate_to_uniform
 function interpolate(r, npts, model_r, model_var)
 
    use init_1d_variables
-   use bl_types
+   use amrex_fort_module, only: rt => amrex_real
+
 
    implicit none
 
@@ -162,12 +163,12 @@ function interpolate(r, npts, model_r, model_var)
    ! find the value of model_var at point r using linear interpolation.
    ! Eventually, we can do something fancier here.
 
-   real(kind=dp_t) :: interpolate
-   real(kind=dp_t), intent(in) :: r
+   real(kind=rt) :: interpolate
+   real(kind=rt), intent(in) :: r
    integer :: npts
-   real(kind=dp_t), dimension(npts) :: model_r, model_var
-   real(kind=dp_t) :: val, slope
-   real(kind=dp_t) :: minvar, maxvar
+   real(kind=rt), dimension(npts) :: model_r, model_var
+   real(kind=rt) :: val, slope
+   real(kind=rt) :: minvar, maxvar
 
    logical :: found
 

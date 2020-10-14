@@ -13,8 +13,8 @@ subroutine smooth_model(s_type, s_length, outfile)
 
    use init_1d_variables
    use init_1d_grids
-   use bl_types
-   use bl_error_module
+   use amrex_fort_module, only: rt => amrex_real
+   use amrex_error_module
 
    implicit none
 
@@ -23,7 +23,7 @@ subroutine smooth_model(s_type, s_length, outfile)
 
    ! Arguments ................................................................
    integer,                      intent(in   ) :: s_type
-   real(kind=dp_t),              intent(in   ) :: s_length
+   real(kind=rt),              intent(in   ) :: s_length
    character(len=256),           intent(in   ) :: outfile
    
    ! Temporaries ..............................................................
@@ -67,8 +67,8 @@ subroutine smooth_model_tnh0(s_length)
 
    use init_1d_variables
    use init_1d_grids
-   use bl_types
-   use bl_constants_module
+   use amrex_fort_module, only: rt => amrex_real
+   use amrex_constants_module
 
    implicit none
 
@@ -76,16 +76,16 @@ subroutine smooth_model_tnh0(s_length)
    ! Declare variables
 
    ! Arguments ................................................................
-   real(kind=dp_t),              intent(in   ) :: s_length
+   real(kind=rt),              intent(in   ) :: s_length
 
    ! Local ....................................................................
-   real(kind=dp_t), allocatable :: smoothed(:,:)
+   real(kind=rt), allocatable :: smoothed(:,:)
 
    ! Temporaries ..............................................................
    integer :: i, n            ! loop indices
    integer :: j               ! cut point
-   real(kind=dp_t) :: shift   ! drop the upper region before re-adding tanh
-   real(kind=dp_t) :: x, y    ! for computing tanh profile
+   real(kind=rt) :: shift   ! drop the upper region before re-adding tanh
+   real(kind=rt) :: x, y    ! for computing tanh profile
    
    !===========================================================================
    ! Allocate
@@ -145,8 +145,8 @@ subroutine smooth_model_krnl(s_length)
 
    use init_1d_variables
    use init_1d_grids
-   use bl_types
-   use bl_constants_module
+   use amrex_fort_module, only: rt => amrex_real
+   use amrex_constants_module
 
    implicit none
 
@@ -154,15 +154,15 @@ subroutine smooth_model_krnl(s_length)
    ! Declare variables
 
    ! Arguments ................................................................
-   real(kind=dp_t),              intent(in   ) :: s_length
+   real(kind=rt),              intent(in   ) :: s_length
 
    ! Local ....................................................................
-   real(kind=dp_t), allocatable :: smoothed(:,:)
+   real(kind=rt), allocatable :: smoothed(:,:)
 
    ! Temporaries ..............................................................
    integer :: i, j, n               ! loop indices
-   real(kind=dp_t) :: w             ! weight of each point
-   real(kind=dp_t) :: sum_w, sum_wx ! accumulators
+   real(kind=rt) :: w             ! weight of each point
+   real(kind=rt) :: sum_w, sum_wx ! accumulators
    
    !===========================================================================
    ! Allocate
@@ -229,9 +229,9 @@ subroutine smooth_model_below(s_type, s_length)
 
    use init_1d_variables
    use init_1d_grids
-   use bl_types
-   use bl_constants_module
-   use bl_error_module
+   use amrex_fort_module, only: rt => amrex_real
+   use amrex_constants_module
+   use amrex_error_module
 
    implicit none
 
@@ -240,16 +240,16 @@ subroutine smooth_model_below(s_type, s_length)
 
    ! Arguments ................................................................
    integer,         intent(in   ) :: s_type
-   real(kind=dp_t), intent(in   ) :: s_length
+   real(kind=rt), intent(in   ) :: s_length
 
    ! Local ....................................................................
-   real(kind=dp_t), allocatable :: smoothed(:,:)
+   real(kind=rt), allocatable :: smoothed(:,:)
 
    ! Temporaries ..............................................................
    integer :: i, n            ! loop indices
    integer :: j               ! cut point
-   real(kind=dp_t) :: shift   ! drop the upper region before re-adding tanh
-   real(kind=dp_t) :: x, y    ! for computing tanh profile
+   real(kind=rt) :: shift   ! drop the upper region before re-adding tanh
+   real(kind=rt) :: x, y    ! for computing tanh profile
    
    !===========================================================================
    ! Allocate
@@ -301,7 +301,7 @@ subroutine smooth_model_below(s_type, s_length)
          case(SMOOTH_EXPN)
             y = dexp(x)
          case default
-            call bl_error("ERROR: invalid smoothing type in &
+            call amrex_error("ERROR: invalid smoothing type in &
                                &smooth_model_below")
          end select
          Ustate(i,n) = smoothed(i,n) + shift * y

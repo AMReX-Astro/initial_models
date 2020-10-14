@@ -34,8 +34,8 @@ subroutine integrate_HSE(g_type, mass, p_type, temp_fluff, outfile)
    use network
    use init_1d_variables
    use init_1d_grids
-   use bl_types
-   use bl_error_module
+   use amrex_fort_module, only: rt => amrex_real
+   use amrex_error_module
 
    implicit none
 
@@ -44,21 +44,21 @@ subroutine integrate_HSE(g_type, mass, p_type, temp_fluff, outfile)
 
    ! Arguments ................................................................
    integer,                      intent(in   ) :: g_type
-   real(kind=dp_t),              intent(in   ) :: mass
+   real(kind=rt),              intent(in   ) :: mass
    integer,                      intent(in   ) :: p_type
-   real(kind=dp_t),              intent(in   ) :: temp_fluff
+   real(kind=rt),              intent(in   ) :: temp_fluff
    character(len=256),           intent(in   ) :: outfile
 
    ! Locals ...................................................................
-   real(kind=dp_t)              :: g_zone
-   real(kind=dp_t)              :: g_const
+   real(kind=rt)              :: g_zone
+   real(kind=rt)              :: g_const
 
    ! Temporaries ..............................................................
    integer :: i, n ! loop indices
-   real(kind=dp_t) :: dx, r_edge
+   real(kind=rt) :: dx, r_edge
 
    ! Functions ................................................................
-   real(kind=dp_t) :: m_shell
+   real(kind=rt) :: m_shell
 
    type(eos_t) :: eos_state
 
@@ -98,7 +98,7 @@ subroutine integrate_HSE(g_type, mass, p_type, temp_fluff, outfile)
       ! enclosed mass.
       g_const = mass
    case default
-      call bl_error('ERROR: invalid gravity mode in integrate_HSE subroutine')
+      call amrex_error('ERROR: invalid gravity mode in integrate_HSE subroutine')
    end select
 
    !===========================================================================
@@ -153,9 +153,9 @@ subroutine integration_loop(istart, iend, g_type, g_const, p_type, temp_fluff)
    use eos_type_module, only : eos_t, eos_input_rt
    use init_1d_variables
    use init_1d_grids
-   use bl_constants_module
-   use bl_types
-   use bl_error_module
+   use amrex_constants_module
+   use amrex_fort_module, only: rt => amrex_real
+   use amrex_error_module
 
    implicit none
 
@@ -165,17 +165,17 @@ subroutine integration_loop(istart, iend, g_type, g_const, p_type, temp_fluff)
    ! Arguments ................................................................
    integer,                      intent(in   ) :: istart, iend
    integer,                      intent(in   ) :: g_type
-   real(kind=dp_t),              intent(in   ) :: g_const
+   real(kind=rt),              intent(in   ) :: g_const
    integer,                      intent(in   ) :: p_type
-   real(kind=dp_t),              intent(in   ) :: temp_fluff
+   real(kind=rt),              intent(in   ) :: temp_fluff
 
    ! Locals ...................................................................
    integer :: istep
    logical :: fluff
-   real(kind=dp_t) :: dx, r_edge
-   real(kind=dp_t) :: dens_zone, temp_zone, pres_zone, s_zone, g_zone
-   real(kind=dp_t) :: core_entropy
-   real(kind=dp_t) :: Mencl
+   real(kind=rt) :: dx, r_edge
+   real(kind=rt) :: dens_zone, temp_zone, pres_zone, s_zone, g_zone
+   real(kind=rt) :: core_entropy
+   real(kind=rt) :: Mencl
 
    ! Temporaries ..............................................................
    integer :: i ! loop index
@@ -183,7 +183,7 @@ subroutine integration_loop(istart, iend, g_type, g_const, p_type, temp_fluff)
    type(eos_t) :: eos_state
 
    ! Functions ................................................................
-   real(kind=dp_t) :: m_shell
+   real(kind=rt) :: m_shell
 
    !===========================================================================
    ! Set up
@@ -223,12 +223,12 @@ subroutine integration_loop(istart, iend, g_type, g_const, p_type, temp_fluff)
          ! Subtract previous shell mass on the downward sweep (m_shell(i+1))
          Mencl = Mencl + istep*m_shell(i-istep)
          if (Mencl .le. 0) then
-            call bl_error("ERROR: enclosed mass non-positive")
+            call amrex_error("ERROR: enclosed mass non-positive")
          end if
          g_zone  = G * Mencl / r_edge**2
       case default
-         call bl_error('ERROR: invalid gravity mode in integration_loop &
-                            &subroutine')
+         call amrex_error('ERROR: invalid gravity mode in integration_loop &
+                          &subroutine')
       end select
 
       ! set composition data
@@ -262,8 +262,8 @@ subroutine integration_loop(istart, iend, g_type, g_const, p_type, temp_fluff)
             case(CORE_PROFILE_ISENTROPIC)
                temp_zone = Ustate(i-istep, itemp)
             case default
-               call bl_error("ERROR: invalid profile type in integration &
-                                  &loop subroutine")
+               call amrex_error("ERROR: invalid profile type in integration &
+                                &loop subroutine")
             end select
          else
             temp_zone = Ustate(i, itemp)
@@ -323,9 +323,9 @@ subroutine HSE_NR_loop_isothermal(dens_curr, dens_prev, temp_curr, pres_curr, &
    use eos_module
    use eos_type_module, only : eos_t, eos_input_rt
    use init_1d_variables
-   use bl_types
-   use bl_constants_module
-   use bl_error_module
+   use amrex_fort_module, only: rt => amrex_real
+   use amrex_constants_module
+   use amrex_error_module
 
    implicit none
 
@@ -333,22 +333,22 @@ subroutine HSE_NR_loop_isothermal(dens_curr, dens_prev, temp_curr, pres_curr, &
    ! Declare variables
 
    ! Arguments ................................................................
-   real(kind=dp_t), intent(inout) :: dens_curr
-   real(kind=dp_t), intent(in   ) :: dens_prev
-   real(kind=dp_t), intent(inout) :: temp_curr
-   real(kind=dp_t), intent(  out) :: pres_curr
-   real(kind=dp_t), intent(in   ) :: pres_prev
-   real(kind=dp_t), intent(inout) :: s_curr
-   real(kind=dp_t), intent(in   ) :: grav, dx
+   real(kind=rt), intent(inout) :: dens_curr
+   real(kind=rt), intent(in   ) :: dens_prev
+   real(kind=rt), intent(inout) :: temp_curr
+   real(kind=rt), intent(  out) :: pres_curr
+   real(kind=rt), intent(in   ) :: pres_prev
+   real(kind=rt), intent(inout) :: s_curr
+   real(kind=rt), intent(in   ) :: grav, dx
    integer,         intent(in   ) :: izone
    integer,         intent(in   ) :: istep
    logical,         intent(  out) :: fluff
-   real(kind=dp_t), intent(in   ) :: temp_fluff
+   real(kind=rt), intent(in   ) :: temp_fluff
 
    ! Locals ...................................................................
-   real(kind=dp_t) :: pres_hse, pres_eos
-   real(kind=dp_t) :: dp_hse, dp_eos
-   real(kind=dp_t) :: drho
+   real(kind=rt) :: pres_hse, pres_eos
+   real(kind=rt) :: dp_hse, dp_eos
+   real(kind=rt) :: drho
    logical         :: converged
 
    type(eos_t) :: eos_state
@@ -410,7 +410,7 @@ subroutine HSE_NR_loop_isothermal(dens_curr, dens_prev, temp_curr, pres_curr, &
       write(*,*) "drho = ", drho
       write(*,*) "pres (EoS) = ", pres_eos
       write(*,*) "pres (HSE) = ", pres_hse
-      call bl_error("ERROR: HSE non-convergence")
+      call amrex_error("ERROR: HSE non-convergence")
    end if
 
    ! Use the fluff temperature as a floor
@@ -434,9 +434,9 @@ subroutine HSE_NR_loop_isentropic(dens_curr, dens_prev, temp_curr, pres_curr, &
    use eos_module
    use eos_type_module, only : eos_t, eos_input_rt
    use init_1d_variables
-   use bl_types
-   use bl_constants_module
-   use bl_error_module
+   use amrex_fort_module, only: rt => amrex_real
+   use amrex_constants_module
+   use amrex_error_module
 
    implicit none
 
@@ -444,29 +444,29 @@ subroutine HSE_NR_loop_isentropic(dens_curr, dens_prev, temp_curr, pres_curr, &
    ! Declare variables
 
    ! Arguments ................................................................
-   real(kind=dp_t), intent(inout) :: dens_curr
-   real(kind=dp_t), intent(in   ) :: dens_prev
-   real(kind=dp_t), intent(inout) :: temp_curr
-   real(kind=dp_t), intent(  out) :: pres_curr
-   real(kind=dp_t), intent(in   ) :: pres_prev
-   real(kind=dp_t), intent(inout) :: s_curr
-   real(kind=dp_t), intent(in   ) :: grav, dx
+   real(kind=rt), intent(inout) :: dens_curr
+   real(kind=rt), intent(in   ) :: dens_prev
+   real(kind=rt), intent(inout) :: temp_curr
+   real(kind=rt), intent(  out) :: pres_curr
+   real(kind=rt), intent(in   ) :: pres_prev
+   real(kind=rt), intent(inout) :: s_curr
+   real(kind=rt), intent(in   ) :: grav, dx
    integer,         intent(in   ) :: izone
    integer,         intent(in   ) :: istep
    logical,         intent(  out) :: fluff
-   real(kind=dp_t), intent(in   ) :: temp_fluff
+   real(kind=rt), intent(in   ) :: temp_fluff
 
    ! Locals ...................................................................
-   real(kind=dp_t) :: pres_hse, pres_eos
-   real(kind=dp_t) :: entr_iso, entr_eos
-   real(kind=dp_t) :: dpdr, dpdt, dsdr, dsdt, dp_hse
-   real(kind=dp_t) :: determinant
-   real(kind=dp_t) :: drho, dtmp
+   real(kind=rt) :: pres_hse, pres_eos
+   real(kind=rt) :: entr_iso, entr_eos
+   real(kind=rt) :: dpdr, dpdt, dsdr, dsdt, dp_hse
+   real(kind=rt) :: determinant
+   real(kind=rt) :: drho, dtmp
    logical         :: converged
 
    ! Temporaries ..............................................................
    integer         :: i ! loop index
-   real(kind=dp_t) :: junk
+   real(kind=rt) :: junk
 
    type(eos_t) :: eos_state
 
@@ -539,7 +539,7 @@ subroutine HSE_NR_loop_isentropic(dens_curr, dens_prev, temp_curr, pres_curr, &
       write(*,*) "pres (HSE) = ", pres_hse
       write(*,*) "entr (EoS) = ", entr_eos
       write(*,*) "entr (iso) = ", entr_iso
-      call bl_error("ERROR: HSE non-convergence")
+      call amrex_error("ERROR: HSE non-convergence")
    end if
 
    ! Use the fluff temperature as a floor
@@ -561,15 +561,15 @@ function m_shell(i)
 
    use init_1d_variables
    use init_1d_grids, only: Ustate, Uradius, NrU
-   use bl_types
-   use bl_constants_module
+   use amrex_fort_module, only: rt => amrex_real
+   use amrex_constants_module
 
    implicit none
 
    integer, intent(in) :: i
-   real(kind=dp_t)     :: m_shell
-   real(kind=dp_t)     :: r_upper, r_lower
-   real(kind=dp_t)     :: dr
+   real(kind=rt)     :: m_shell
+   real(kind=rt)     :: r_upper, r_lower
+   real(kind=rt)     :: dr
 
    if (i == 1) then
       ! r_upper is average of current cell-centered radius and next
@@ -608,9 +608,9 @@ subroutine compute_HSE_error(g_type, mass, temp_fluff, outfile)
    use network
    use init_1d_variables
    use init_1d_grids
-   use bl_types
-   use bl_constants_module
-   use bl_error_module
+   use amrex_fort_module, only: rt => amrex_real
+   use amrex_constants_module
+   use amrex_error_module
 
    implicit none
 
@@ -619,21 +619,21 @@ subroutine compute_HSE_error(g_type, mass, temp_fluff, outfile)
 
    ! Arguments ................................................................
    integer,                      intent(in   ) :: g_type
-   real(kind=dp_t),              intent(in   ) :: mass
-   real(kind=dp_t),              intent(in   ) :: temp_fluff
+   real(kind=rt),              intent(in   ) :: mass
+   real(kind=rt),              intent(in   ) :: temp_fluff
    character(len=256),           intent(in   ) :: outfile
 
    ! Locals ...................................................................
-   real(kind=dp_t), allocatable :: dpdr(:), rhog(:), hse_error(:)
-   real(kind=dp_t)              :: max_hse_error, max_hse_radius, g_zone
-   real(kind=dp_t)              :: g_const
+   real(kind=rt), allocatable :: dpdr(:), rhog(:), hse_error(:)
+   real(kind=rt)              :: max_hse_error, max_hse_radius, g_zone
+   real(kind=rt)              :: g_const
 
    ! Temporaries ..............................................................
    integer :: i, n ! loop indices
-   real(kind=dp_t) :: dx, r_edge
+   real(kind=rt) :: dx, r_edge
 
    ! Functions ................................................................
-   real(kind=dp_t) :: m_shell
+   real(kind=rt) :: m_shell
 
    !===========================================================================
    ! Set up
@@ -666,7 +666,7 @@ subroutine compute_HSE_error(g_type, mass, temp_fluff, outfile)
          g_const = g_const - m_shell(i)
       end do
    case default
-      call bl_error('ERROR: invalid gravity mode in integrate_HSE subroutine')
+      call amrex_error('ERROR: invalid gravity mode in integrate_HSE subroutine')
    end select
 
    !===========================================================================

@@ -1,6 +1,4 @@
 !------------------------------------------------------------------------------
-!==============================================================================
-!------------------------------------------------------------------------------
 ! This subroutine reads the input model from a file and sorts it into the
 ! appropriate data structures for later use
 !
@@ -14,8 +12,8 @@ subroutine read_input_model(infile, temp_fluff, outfile)
    use network
    use init_1d_variables
    use init_1d_grids
-   use bl_types
-   use bl_constants_module
+   use amrex_fort_module, only: rt => amrex_real
+   use amrex_constants_module
 
    implicit none
 
@@ -24,12 +22,12 @@ subroutine read_input_model(infile, temp_fluff, outfile)
 
    ! Arguments ................................................................
    character(len=256),           intent(in   ) :: infile
-   real(kind=dp_t),              intent(  out) :: temp_fluff
+   real(kind=rt),              intent(  out) :: temp_fluff
    character(len=256),           intent(in   ) :: outfile
 
    ! Locals ...................................................................
    integer                                        :: Nvars_inp ! # inputs vars
-   real(kind=dp_t), allocatable                   :: vars(:)   ! zone values
+   real(kind=rt), allocatable                   :: vars(:)   ! zone values
    character(len=MAX_VARNAME_LENGTH), allocatable :: varnames(:)
    logical :: found
 
@@ -37,8 +35,8 @@ subroutine read_input_model(infile, temp_fluff, outfile)
    character(len=256) :: line ! a line read from the input file
    integer            :: ipos ! a string position for trimming
    integer            :: i, j, n ! loop indices
-   real(kind=dp_t)    :: Xsum ! for normalizing abundances
-   real(kind=dp_t), dimension(nspec) :: species ! for normalizing abundances
+   real(kind=rt)    :: Xsum ! for normalizing abundances
+   real(kind=rt), dimension(nspec) :: species ! for normalizing abundances
 
    !===========================================================================
    ! Get number of input variables and number of zones; then allocate
