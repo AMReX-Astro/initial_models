@@ -33,13 +33,13 @@ subroutine smooth_model(outfile)
 
    select case(s_type)
    case(SMOOTH_KRNL)
-      call smooth_model_krnl(s_length)
+      call smooth_model_krnl()
    case(SMOOTH_TNH0)
-      call smooth_model_tnh0(s_length)
+      call smooth_model_tnh0()
    case default
       if (s_type == SMOOTH_TANH .or. s_type == SMOOTH_TNH2 &
           .or. s_type == SMOOTH_GSSN .or. s_type == SMOOTH_EXPN) then
-         call smooth_model_below(s_type, s_length)
+         call smooth_model_below()
       else if (s_type /= SMOOTH_NONE) then
          call bl_error("ERROR: invalid smoothing method chosen.")
       end if
@@ -50,7 +50,7 @@ subroutine smooth_model(outfile)
 
    open(99, file=outfile)
    write(99,*) "# initial model just after smoothing across uniform grid"
-   do i = 1, NrU
+   do i = 1, nx
       write(99,'(1x,30(g17.10,1x))') Uradius(i), (Ustate(i,j), j = 1, Nvars)
    end do
    close(unit=99)
@@ -62,20 +62,18 @@ end subroutine smooth_model
 !------------------------------------------------------------------------------
 ! Delete the transition region across the H1 base and replace it with a tanh
 
-subroutine smooth_model_tnh0(s_length)
+subroutine smooth_model_tnh0()
 
    use init_1d_variables
    use init_1d_grids
    use amrex_fort_module, only: rt => amrex_real
    use amrex_constants_module
+   use extern_probin_module
 
    implicit none
 
    !===========================================================================
    ! Declare variables
-
-   ! Arguments ................................................................
-   real(kind=rt),              intent(in   ) :: s_length
 
    ! Local ....................................................................
    real(kind=rt), allocatable :: smoothed(:,:)
@@ -88,7 +86,7 @@ subroutine smooth_model_tnh0(s_length)
    
    !===========================================================================
    ! Allocate
-   allocate(smoothed(NrU, Nvars))
+   allocate(smoothed(nx, Nvars))
 
    !===========================================================================
    ! Smooth model
@@ -99,7 +97,7 @@ subroutine smooth_model_tnh0(s_length)
       ! will correct the density and pressure
       if ((n == idens) .or. (n == ipres)) cycle
 
-      do i = 1, NrU
+      do i = 1, nx
          ! must go from low x to high x or 'if' statements must be restructured
 
          if (Uradius(i) < Uradius(ibase) - HALF*s_length) then
@@ -118,7 +116,7 @@ subroutine smooth_model_tnh0(s_length)
       enddo
 
       ! Need to split these loops to avoid cross-talk
-      do i = 1, NrU
+      do i = 1, nx
 
          ! Add in tanh to replace the (previously-removed) sharp transition
          ! with a smooth transition
@@ -140,20 +138,19 @@ end subroutine smooth_model_tnh0
 !------------------------------------------------------------------------------
 ! Gaussian kernel smoothing over the entire model
 
-subroutine smooth_model_krnl(s_length)
-
+subroutine smooth_model_krnl()
+  
    use init_1d_variables
    use init_1d_grids
    use amrex_fort_module, only: rt => amrex_real
    use amrex_constants_module
+   use extern_probin_module
 
    implicit none
 
    !===========================================================================
    ! Declare variables
 
-   ! Arguments ................................................................
-   real(kind=rt),              intent(in   ) :: s_length
 
    ! Local ....................................................................
    real(kind=rt), allocatable :: smoothed(:,:)
@@ -165,7 +162,7 @@ subroutine smooth_model_krnl(s_length)
    
    !===========================================================================
    ! Allocate
-   allocate(smoothed(NrU, Nvars))
+   allocate(smoothed(nx, Nvars))
 
    !===========================================================================
    ! Smooth model
@@ -180,14 +177,14 @@ subroutine smooth_model_krnl(s_length)
       end if
 
       ! Loop over y_new,j
-      do j = 1, NrU
+      do j = 1, nx
 
          ! Clear sums
          sum_wx = ZERO
          sum_w = ZERO
 
          ! Loop over all points to compute weighted average
-         do i = 1, NrU
+         do i = 1, nx
 
             ! Compute weight
             w = (Uradius(i) - Uradius(j)) / s_length
@@ -206,7 +203,7 @@ subroutine smooth_model_krnl(s_length)
 
    !===========================================================================
    ! Copy smoothed model back to original array
-   do i = 1, NrU
+   do i = 1, nx
       do n = 1, Nvars
          Ustate(i,n) = smoothed(i,n)
       end do
@@ -224,22 +221,20 @@ end subroutine smooth_model_krnl
 ! Delete the transition region below the H1 base and replace it with the
 ! appropriate profile
 
-subroutine smooth_model_below(s_type, s_length)
+subroutine smooth_model_below()
 
    use init_1d_variables
    use init_1d_grids
    use amrex_fort_module, only: rt => amrex_real
    use amrex_constants_module
    use amrex_error_module
+   use extern_probin_module
 
    implicit none
 
    !===========================================================================
    ! Declare variables
 
-   ! Arguments ................................................................
-   integer,         intent(in   ) :: s_type
-   real(kind=rt), intent(in   ) :: s_length
 
    ! Local ....................................................................
    real(kind=rt), allocatable :: smoothed(:,:)
@@ -252,7 +247,7 @@ subroutine smooth_model_below(s_type, s_length)
    
    !===========================================================================
    ! Allocate
-   allocate(smoothed(NrU, Nvars))
+   allocate(smoothed(nx, Nvars))
 
    !===========================================================================
    ! Smooth model
@@ -263,7 +258,7 @@ subroutine smooth_model_below(s_type, s_length)
       ! correct the density and pressure
       if ((n == idens) .or. (n == ipres)) cycle
 
-      do i = 1, NrU
+      do i = 1, nx
          ! must go from low x to high x or 'if' statements must be restructured
 
          if (Uradius(i) < Uradius(ibase) - s_length) then

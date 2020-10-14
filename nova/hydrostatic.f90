@@ -62,7 +62,8 @@ subroutine integrate_HSE(p_type_local, temp_fluff, outfile)
 
    !===========================================================================
    ! Enforce thermodynamic consistency at the base
-   
+
+   print *, "here!", ibase, itemp
    eos_state % T = Ustate(ibase, itemp)
    eos_state % rho  = Ustate(ibase, idens)
    eos_state % xn(:) = Ustate(ibase, ispec:Nvars)
@@ -102,7 +103,7 @@ subroutine integrate_HSE(p_type_local, temp_fluff, outfile)
    !===========================================================================
    ! Integrate radially outward from the base
 
-   call integration_loop(ibase+1, NrU, g_type, g_const, p_type_local, temp_fluff)
+   call integration_loop(ibase+1, nx, g_type, g_const, p_type_local, temp_fluff)
 
    !===========================================================================
    ! Integrate radially inward from the base
@@ -123,7 +124,7 @@ subroutine integrate_HSE(p_type_local, temp_fluff, outfile)
 
    ! Print MAESTRO-readable file
    open(unit=99, file=outfile)
-   write(99,'(a,i5)') "# npts = ", NrU
+   write(99,'(a,i5)') "# npts = ", nx
    write(99,'(a,i5)') "# num of variables = ", Nvars
    write(99,'(a)')    "# density"
    write(99,'(a)')    "# temperature"
@@ -132,7 +133,7 @@ subroutine integrate_HSE(p_type_local, temp_fluff, outfile)
    do n = 1, nspec
       write(99,'(a,a)') "# ", spec_names(n)
    end do
-   do i = 1, NrU
+   do i = 1, nx
       write(99,'(1x,30(g17.10,1x))') Uradius(i), &
                                      (Ustate(i, n), n=1,Nvars)
    end do
@@ -558,9 +559,10 @@ end subroutine HSE_NR_loop_isentropic
 function m_shell(i)
 
    use init_1d_variables
-   use init_1d_grids, only: Ustate, Uradius, NrU
+   use init_1d_grids, only: Ustate, Uradius
    use amrex_fort_module, only: rt => amrex_real
    use amrex_constants_module
+   use extern_probin_module
 
    implicit none
 
@@ -575,11 +577,11 @@ function m_shell(i)
       r_upper = HALF * (Uradius(2) + Uradius(1))
       dr      = 2.0d0 * (r_upper - Uradius(1))
       r_lower = r_upper - dr
-   else if (i == NrU) then
+   else if (i == nx) then
       ! r_lower is average of current cell-centered radius and next
       ! cell-centered radius down; assume cell is symmetric
-      r_lower = HALF * (Uradius(NrU) + Uradius(NrU-1))
-      dr      = 2.0d0 * (Uradius(NrU) - r_lower)
+      r_lower = HALF * (Uradius(nx) + Uradius(nx-1))
+      dr      = 2.0d0 * (Uradius(nx) - r_lower)
       r_upper = r_lower + dr
    else
       r_upper = HALF * (Uradius(i+1) + Uradius(i))
@@ -635,9 +637,9 @@ subroutine compute_HSE_error(temp_fluff, outfile)
    !===========================================================================
    ! Set up
 
-   allocate(dpdr(NrU-1))
-   allocate(rhog(NrU-1))
-   allocate(hse_error(NrU-1))
+   allocate(dpdr(nx-1))
+   allocate(rhog(nx-1))
+   allocate(hse_error(nx-1))
 
    !===========================================================================
    ! Construct the gravitational constant
@@ -670,7 +672,7 @@ subroutine compute_HSE_error(temp_fluff, outfile)
    ! Compute HSE error
 
    max_hse_error = ZERO
-   do i = 1, NrU-1
+   do i = 1,nx-1
 
       ! compute dx and r_mean
       dx = Uradius(i+1) - Uradius(i)
@@ -727,7 +729,7 @@ subroutine compute_HSE_error(temp_fluff, outfile)
    write(99,'(a)') "# dP/dr"
    write(99,'(a)') "# rho*g"
    write(99,'(a)') "# HSE error"
-   do i = 1, NrU-1
+   do i = 1, nx-1
       r_edge = HALF * (Uradius(i+1) + Uradius(i))
       write(99,'(1x,30(g17.10,1x))') r_edge, dpdr(i), rhog(i), hse_error(i)
    end do

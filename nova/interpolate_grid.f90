@@ -38,10 +38,10 @@ subroutine interpolate_to_uniform(outfile)
    ! Allocate uniform grid and compute radii
 
    ! construct Uradius and Ustate
-   allocate(Ustate(NrU,Nvars))
-   allocate(Uradius(NrU))
-   dr = (rmax - rmin) / dble(NrU)
-   do i = 1, NrU
+   allocate(Ustate(nx,Nvars))
+   allocate(Uradius(nx))
+   dr = (rmax - rmin) / dble(nx)
+   do i = 1, nx
       Uradius(i) = rmin + (dble(i) - HALF)*dr
    end do
 
@@ -50,7 +50,7 @@ subroutine interpolate_to_uniform(outfile)
    !===========================================================================
    ! Loop over all grid zones, all variables
 
-   do i = 1, NrU        ! Loop over uniform grid
+   do i = 1, nx        ! Loop over uniform grid
       
       do n = 1, Nvars   ! Loop over all variables
 
@@ -141,7 +141,7 @@ subroutine interpolate_to_uniform(outfile)
    ! Print
    open(99, file=outfile)
    write(99,*) "# initial model just after putting onto a uniform grid"
-   do i = 1, NrU
+   do i = 1, nx
       write(99,'(1x,30(g17.10,1x))') Uradius(i), (Ustate(i,j), j = 1, Nvars)
    end do
    close(unit=99)
