@@ -66,7 +66,6 @@ module init_1d_grids
    real(kind=rt), allocatable :: Iradius(:)    ! cell-centered radii
    real(kind=rt), allocatable :: Ustate(:,:)   ! uniform grid
    real(kind=rt), allocatable :: Uradius(:)    ! cell-centered radii
-   real(kind=rt)              :: rmin, rmax    ! grid limits
    real(kind=rt)              :: dr            ! spacing of grid
    integer                      :: NrU, NrI      ! number of grid zones
 end module init_1d_grids

@@ -23,11 +23,10 @@
 ! rho_i in the reconstruction.
 !
 ! The arguments are
-! - g_type   : in    : the type of gravity
 ! - out_file : in    : name of file to print final MAESTRO-readable data
 ! - err_file : in    : name of file to print hydrostatic equilibrium error data
 
-subroutine integrate_HSE(g_type, mass, p_type, temp_fluff, outfile)
+subroutine integrate_HSE(p_type_local, temp_fluff, outfile)
 
    use eos_type_module, only : eos_t, eos_input_rt
    use eos_module
@@ -36,6 +35,7 @@ subroutine integrate_HSE(g_type, mass, p_type, temp_fluff, outfile)
    use init_1d_grids
    use amrex_fort_module, only: rt => amrex_real
    use amrex_error_module
+   use extern_probin_module
 
    implicit none
 
@@ -43,11 +43,9 @@ subroutine integrate_HSE(g_type, mass, p_type, temp_fluff, outfile)
    ! Declare variables
 
    ! Arguments ................................................................
-   integer,                      intent(in   ) :: g_type
-   real(kind=rt),              intent(in   ) :: mass
-   integer,                      intent(in   ) :: p_type
    real(kind=rt),              intent(in   ) :: temp_fluff
    character(len=256),           intent(in   ) :: outfile
+   integer, intent(in) :: p_type_local
 
    ! Locals ...................................................................
    real(kind=rt)              :: g_zone
@@ -80,9 +78,9 @@ subroutine integrate_HSE(g_type, mass, p_type, temp_fluff, outfile)
    ! construct gravitational constant
    select case(g_type)
    case(GRAVITY_CONST)
-      g_const = G * mass * Uradius(ibase)**(-2)
+      g_const = G * m * Uradius(ibase)**(-2)
    case(GRAVITY_INVSQ)
-      g_const = G * mass
+      g_const = G * m
    case(GRAVITY_MENCL)
       ! For enclosed-mass gravity, we assume that the mass supplied on the
       ! command line is equal to the mass of the entire core (but exclusding
@@ -96,7 +94,7 @@ subroutine integrate_HSE(g_type, mass, p_type, temp_fluff, outfile)
       ! zone to get the current enclosed mass, while the downward integration
       ! would subtract the shell mass of the (i+1)th zone to get the current
       ! enclosed mass.
-      g_const = mass
+      g_const = m
    case default
       call amrex_error('ERROR: invalid gravity mode in integrate_HSE subroutine')
    end select
@@ -104,21 +102,21 @@ subroutine integrate_HSE(g_type, mass, p_type, temp_fluff, outfile)
    !===========================================================================
    ! Integrate radially outward from the base
 
-   call integration_loop(ibase+1, NrU, g_type, g_const, p_type, temp_fluff)
+   call integration_loop(ibase+1, NrU, g_type, g_const, p_type_local, temp_fluff)
 
    !===========================================================================
    ! Integrate radially inward from the base
 
    if (g_type == GRAVITY_MENCL) then
-      ! Since the command-line mass is the total enclosed mass at r_(ibase-1/2)
+      ! Since the runtime parameter mass is the total enclosed mass at r_(ibase-1/2)
       ! and the integration_loop routine assumes the enclosed mass needs to be
       ! updated prior to computing gravity, we must add in the shell mass of
       ! the base zone, as the integration_loop routine will subtract that off
       ! prior to the first iteration.
-      g_const = mass + m_shell(ibase)
+      g_const = m + m_shell(ibase)
    end if
 
-   call integration_loop(ibase-1, 1, g_type, g_const, p_type, temp_fluff)
+   call integration_loop(ibase-1, 1, g_type, g_const, p_type_local, temp_fluff)
 
    !===========================================================================
    ! Print
@@ -602,7 +600,7 @@ end function m_shell
 ! - mass    : in    : the mass of the star
 ! - outfile : in    : name of file to print hydrostatic equilibrium error data
 
-subroutine compute_HSE_error(g_type, mass, temp_fluff, outfile)
+subroutine compute_HSE_error(temp_fluff, outfile)
 
    use eos_module
    use network
@@ -611,6 +609,7 @@ subroutine compute_HSE_error(g_type, mass, temp_fluff, outfile)
    use amrex_fort_module, only: rt => amrex_real
    use amrex_constants_module
    use amrex_error_module
+   use extern_probin_module
 
    implicit none
 
@@ -618,8 +617,6 @@ subroutine compute_HSE_error(g_type, mass, temp_fluff, outfile)
    ! Declare variables
 
    ! Arguments ................................................................
-   integer,                      intent(in   ) :: g_type
-   real(kind=rt),              intent(in   ) :: mass
    real(kind=rt),              intent(in   ) :: temp_fluff
    character(len=256),           intent(in   ) :: outfile
 
@@ -648,9 +645,9 @@ subroutine compute_HSE_error(g_type, mass, temp_fluff, outfile)
    ! construct gravitational constant
    select case(g_type)
    case(GRAVITY_CONST)
-      g_const = G * mass * Uradius(ibase)**(-2)
+      g_const = G * m * Uradius(ibase)**(-2)
    case(GRAVITY_INVSQ)
-      g_const = G * mass
+      g_const = G * m
    case(GRAVITY_MENCL)
       ! "mass" is enclosed mass at i = ibase-1/2; need to subtract off shell
       ! mass for shell ibase-1 to get to enclosed mass for i = ibase-3/2, and
@@ -661,7 +658,7 @@ subroutine compute_HSE_error(g_type, mass, temp_fluff, outfile)
       ! enclosed mass for i = 1/2, because prior to computing gravity at
       ! i = 3/2, the loop will update the enclosed mass by adding in the shell
       ! mass for i = 1
-      g_const = mass
+      g_const = m
       do i = ibase-1, 1, -1
          g_const = g_const - m_shell(i)
       end do

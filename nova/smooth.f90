@@ -9,12 +9,13 @@
 
 ! Generic smoothing; calls the appropriate smoother
 
-subroutine smooth_model(s_type, s_length, outfile)
+subroutine smooth_model(outfile)
 
    use init_1d_variables
    use init_1d_grids
    use amrex_fort_module, only: rt => amrex_real
    use amrex_error_module
+   use extern_probin_module
 
    implicit none
 
@@ -22,8 +23,6 @@ subroutine smooth_model(s_type, s_length, outfile)
    ! Declare variables
 
    ! Arguments ................................................................
-   integer,                      intent(in   ) :: s_type
-   real(kind=rt),              intent(in   ) :: s_length
    character(len=256),           intent(in   ) :: outfile
    
    ! Temporaries ..............................................................

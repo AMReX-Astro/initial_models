@@ -6,13 +6,14 @@
 ! The arguments are
 ! - outfile : in    : name of file to print interpolated uniform grid to
 
-subroutine interpolate_to_uniform(c_edge, outfile)
+subroutine interpolate_to_uniform(outfile)
 
    use network
    use init_1d_variables
    use init_1d_grids
    use amrex_fort_module, only: rt => amrex_real
    use amrex_constants_module
+   use extern_probin_module
 
    implicit none
 
@@ -20,7 +21,6 @@ subroutine interpolate_to_uniform(c_edge, outfile)
    ! Declare variables
 
    ! Arguments ................................................................
-   integer,            intent(in   ) :: c_edge
    character(len=256), intent(in   ) :: outfile
 
    ! Temporaries ..............................................................
