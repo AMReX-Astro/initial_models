@@ -55,7 +55,9 @@ subroutine init_1d() bind(C, name="init_1d")
 
   ! Interpolate model to uniform grid
 
+  print *, "calling interpolate to uniform"
   call interpolate_to_uniform(model_interp)
+  print *, "done"
 
   ! First HSE pass (must do this before smoothing to account for chaning the
   ! profiles, because smoothing and the changing profiles may interact in

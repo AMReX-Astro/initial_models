@@ -51,7 +51,8 @@ subroutine interpolate_to_uniform(outfile)
    ! Loop over all grid zones, all variables
 
    do i = 1, nx        ! Loop over uniform grid
-      
+
+      print *, i, Ustate(i,iH1), H1_base
       do n = 1, Nvars   ! Loop over all variables
 
          ! Don't interpolate entropy; that will be calculated later
