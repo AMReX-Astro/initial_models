@@ -1,5 +1,6 @@
 &extern
 
+ ! Note: if using init_1d_irreg(), set nx to grid size
  nx = 1024
 
  temp_core = 1.1e7

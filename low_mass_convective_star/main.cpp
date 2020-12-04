@@ -26,6 +26,7 @@ extern "C"
   void do_burn();
   void do_initialization(const int inputs_name[], const int inputs_len);
   void init_1d();
+  void init_1d_irreg();
 }
 
 
@@ -60,7 +61,8 @@ main (int   argc,
 
   do_initialization(inputs_file_name.dataPtr(), inputs_file_length);
 
-  init_1d();
+  // init_1d();
+  init_1d_irreg();
 
   amrex::Finalize();
 
