@@ -61,8 +61,8 @@ main (int   argc,
 
   do_initialization(inputs_file_name.dataPtr(), inputs_file_length);
 
-  // init_1d();
-  init_1d_irreg();
+  init_1d();
+  // init_1d_irreg();
 
   amrex::Finalize();
 
