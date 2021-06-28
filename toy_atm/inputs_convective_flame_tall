@@ -1,0 +1,28 @@
+problem.model_prefix = "convective_flame_"
+
+problem.nx = 192
+
+problem.dens_base = 1.0
+
+problem.T_star = 0.75
+problem.T_base = 1.0
+problem.T_lo   = 1.e-2
+
+problem.H_star = 1.25
+problem.delta  = 0.04
+
+problem.fuel1_name = "fuel"
+problem.fuel1_frac = 1.0
+
+problem.ash1_name  = "inert"
+problem.ash1_frac = 1.0
+
+problem.xmin = 0.0
+problem.xmax = 9.6
+
+problem.g_const = -4.2e7
+
+problem.low_density_cutoff = 1.e-8
+
+problem.index_base_from_temp = 1
+

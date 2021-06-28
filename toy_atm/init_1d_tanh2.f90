@@ -40,11 +40,12 @@
 !!  P(i-1) = P_eos(rho(i-1), T(i-1), X(i-1)
 !!
 
-program init_1d_tanh
+subroutine init_1d() bind(C, name="init_1d")
 
-  use bl_types
-  use bl_constants_module
-  use bl_error_module
+  use amrex_fort_module, only : rt => amrex_real
+  use amrex_constants_module
+  use amrex_error_module
+  use extern_probin_module
   use eos_module, only: eos, eos_init
   use eos_type_module, only: eos_t, eos_input_rt
   !use extern_probin_module, only: use_eos_coulomb
@@ -57,21 +58,15 @@ program init_1d_tanh
 
   character(len=128) :: params_file
 
-  real (kind=dp_t) :: T_base, T_star, T_lo
-  real (kind=dp_t) :: dens_base
-  real (kind=dp_t) :: H_star, delta
+  real (kind=rt) :: slope_T, slope_xn(nspec)
 
-  real (kind=dp_t) :: slope_T, slope_xn(nspec)
+  real (kind=rt) :: pres_base, entropy_base
+  real (kind=rt), DIMENSION(nspec) :: xn_base, xn_star
 
-  real (kind=dp_t) :: pres_base, entropy_base
-  real (kind=dp_t), DIMENSION(nspec) :: xn_base, xn_star
-
-  real (kind=dp_t), allocatable :: xzn_hse(:), xznl_hse(:), xznr_hse(:)
-  real (kind=dp_t), allocatable :: model_hse(:,:)
+  real (kind=rt), allocatable :: xzn_hse(:), xznl_hse(:), xznr_hse(:)
+  real (kind=rt), allocatable :: model_hse(:,:)
 
   real :: A, B
-
-  integer ::nx
 
   integer :: lun1, lun2
 
@@ -86,25 +81,18 @@ program init_1d_tanh
   ! we allow for 3 different species separately in the fuel and ash
   integer :: ifuel1, ifuel2, ifuel3, ifuel4, ifuel5, ifuel6, ifuel7
   integer :: iash1, iash2, iash3, iash4
-  character (len=32) :: fuel1_name, fuel2_name, fuel3_name, fuel4_name
-  character (len=32) :: fuel5_name, fuel6_name, fuel7_name
-  character (len=32) ::  ash1_name,  ash2_name,  ash3_name, ash4_name
-  real (kind=dp_t) :: fuel1_frac, fuel2_frac, fuel3_frac, fuel4_frac
-  real (kind=dp_t) :: fuel5_frac, fuel6_frac, fuel7_frac
-  real (kind=dp_t) ::  ash1_frac,  ash2_frac,  ash3_frac, ash4_frac
   logical :: species_defined
 
-  real (kind=dp_t) :: xmin, xmax, dCoord
+  real (kind=rt) :: dCoord
 
-  real (kind=dp_t) :: dens_zone, temp_zone, pres_zone, entropy
-  real (kind=dp_t) :: dpd, dpt, dsd, dst
+  real (kind=rt) :: dens_zone, temp_zone, pres_zone, entropy
+  real (kind=rt) :: dpd, dpt, dsd, dst
 
-  real (kind=dp_t) :: p_want, drho, dtemp, delx
+  real (kind=rt) :: p_want, drho, dtemp, delx
 
-  real (kind=dp_t) :: g_zone, g_const, M_enclosed
-  logical :: do_invsq_grav
+  real (kind=rt) :: g_zone
 
-  real (kind=dp_t), parameter :: TOL = 1.e-10
+  real (kind=rt), parameter :: TOL = 1.e-10
 
   integer, parameter :: MAX_ITER = 250
 
@@ -112,9 +100,7 @@ program init_1d_tanh
 
   logical :: converged_hse, fluff
 
-  real (kind=dp_t), dimension(nspec) :: xn
-
-  real (kind=dp_t) :: low_density_cutoff, smallx
+  real (kind=rt), dimension(nspec) :: xn
 
   integer :: index_base
 
@@ -125,108 +111,11 @@ program init_1d_tanh
   character (len=32) :: deltastr, dxstr
   character (len=32) :: num_to_unitstring
 
-  real (kind=dp_t) :: max_hse_error, dpdr, rhog
-
-  character (len=128) :: model_prefix
+  real (kind=rt) :: max_hse_error, dpdr, rhog
 
   integer :: narg
 
-  logical :: index_base_from_temp
-
   type (eos_t) :: eos_state
-
-  namelist /params/ nx, dens_base, T_star, T_base, T_lo, H_star, delta, &
-                    fuel1_name, fuel2_name, fuel3_name, fuel4_name, &
-                    fuel5_name, fuel6_name, fuel7_name, &
-                    ash1_name, ash2_name, ash3_name, ash4_name, &
-                    fuel1_frac, fuel2_frac, fuel3_frac, fuel4_frac, &
-                    fuel5_frac, fuel6_frac, fuel7_frac, &
-                    ash1_frac, ash2_frac, ash3_frac, ash4_frac, &
-                    xmin, xmax, g_const, do_invsq_grav, M_enclosed, &
-                    low_density_cutoff, model_prefix, index_base_from_temp
-
-  ! determine if we specified a runtime parameters file or use the default
-  narg = command_argument_count()
-
-  if (narg == 0) then
-     params_file = "_params"
-  else
-     call get_command_argument(1, value = params_file)
-  endif
-
-
-
-
-  ! define defaults for the parameters for this model
-  nx = 640
-
-  dens_base = 2.d6
-
-  T_star = 1.d8
-  T_base = 5.d8
-  T_lo   = 5.e7
-
-  H_star = 500.d0
-  delta  = 25.d0
-
-  fuel1_name = "helium-4"
-  fuel2_name = ""
-  fuel3_name = ""
-  fuel4_name = ""
-  fuel5_name = ""
-  fuel6_name = ""
-  fuel7_name = ""
-
-  ash1_name  = "iron-56"
-  ash2_name  = ""
-  ash3_name  = ""
-  ash4_name  = ""
-
-  fuel1_frac = ONE
-  fuel2_frac = ZERO
-  fuel3_frac = ZERO
-  fuel4_frac = ZERO
-  fuel5_frac = ZERO
-  fuel6_frac = ZERO
-  fuel7_frac = ZERO
-
-  ash1_frac = ONE
-  ash2_frac = ZERO
-  ash3_frac = ZERO
-  ash4_frac = ZERO
-
-  xmin = 0.0_dp_t
-  xmax = 2.e3_dp_t
-
-  model_prefix = "model"
-
-  index_base_from_temp = .false.
-
-  ! if do_invsq_grav = .false. we will use g_const for the
-  ! gravitational acceleration.  Otherwise, we will compute gravity
-  ! from M_enclosed and the distance from the origin
-  M_enclosed = 2.d33
-  g_const = -2.450d14
-  do_invsq_grav = .false.
-
-  low_density_cutoff = 1.d-4
-
-  smallx = 1.d-10
-
-
-  ! this comes in via extern_probin_module -- override the default
-  ! here if we want
-  !use_eos_coulomb = .true.
-
-
-  ! initialize the EOS and network
-  call eos_init()
-  call network_init()
-
-  ! check the namelist for any changed parameters
-  open(unit=11, file=params_file, status="old", action="read")
-  read(unit=11, nml=params)
-  close(unit=11)
 
 
   ! get the species indices
@@ -286,7 +175,7 @@ program init_1d_tanh
   if (.not. species_defined) then
      print *, ifuel1, ifuel2, ifuel3, ifuel4, ifuel5, ifuel6, ifuel7
      print *, iash1, iash2, iash3, iash4
-     call bl_error("ERROR: species not defined")
+     call amrex_error("ERROR: species not defined")
   endif
 
 
@@ -310,11 +199,11 @@ program init_1d_tanh
 
   ! check if they sum to 1
   if (abs(sum(xn_star) - ONE) > nspec*smallx) then
-     call bl_error("ERROR: ash mass fractions don't sum to 1")
+     call amrex_error("ERROR: ash mass fractions don't sum to 1")
   endif
 
   if (abs(sum(xn_base) - ONE) > nspec*smallx) then
-     call bl_error("ERROR: fuel mass fractions don't sum to 1")
+     call amrex_error("ERROR: fuel mass fractions don't sum to 1")
   endif
 
 
@@ -352,7 +241,7 @@ program init_1d_tanh
 
   if (index_base == -1) then
      print *, 'ERROR: base_height not found on grid'
-     call bl_error('ERROR: invalid base_height')
+     call amrex_error('ERROR: invalid base_height')
   endif
 
 
@@ -397,7 +286,7 @@ program init_1d_tanh
   enddo
 
 
-  if (index_base_from_temp) then
+  if (index_base_from_temp == 1) then
      ! find the index of the base height -- look at the temperature for this
      index_base = -1
      do i = 1, nx
@@ -410,7 +299,7 @@ program init_1d_tanh
 
      if (index_base == -1) then
         print *, 'ERROR: base_height not found on grid'
-        call bl_error('ERROR: invalid base_height')
+        call amrex_error('ERROR: invalid base_height')
      endif
   endif
 
@@ -445,7 +334,7 @@ program init_1d_tanh
      delx = xzn_hse(i) - xzn_hse(i-1)
 
      ! compute the gravitation acceleration at the lower edge
-     if (do_invsq_grav) then
+     if (do_invsq_grav == 1) then
         g_zone = -Gconst*M_enclosed/xznl_hse(i)**2
      else
         g_zone = g_const
@@ -521,11 +410,11 @@ program init_1d_tanh
 
               drho = (A - dpt*dtemp)/(dpd - 0.5*delx*g_zone)
 
-              dens_zone = max(0.9_dp_t*dens_zone, &
-                   min(dens_zone + drho, 1.1_dp_t*dens_zone))
+              dens_zone = max(0.9_rt*dens_zone, &
+                   min(dens_zone + drho, 1.1_rt*dens_zone))
 
-              temp_zone = max(0.9_dp_t*temp_zone, &
-                   min(temp_zone + dtemp, 1.1_dp_t*temp_zone))
+              temp_zone = max(0.9_rt*temp_zone, &
+                   min(temp_zone + dtemp, 1.1_rt*temp_zone))
 
 
               ! check if the density falls below our minimum cut-off --
@@ -604,7 +493,7 @@ program init_1d_tanh
            print *, dens_zone, temp_zone
            print *, p_want, entropy_base, entropy
            print *, drho, dtemp
-           call bl_error('Error: HSE non-convergence')
+           call amrex_error('Error: HSE non-convergence')
 
         endif
 
@@ -645,7 +534,7 @@ program init_1d_tanh
      delx = xzn_hse(i+1) - xzn_hse(i)
 
      ! compute the gravitation acceleration at the upper edge
-     if (do_invsq_grav) then
+     if (do_invsq_grav == 1) then
         g_zone = -Gconst*M_enclosed/xznr_hse(i)**2
      else
         g_zone = g_const
@@ -698,8 +587,8 @@ program init_1d_tanh
 
         drho = A/(dpd + 0.5*delx*g_zone)
 
-        dens_zone = max(0.9_dp_t*dens_zone, &
-             min(dens_zone + drho, 1.1_dp_t*dens_zone))
+        dens_zone = max(0.9_rt*dens_zone, &
+             min(dens_zone + drho, 1.1_rt*dens_zone))
 
 
         if (abs(drho) < TOL*dens_zone) then
@@ -716,7 +605,7 @@ program init_1d_tanh
         print *, dens_zone, temp_zone
         print *, p_want
         print *, drho
-        call bl_error('Error: HSE non-convergence')
+        call amrex_error('Error: HSE non-convergence')
 
      endif
 
@@ -801,7 +690,7 @@ program init_1d_tanh
   do i = 2, nx-1
 
      ! compute the gravitation acceleration at the lower edge
-     if (do_invsq_grav) then
+     if (do_invsq_grav == 1) then
         g_zone = -Gconst*M_enclosed/xznl_hse(i)**2
      else
         g_zone = g_const
@@ -822,15 +711,15 @@ program init_1d_tanh
   close (unit=lun1)
   close (unit=lun2)
 
-end program init_1d_tanh
+end subroutine init_1d
 
 
 function num_to_unitstring(value)
 
-  use bl_types
+  use amrex_fort_module, only : rt => amrex_real
   implicit none
 
-  real (kind=dp_t) :: value
+  real (kind=rt) :: value
   character (len=32) :: num_to_unitstring
   character (len=16) :: temp
 
