@@ -1,24 +1,20 @@
-&extern
+# this set of parameters appears to reproduce the
+# model.hse.cool.coulomb in test2.
 
-  ! this set of parameters appears to reproduce the
-  ! model.hse.cool.coulomb in test2.
+problem.nx = 640
 
-  nx = 640
+problem.xmin = 0.0
+problem.xmax = 3.6e8
 
-  xmin = 0.0d0
-  xmax = 3.6d8
+problem.base_height = 5.e7
 
-  base_height = 5.d7
+problem.entropy_jump = 3.0
+problem.entropy_end  = 4.0
 
-  entropy_jump = 3.d0
-  entropy_end  = 4.d0
+problem.dens_base = 2.6e9
+problem.temp_base = 6.e8
 
-  dens_base = 2.6d9
-  temp_base = 6.d8
+problem.g_zone = -1.5e10
 
-  g_zone = -1.5d10
-
-  low_density_cutoff = 1.d-4
-  temp_fluff = 1.d7
-
-/
+problem.low_density_cutoff = 1.e-4
+problem.temp_fluff = 1.e7

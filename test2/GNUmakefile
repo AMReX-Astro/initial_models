@@ -25,6 +25,6 @@ NETWORK_INPUTS := ignition.net
 Bpack := ./Make.package
 Blocs := .
 
-EXTERN_SEARCH += .
+EXTERN_SEARCH += . ..
 
 include $(MICROPHYSICS_HOME)/Make.Microphysics

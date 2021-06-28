@@ -1,25 +1,22 @@
-&extern
+# this set of parameters appears to reproduce the original initial
+# model in test_convect, which was used in paper III.  Note: Coulomb
+# corrections we off back then.
 
-  ! this set of parameters appears to reproduce the original initial
-  ! model in test_convect, which was used in paper III.  Note: Coulomb
-  ! corrections we off back then.
+eos.use_eos_coulomb = 0
 
-  do_coulomb = .false.
+problem.xmin = 0.0
+problem.xmax = 3.6e8
 
-  xmin = 0.0d0
-  xmax = 3.6d8
+problem.base_height = 1.e8
 
-  base_height = 1.d8
+problem.entropy_jump = 3.e0
+problem.entropy_end  = 6.e0
 
-  entropy_jump = 3.d0
-  entropy_end  = 6.d0
+problem.dens_base = 2.6e9
+problem.temp_base = 7.e8
 
-  dens_base = 2.6d9
-  temp_base = 7.d8
+problem.g_zone = -1.5e10
 
-  g_zone = -1.5d10
+problem.low_density_cutoff = 1.e-4
+problem.temp_fluff = 1.e7
 
-  low_density_cutoff = 1.d-4
-  temp_fluff = 1.d7
-
-/
