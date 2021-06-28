@@ -1,3 +1,4 @@
+@namespace: problem
 
 nx                   integer      1280
 
@@ -20,6 +21,4 @@ mixed_co_wd          logical      .true.
 low_density_cutoff   real         1.e-4
 
 temp_fluff           real         1.e5
-
-smallt               real         1.e5
 
