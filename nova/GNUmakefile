@@ -25,6 +25,6 @@ NETWORK_INPUTS := pphotcno.net
 Bpack := ./Make.package ../read_mesa/Make.package
 Blocs := . ../read_mesa
 
-EXTERN_SEARCH += .
+EXTERN_SEARCH += . ..
 
 include $(MICROPHYSICS_HOME)/Make.Microphysics
