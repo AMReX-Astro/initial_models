@@ -1,12 +1,13 @@
-!! generate an initial model for spherical geometry with a 
+!! generate an initial model for spherical geometry with a
 !! uniform composition.  Here we take a base density and temperature
 !! and use HSE and constant entropy to generate the model.
 
-program init_1d
+subroutine init_1d() bind(C, name="init_1d")
 
-  use bl_types
-  use bl_constants_module
-  use bl_error_module
+  use amrex_fort_module, only : rt => amrex_real
+  use amrex_constants_module
+  use amrex_error_module
+  use extern_probin_module
   use eos_module, only: eos, eos_init
   use eos_type_module, only: eos_t, eos_input_rt
   use extern_probin_module, only: use_eos_coulomb
@@ -17,15 +18,12 @@ program init_1d
 
   integer :: i, n
 
-  integer :: nx
-      
-  real (kind=dp_t) :: temp_base, dens_base
-  real (kind=dp_t), DIMENSION(nspec) :: xn_base
+  real (kind=rt), DIMENSION(nspec) :: xn_base
 
-  real (kind=dp_t), allocatable :: xzn_hse(:), xznl(:), xznr(:)
-  real (kind=dp_t), allocatable :: model_hse(:,:), M_enclosed(:)
+  real (kind=rt), allocatable :: xzn_hse(:), xznl(:), xznr(:)
+  real (kind=rt), allocatable :: model_hse(:,:), M_enclosed(:)
 
-  real (kind=dp_t) :: A, B, dAdT, dAdrho, dBdT, dBdrho
+  real (kind=rt) :: A, B, dAdT, dAdrho, dBdT, dBdrho
 
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 3 + nspec
@@ -34,26 +32,25 @@ program init_1d
                         ipres = 3, &
                         ispec = 4
 
-  real (kind=dp_t), parameter :: M_sun = 1.9891e33
+  real (kind=rt), parameter :: M_sun = 1.9891e33
 
   ! we'll get the composition indices from the network module
   integer, save :: ic12, io16, img24, iash
-  real (kind=dp_t) :: cfrac
 
   integer :: narg
   character(len=128) :: params_file
 
-  real (kind=dp_t), save :: xmin, xmax, dCoord
+  real (kind=rt) :: dCoord
 
-  real (kind=dp_t) :: dens_zone, temp_zone, pres_zone, entropy
-  real (kind=dp_t) :: dpd, dpt, dsd, dst
+  real (kind=rt) :: dens_zone, temp_zone, pres_zone, entropy
+  real (kind=rt) :: dpd, dpt, dsd, dst
 
-  real (kind=dp_t) :: p_want, drho, dtemp, delx
-  real (kind=dp_t), allocatable :: entropy_store(:), entropy_want(:)
+  real (kind=rt) :: p_want, drho, dtemp, delx
+  real (kind=rt), allocatable :: entropy_store(:), entropy_want(:)
 
-  real (kind=dp_t) :: g_zone
+  real (kind=rt) :: g_zone
 
-  real (kind=dp_t), parameter :: TOL = 1.e-10
+  real (kind=rt), parameter :: TOL = 1.e-10
 
   integer, parameter :: MAX_ITER = 250
 
@@ -61,74 +58,18 @@ program init_1d
 
   logical :: converged_hse, fluff
 
-  real (kind=dp_t), dimension(nspec) :: xn
-
-  real (kind=dp_t), save :: low_density_cutoff, temp_fluff, smallx, dens_conv_zone, M_conv_zone
+  real (kind=rt), dimension(nspec) :: xn
 
   logical :: isentropic
 
-  character (len=256) :: outfile, prefix
+  character (len=256) :: outfile
   character (len=8) num
 
-  real (kind=dp_t) :: max_hse_error, dpdr, rhog
+  real (kind=rt) :: max_hse_error, dpdr, rhog
 
   integer :: i_conv, i_fluff
 
   type (eos_t) :: eos_state
-
-  namelist /params/ nx, dens_base, temp_base, &
-       low_density_cutoff, dens_conv_zone, M_conv_zone, temp_fluff, &
-       xmin, xmax, &
-       cfrac, prefix
-  
-
-  ! determine if we specified a runtime parameters file or use the default
-  narg = command_argument_count()
-
-  if (narg == 0) then
-     params_file = "_params"
-  else
-     call get_command_argument(1, value = params_file)
-  endif
-
-
-  ! define the defaults parameters for this model
-  nx = 1280
-
-  smallx = 1.d-10
-
-  xmin = 0_dp_t
-  xmax = 5.d8
-
-  dens_base = 2.6d9
-  temp_base = 6.d8
-     
-  dens_conv_zone = -1.d0
-  M_conv_zone = 2.0d0
-
-
-  low_density_cutoff =1.d-4
-  temp_fluff = 1.d7
-
-  cfrac = 0.7_dp_t
-
-  prefix = "spherical"
-
-
-  ! check the namelist for any changed parameters
-  open(unit=11, file=params_file, status="old", action="read")
-  read(unit=11, nml=params)
-  close(unit=11)
-
-
-  ! initialize the EOS and network
-
-  ! use_eos_coulomb comes in from extern_probin_module -- override
-  ! here if desired
-  use_eos_coulomb = .true.
-  call eos_init()
-  call network_init()
-
 
   ! get the species indices
   ic12  = network_species_index("carbon-12")
@@ -139,22 +80,22 @@ program init_1d
 
 
   if (ic12 < 0 .or. io16 < 0) then
-     call bl_error("ERROR: species not defined")
+     call amrex_error("ERROR: species not defined")
   endif
 
   if (.not. (img24 > 0 .or. iash > 0)) then
-     call bl_error("ERROR: species not defined")
+     call amrex_error("ERROR: species not defined")
   endif
 
-  if (cfrac < 0.0_dp_t .or. cfrac > 1.0_dp_t) then
-     call bl_error("ERROR: cfrac must be between 0 and 1")
+  if (cfrac < 0.0_rt .or. cfrac > 1.0_rt) then
+     call amrex_error("ERROR: cfrac must be between 0 and 1")
   endif
 
-  xn_base(:) = 0.0_dp_t
+  xn_base(:) = 0.0_rt
   xn_base(ic12) = cfrac
-  xn_base(io16) = 1.0_dp_t - cfrac
+  xn_base(io16) = 1.0_rt - cfrac
 
-  
+
 
 !-----------------------------------------------------------------------------
 ! Create a 1-d uniform grid that is identical to the mesh that we are
@@ -174,23 +115,23 @@ program init_1d
   dCoord = (xmax - xmin) / dble(nx)
 
   do i = 1, nx
-     xznl(i) = xmin + (dble(i) - 1.0_dp_t)*dCoord
+     xznl(i) = xmin + (dble(i) - 1.0_rt)*dCoord
      xznr(i) = xmin + (dble(i))*dCoord
-     xzn_hse(i) = 0.5_dp_t*(xznl(i) + xznr(i))
+     xzn_hse(i) = 0.5_rt*(xznl(i) + xznr(i))
   enddo
 
 
-  
+
   fluff = .false.
 
- 
+
 
   ! call the EOS one more time for this zone and then go on to the next
   eos_state%T     = temp_base
   eos_state%rho   = dens_base
   eos_state%xn(:) = xn_base(:)
 
-  ! (t, rho) -> (p, s)    
+  ! (t, rho) -> (p, s)
   call eos(eos_input_rt, eos_state)
 
   ! make the initial guess be completely uniform
@@ -242,48 +183,48 @@ program init_1d
            if (isentropic) then
 
               p_want = model_hse(i-1,ipres) + &
-                   delx*0.5_dp_t*(dens_zone + model_hse(i-1,idens))*g_zone
-         
-           
+                   delx*0.5_rt*(dens_zone + model_hse(i-1,idens))*g_zone
+
+
               ! now we have two functions to zero:
               !   A = p_want - p(rho,T)
               !   B = entropy_want - s(rho,T)
               ! We use a two dimensional Taylor expansion and find the deltas
               ! for both density and temperature
-              
+
               eos_state%T     = temp_zone
               eos_state%rho   = dens_zone
               eos_state%xn(:) = xn(:)
-              
-              ! (t, rho) -> (p, s)    
+
+              ! (t, rho) -> (p, s)
               call eos(eos_input_rt, eos_state)
 
               entropy = eos_state%s
               pres_zone = eos_state%p
-              
+
               dpt = eos_state%dpdt
               dpd = eos_state%dpdr
               dst = eos_state%dsdt
               dsd = eos_state%dsdr
-              
+
               A = p_want - pres_zone
               B = entropy_want(i) - entropy
-              
+
               dAdT = -dpt
               dAdrho = 0.5d0*delx*g_zone - dpd
               dBdT = -dst
               dBdrho = -dsd
-              
+
               dtemp = (B - (dBdrho/dAdrho)*A)/ &
                    ((dBdrho/dAdrho)*dAdT - dBdT)
-              
-              drho = -(A + dAdT*dtemp)/dAdrho
-              
-              dens_zone = max(0.9_dp_t*dens_zone, &
-                              min(dens_zone + drho, 1.1_dp_t*dens_zone))
 
-              temp_zone = max(0.9_dp_t*temp_zone, &
-                              min(temp_zone + dtemp, 1.1_dp_t*temp_zone))
+              drho = -(A + dAdT*dtemp)/dAdrho
+
+              dens_zone = max(0.9_rt*dens_zone, &
+                              min(dens_zone + drho, 1.1_rt*dens_zone))
+
+              temp_zone = max(0.9_rt*temp_zone, &
+                              min(temp_zone + dtemp, 1.1_rt*temp_zone))
 
 
               ! check if the density falls below our minimum cut-off --
@@ -291,7 +232,7 @@ program init_1d
               if (dens_zone < low_density_cutoff) then
 
                  i_fluff = i
-                 
+
                  dens_zone = low_density_cutoff
                  temp_zone = temp_fluff
                  converged_hse = .TRUE.
@@ -302,9 +243,9 @@ program init_1d
 
               if (dens_zone < dens_conv_zone .and. isentropic) then
 
-                 i_conv = i                 
+                 i_conv = i
                  isentropic = .false.
-                 
+
               endif
 
 
@@ -313,7 +254,7 @@ program init_1d
                  converged_hse = .TRUE.
                  exit
               endif
-       
+
            else
 
               ! do isothermal
@@ -326,52 +267,52 @@ program init_1d
               eos_state%T     = temp_zone
               eos_state%rho   = dens_zone
               eos_state%xn(:) = xn(:)
-        
+
               ! (t, rho) -> (p, s)
               call eos(eos_input_rt, eos_state)
-        
+
               entropy = eos_state%s
               pres_zone = eos_state%p
-              
+
               dpd = eos_state%dpdr
-              
+
               drho = (p_want - pres_zone)/(dpd - 0.5*delx*g_zone)
-              
+
               dens_zone = max(0.9*dens_zone, &
                    min(dens_zone + drho, 1.1*dens_zone))
-              
+
               if (abs(drho) < TOL*dens_zone) then
                  converged_hse = .TRUE.
                  exit
               endif
 
-              
+
               if (dens_zone < low_density_cutoff) then
 
                  i_fluff = i
-                 
+
                  dens_zone = low_density_cutoff
                  temp_zone = temp_fluff
                  converged_hse = .TRUE.
                  fluff = .TRUE.
                  exit
-                 
+
               endif
 
-            
+
            endif
 
         enddo
 
         if (.NOT. converged_hse) then
-           
+
            print *, 'Error zone', i, ' did not converge in init_1d'
            print *, 'integrate up'
            print *, dens_zone, temp_zone
            print *, p_want
            print *, drho
-           call bl_error('Error: HSE non-convergence')
-           
+           call amrex_error('Error: HSE non-convergence')
+
         endif
 
         if (temp_zone < temp_fluff) then
@@ -390,29 +331,29 @@ program init_1d
      eos_state%rho   = dens_zone
      eos_state%xn(:) = xn(:)
 
-     ! (t, rho) -> (p, s)    
+     ! (t, rho) -> (p, s)
      call eos(eos_input_rt, eos_state)
 
      pres_zone = eos_state%p
 
      dpd = eos_state%dpdr
-     
+
      ! update the thermodynamics in this zone
      model_hse(i,idens) = dens_zone
      model_hse(i,itemp) = temp_zone
      model_hse(i,ipres) = pres_zone
 
      print *, i, dens_zone, temp_zone
-     
+
      M_enclosed(i) = M_enclosed(i-1) + &
           FOUR3RD*M_PI*(xznr(i) - xznl(i))* &
             (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_hse(i,idens)
 
      if (M_enclosed(i) > M_conv_zone*M_sun .and. isentropic) then
 
-        i_conv = i                 
+        i_conv = i
         isentropic = .false.
-                 
+
      endif
 
   enddo
@@ -473,10 +414,9 @@ program init_1d
 
   print *, 'total mass = ', M_enclosed(i_fluff)/M_sun
   print *, 'convective zone mass = ', M_enclosed(i_conv)/M_sun
-  
+
 
 
   close (unit=50)
 
-end program init_1d
-
+end subroutine init_1d

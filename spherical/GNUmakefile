@@ -1,23 +1,30 @@
-NDEBUG := 
-MPI    :=
-OMP    :=
+PRECISION = DOUBLE
+PROFILE = FALSE
 
-COMP := gfortran
+DEBUG = FALSE
 
-MKVERBOSE := t
+DIM = 1
 
+COMP = g++
+FCOMP = gfortran
+
+USE_MPI = FALSE
+USE_OMP = FALSE
+
+USE_REACT = TRUE
+
+# programs to be compiled
+EBASE := initialmodel
 
 # EOS and network
 EOS_DIR := helmholtz
 
 NETWORK_DIR := general_null
-GENERAL_NET_INPUTS := $(MICROPHYSICS_HOME)/networks/$(NETWORK_DIR)/ignition_wdconvect.net
+NETWORK_INPUTS := ignition_wdconvect.net
 
+Bpack := ./Make.package
+Blocs := .
 
-# the local sources needed to build the initial model generator
-MODEL_SOURCES := init_1d.f90
+EXTERN_SEARCH += . ..
 
-
-include ../GInitModels.mak
-
-
+include $(MICROPHYSICS_HOME)/Make.Microphysics
