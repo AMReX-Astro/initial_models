@@ -18,15 +18,21 @@
 
 #include <time.h>
 
+#include <microphysics_F.H>
 
+#include <extern_parameters_F.H>
+#include <extern_parameters.H>
+
+#include <fstream>
+
+#include <network.H>
+#include <eos.H>
 
 extern "C"
 {
   void test_jacobian();
   void do_burn();
-  void do_initialization(const int inputs_name[], const int inputs_len);
   void init_1d();
-  void init_1d_irreg();
 }
 
 
@@ -49,20 +55,38 @@ main (int   argc,
     }
   }
 
+
+  // initialize the runtime parameters
+
+
   // we use a single file name for the extern name list and
   // the name list used by the initialization
 
   const int inputs_file_length = inputs_name.length();
   amrex::Vector<int> inputs_file_name(inputs_file_length);
+  // initialize the runtime parameters
 
   for (int i = 0; i < inputs_file_length; i++) {
     inputs_file_name[i] = inputs_name[i];
   }
 
-  do_initialization(inputs_file_name.dataPtr(), inputs_file_length);
+  runtime_init(inputs_file_name.dataPtr(), &inputs_file_length);
+
+  init_extern_parameters();
+
+  update_fortran_extern_after_cxx();
+
+
+  // initialize Fortran Microphysics
+
+  microphysics_initialize(small_temp, small_dens);
+
+
+  // initialize C++ Microphysics
+
+  eos_init(small_temp, small_dens);
 
   init_1d();
-  // init_1d_irreg();
 
   amrex::Finalize();
 

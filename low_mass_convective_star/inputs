@@ -1,19 +1,18 @@
-&extern
+# Note: if using init_1d_irreg(), set nx to grid size
 
- ! Note: if using init_1d_irreg(), set nx to grid size
- nx = 1024
+problem.nx = 1024
 
- temp_core = 1.1e7
+problem.temp_core = 1.1e7
 
- low_density_cutoff = 1.e-5
- temp_fluff = 1.e3
+problem.low_density_cutoff = 1.e-5
+problem.temp_fluff = 1.e3
 
- M_tot = 0.3
+problem.M_tot = 0.3
 
- xmin = 0.0
- xmax = 7.e10
+problem.xmin = 0.0
+problem.xmax = 7.e10
 
- hefrac = 0.3
+problem.hefrac = 0.3
 
- eos_assume_neutral = F
-/
+eos.eos_assume_neutral = 0
+
