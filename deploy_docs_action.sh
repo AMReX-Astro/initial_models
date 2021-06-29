@@ -9,7 +9,7 @@ TARGET_BRANCH="gh-pages"
 mkdir out
 
 # Build the Sphinx documentation
-cd Docs
+cd sphinx_docs
 make html
 cd ../
 
