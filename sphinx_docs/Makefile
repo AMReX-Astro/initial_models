@@ -16,13 +16,10 @@ help:
 
 clean:
 	rm -rf build
-	rm -rf ../docs
 
 html:
 	./rp.py > source/runtime_parameters.rst
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
-	@if [ ! -d ../docs ]; then mkdir ../docs; fi
-	cp -r build/html/* ../docs/
 
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
