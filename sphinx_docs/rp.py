@@ -7,17 +7,17 @@ import sys
 import textwrap
 
 main_header = """
-+----------------------------------+---------------------------------------------------------+---------------+
-| parameter                        | description                                             | default value |
-+==================================+=========================================================+===============+
++----------------------------------+---------------------------------------------------------+---------------------+
+| parameter                        | description                                             | default value       |
++==================================+=========================================================+=====================+
 """
 
 separator = """
-+----------------------------------+---------------------------------------------------------+---------------+
++----------------------------------+---------------------------------------------------------+---------------------+
 """
 
 entry = """
-| {:32} | {:55} | {:13} |
+| {:32} | {:55} | {:19} |
 """
 
 WRAP_LEN = 55
@@ -46,7 +46,7 @@ def make_rest_table(param_files):
     for pf in param_files:
 
         # each file is a category
-        category = os.path.basename(os.path.dirname(pf)).replace("_", "\_")
+        category = os.path.basename(os.path.dirname(pf))
 
         # open the file
         try: f = open(pf, "r")
@@ -72,6 +72,11 @@ def make_rest_table(param_files):
                 line = f.readline()
                 continue
 
+            # skip the namelist
+            if line.startswith("@"):
+                line = f.readline()
+                continue
+
             # find the description
             if line.startswith("#"):
                 # handle descriptions here
@@ -84,7 +89,7 @@ def make_rest_table(param_files):
                 line_list = line.split()
 
                 current_param.var = line_list[0]
-                current_param.default = line_list[2].replace("_", "\_")
+                current_param.default = line_list[2]
                 current_param.description = descr
                 current_param.category = category
 

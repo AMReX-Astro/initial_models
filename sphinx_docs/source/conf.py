@@ -49,7 +49,7 @@ extensions = ['sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
-    'sphinxcontrib.bibtex',
+#    'sphinxcontrib.bibtex',
     'sphinx.ext.autosummary',
     'nbsphinx',
     'numpydoc',
@@ -57,6 +57,9 @@ extensions = ['sphinx.ext.autodoc',
     'sphinx.ext.graphviz',
     'IPython.sphinxext.ipython_console_highlighting',
     'sphinx.ext.githubpages']
+
+# bibtex
+#bibtex_bibfiles = ["refs.bib"]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
