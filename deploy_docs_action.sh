@@ -13,8 +13,6 @@ cd sphinx_docs
 make html
 cd ../
 
-mkdir -p out/docs/
 if [ "$GITHUB_BRANCH" = "$MAIN_BRANCH" ]; then
-    mkdir -p out/docs
-    mv sphinx_docs/build/html/* out/docs
+    mv sphinx_docs/build/html/* out/
 fi
