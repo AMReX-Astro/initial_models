@@ -1,0 +1,11 @@
+Sphinx>=2.4.3
+sphinx_rtd_theme
+breathe>=4.14
+sphinxcontrib_bibtex
+numpydoc
+more_itertools
+numpy
+IPython>=3
+nbconvert
+pandoc
+
