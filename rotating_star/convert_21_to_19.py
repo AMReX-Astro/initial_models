@@ -71,7 +71,9 @@ print(extra.max())
 
 # output the new model
 
-with open(f"{file}.aprox19", "w") as f:
+base = file[:file.find(".txt")]
+
+with open(f"{base}.aprox19.dat", "w") as f:
     f.write(f"# conversion of {file} to aprox19 nuclei via convert_21_to_19.py\n")
     f.write(f"number of variables = {len(names_new)-1}\n")
     for name in names_new:
@@ -80,7 +82,7 @@ with open(f"{file}.aprox19", "w") as f:
         f.write(f"{name}\n")
     for irow in range(data.shape[0]):
         l = [f"{q:30.20g}" for q in data[irow, :]]
-        f.write(" ".join(l))
+        f.write(" ".join(l) + "\n")
 
 
 
