@@ -1,3 +1,5 @@
+[![github pages](https://github.com/AMReX-Astro/initial_models/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/AMReX-Astro/initial_models/actions/workflows/gh-pages.yml)
+
 # initial_models
 
 These are various codes for generating 1-d HSE initial models for the
