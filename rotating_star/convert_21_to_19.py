@@ -69,20 +69,37 @@ print(extra.min())
 print(extra.max())
 
 
+# update some names to be what are expected by the parser
+try:
+    names_new[names.index("dens")] = "density"
+except:
+    pass
+
+try:
+    names_new[names.index("temp")] = "temperature"
+except:
+    pass
+
+try:
+    names_new[names.index("pres")] = "pressure"
+except:
+    pass
+
 # output the new model
 
 base = file[:file.find(".txt")]
 
 with open(f"{base}.aprox19.dat", "w") as f:
-    f.write(f"# conversion of {file} to aprox19 nuclei via convert_21_to_19.py\n")
-    f.write(f"number of variables = {len(names_new)-1}\n")
+    f.write(f"# npts = {data_new.shape[0]}\n")
+    f.write(f"# number of variables = {len(names_new)-1}\n")
     for name in names_new:
         if name == "r":
             continue
         f.write(f"{name}\n")
-    for irow in range(data.shape[0]):
-        l = [f"{q:30.20g}" for q in data[irow, :]]
+    for irow in range(data_new.shape[0]):
+        l = [f"{q:30.20g}" for q in data_new[irow, :]]
         f.write(" ".join(l) + "\n")
 
+    f.write(f"# conversion of {file} to aprox19 nuclei via convert_21_to_19.py\n")
 
 
