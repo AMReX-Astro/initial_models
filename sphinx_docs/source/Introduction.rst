@@ -3,7 +3,7 @@ Introduction
 ************
 
 This repository holds the routines that are used to make hydrostatic
-initial models for the AMReX Astrophysics Suite codes Maestro and
+initial models for the AMReX Astrophysics Suite codes MAESTROeX and
 Castro.  It is designed to work with the equations of state and
 reaction networks defined in the StarKiller Microphysics repository.
 
