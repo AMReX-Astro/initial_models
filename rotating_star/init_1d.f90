@@ -41,16 +41,12 @@ module model_params
   real (kind=rt), allocatable :: model_hybrid_hse(:,:)
   real (kind=rt), allocatable :: model_conservative(:,:)
   real (kind=rt), allocatable :: model_convective(:,:)
-  real (kind=rt), allocatable :: model_ad_excess(:,:)
-  real (kind=rt), allocatable :: model_ledoux(:,:)
   real (kind=rt), allocatable :: entropy_want(:)
-  real (kind=rt), allocatable :: model_ener(:)
 
   integer, parameter :: MAX_ITER = 250, AD_ITER = 2500
 
   integer, parameter :: MAX_VARNAME_LENGTH=80
 
-  real(kind=rt), parameter :: anelastic_cutoff = 9.d4  ! this is for diagnostics only -- not used in the HSEing
   real (kind=rt), parameter :: smallx = 1.d-10
 
   real (kind=rt), parameter :: xmin = 0.d0, xmax = 1.75d10 !1.732050808d10
@@ -499,9 +495,9 @@ contains
 
     real (kind=rt) :: central_density
 
-    real (kind=rt) :: p_want, drho, dtemp, chiT, chirho, p_old, eos_p_old,  ledoux
+    real (kind=rt) :: p_want, drho, dtemp, p_old, eos_p_old,  ledoux
 
-    real (kind=rt) :: g_zone, ad_error, ad_tol, adiabatic_excess, err_min, err_max
+    real (kind=rt) :: g_zone, err_min, err_max
 
     real (kind=rt) :: max_hse_error, dpdr, rhog
 
@@ -509,16 +505,14 @@ contains
 
     integer :: igood
 
-    logical :: converged_hse, converged_central_density, fluff, isentropic, print_n
+    logical :: converged_hse, converged_central_density, fluff, isentropic
 
     integer :: index_hse_fluff = 1
 
     real (kind=rt), dimension(nspec) :: xn
     integer :: npts_model
 
-    real(kind=rt), allocatable :: base_state(:,:), base_r(:), base_ener(:)
-    real(kind=rt), allocatable :: base_ad(:), model_ad(:)
-    real(kind=rt), allocatable :: base_led(:), model_led(:)
+    real(kind=rt), allocatable :: base_state(:,:), base_r(:)
 
     integer :: ipos
     character (len=500) :: outfile, model_name
@@ -526,10 +520,7 @@ contains
     real(kind=rt) :: summ
 
     integer :: ibegin
-    integer :: i_isentropic
-    real(kind=rt) :: M_enclosed_anel
     real(kind=rt) :: grav_ener, M_center
-    real(kind=rt) :: eint_hybrid
 
     type (eos_t) :: eos_state
 
