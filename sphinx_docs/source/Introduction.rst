@@ -17,10 +17,26 @@ All of these model builders enforce a discrete form of hydrostatic equilibrium:
 
    \frac{p_{i+1} - p_i}{\Delta r} = \frac{1}{2} (\rho_i + \rho_{i+1} ) g_{i+1/2}
 
-Together with the equation of state.  One additional equation is
+Together with the equation of state.  We typically integrate outward from the center
+of the star or base of an atmosphere, using the known :math:`i` state to find the
+:math:`i+1` state above:
+
+.. math::
+
+   p_{i+1} = p_i + \frac{\Delta r}{2}{ (\rho_i + \rho_{i+1} ) g_{i+1/2}
+
+One additional equation is
 needed, either a specified temperature profile (or isothermal) or
 isentropic, or some mix of these in different regions in the star.
 
+If we are constraining to a temperature :math:`T_c`, then we have an implicit
+equation for :math:`\rho_{i+1}` to solve:
+
+.. math::
+
+   p(\rho_{i+1}, T_c) = p_i + \frac{\Delta r}{2}{ (\rho_i + \rho_{i+1} ) g_{i+1/2}
+
+And similar for a constant entropy.  
 
 Simple parameterized models
 ---------------------------
