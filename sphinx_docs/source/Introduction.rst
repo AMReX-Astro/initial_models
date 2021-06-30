@@ -23,7 +23,7 @@ of the star or base of an atmosphere, using the known :math:`i` state to find th
 
 .. math::
 
-   p_{i+1} = p_i + \frac{\Delta r}{2}{ (\rho_i + \rho_{i+1} ) g_{i+1/2}
+   p_{i+1} = p_i + \frac{\Delta r}{2} (\rho_i + \rho_{i+1} ) g_{i+1/2}
 
 One additional equation is
 needed, either a specified temperature profile (or isothermal) or
@@ -34,7 +34,7 @@ equation for :math:`\rho_{i+1}` to solve:
 
 .. math::
 
-   p(\rho_{i+1}, T_c) = p_i + \frac{\Delta r}{2}{ (\rho_i + \rho_{i+1} ) g_{i+1/2}
+   p(\rho_{i+1}, T_c) = p_i + \frac{\Delta r}{2} (\rho_i + \rho_{i+1} ) g_{i+1/2}
 
 And similar for a constant entropy.  
 
