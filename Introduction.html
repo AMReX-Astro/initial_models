@@ -34,6 +34,8 @@
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
         <script src="_static/doctools.js"></script>
+        <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"rhozero": "{\\rho_0}", "pizero": "{\\pi_0}", "pizeroone": "{\\pi_0^{(1)}}", "pizerotwo": "{\\pi_0^{(2)}}", "gammabar": "{\\overline{\\Gamma}_1}", "ptl": "{{\\partial}}", "eb": "{{\\bf e}}", "fb": "{{\\bf f}}", "ib": "{{\\bf i}}", "Ub": "{{\\bf U}}", "Vb": "{{\\bf V}}", "xb": "{{\\bf x}}", "ut": "{\\tilde{u}}", "vt": "{\\tilde{v}}", "wt": "{\\tilde{w}}", "Ubt": "{\\widetilde{\\Ub}}", "edge": "{\\rm EDGE}", "mac": "{\\rm MAC}", "trans": "{\\rm TRANS}", "nablab": "{\\mathbf{\\nabla}}", "cdotb": "{\\mathbf{\\cdot}}", "half": "{\\frac{1}{2}}", "myhalf": "{\\frac{1}{2}}", "nph": "{{n + \\myhalf}}", "nmh": "{{n - \\myhalf}}", "Hext": "{{H_{\\rm ext}}}", "Hnuc": "{{H_{\\rm nuc}}}", "kth": "{k_{\\rm th}}", "pred": "{{\\rm pred}}", "Sbar": "{\\overline{S}}", "inp": "{\\mathrm{in}}", "initp": "{\\mathrm{init}}", "outp": "{\\mathrm{out}}", "uadv": "{\\widetilde{\\mathbf{U}}^{\\mathrm{ADV}}}", "uadvone": "{\\widetilde{\\mathbf{U}}^{\\mathrm{ADV},\\star}}", "uadvonedag": "{\\Ubt^{\\mathrm{ADV},\\dagger,\\star}}", "uadvtwo": "{\\widetilde{\\mathbf{U}}^{\\mathrm{ADV}}}", "uadvtwodag": "{\\Ubt^{\\mathrm{ADV},\\dagger}}", "uadvsdcstar": "{\\mathbf{U}^{\\mathrm{ADV},\\star}}", "uadvsdcpred": "{\\mathbf{U}^{\\mathrm{ADV},\\mathrm{pred}}}", "uadvsdc": "{\\mathbf{U}^{\\mathrm{ADV}}}", "dt": "{\\Delta t}", "dr": "{\\Delta r}", "etarho": "{\\eta_{\\rho}}", "etarhoec": "{\\etarho^{\\rm ec}}", "etarhocc": "{\\etarho^{\\rm cc}}", "etarhoflux": "{\\etarho^{\\rm flux}}", "divetarho": "{\\nabla\\cdot(\\etarho\\eb_r)}", "ow": "{\\overline{w}_0}", "dw": "{\\delta w_0}", "thalf": "{\\sfrac{3}{2}}", "rhop": "{{\\rho^{\\prime}}}", "omegadot": "{\\dot{\\omega}}", "er": "{\\mathbf{e}_r}", "ex": "{\\mathbf{e}_x}", "ey": "{\\mathbf{e}_y}", "ez": "{\\mathbf{e}_z}", "Omegab": "{{\\bf \\Omega}}", "rb": "{{\\bf r}}", "isotm": ["{{}^{#2}\\mathrm{#1}}", 2], "edot": "{{{\\dot{e}_\\mathrm{nuc}}}}", "enuc": "{{{{e}_\\mathrm{nuc}}}}", "edotnu": "{{{\\dot{e}_\\nu}}}", "rt": "{\\tilde{r}_0}", "rhob": "{\\ensuremath{\\rho_\\mathrm{base}}}", "Tb": "{\\ensuremath{T_\\mathrm{base}}}", "gcc": "{\\mathrm{g~cm^{-3} }}", "pb": "{p_\\mathrm{base}}", "qburn": "{q_\\mathrm{burn}}", "Uc": "{{\\boldsymbol{\\mathcal{U}}}}", "Fb": "{\\mathbf{F}}", "Sc": "{\\mathbf{S}}", "Shydro": "{{{\\bf S}^{\\mathrm{hydro}}}}", "Rb": "{{\\bf R}}", "Rq": "{{\\bf R}}", "Adv": ["{{\\left [\\mathcal{A} \\left(#1\\right)\\right]}}", 1], "Advs": ["{{\\mathcal{A} \\left(#1\\right)}}", 1], "Sdot": "{\\dot{S}}"}}})</script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -170,26 +172,43 @@ reaction networks defined in the StarKiller Microphysics repository.</p>
 <p>There are several routines that are roughly broken into two categories:
 those that create simple paramaterized models on their own and those
 that adjust models from stellar evolution codes.</p>
+<p>All of these model builders enforce a discrete form of hydrostatic equilibrium:</p>
+<div class="math notranslate nohighlight">
+\[\frac{p_{i+1} - p_i}{\Delta r} = \frac{1}{2} (\rho_i + \rho_{i+1} ) g_{i+1/2}\]</div>
+<p>Together with the equation of state.  One additional equation is
+needed, either a specified temperature profile (or isothermal) or
+isentropic, or some mix of these in different regions in the star.</p>
 <div class="section" id="simple-parameterized-models">
 <h2>Simple parameterized models<a class="headerlink" href="#simple-parameterized-models" title="Permalink to this headline">¶</a></h2>
 <blockquote>
 <div><ul>
-<li><p>spherical</p>
-<p>generate an isentropic, self-gravitating WD model given a core
-temperature and density.</p>
+<li><p><code class="docutils literal notranslate"><span class="pre">low_mass_convective_star</span></code></p>
+<p>Generate an spherical, fully convective star of specified mass.
+This is meant to be used with the <code class="docutils literal notranslate"><span class="pre">gamma_law</span></code> equation of state
+and essentially generates a polytrope.</p>
 </li>
-<li><p>test2</p>
-<p>generate an isentropic plane-parallel atmosphere with an entropy
+<li><p><code class="docutils literal notranslate"><span class="pre">spherical</span></code></p>
+<p>Generate an isentropic, self-gravitating WD model given a core
+temperature and density.  This is generally used for making a
+white dwarf.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sub_chandra</span></code></p>
+<p>Create a sub-Chandra C/O white dwarf with a thin He layer on the surface.  Both the
+mass of the WD and the He layer are inputs parameters.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">test2</span></code></p>
+<p>Generate an isentropic plane-parallel atmosphere with an entropy
 jump below to surpress convective overshoot.  This is used by the
-test2 and test_convect problems.</p>
+<code class="docutils literal notranslate"><span class="pre">reacting_bubble</span></code> (originally called “test2”) and
+<code class="docutils literal notranslate"><span class="pre">test_convect</span></code> problems.</p>
 </li>
-<li><p>toy_atm</p>
-<p>similar to he_burn.  An isentropic layer is placed on top of an
-isothermal base.  A jump in temperature at the base of the
-isentropic layer is specified, with a linear transition between
-the base and isentropic layer.  The isentropic layer is continued
-down until reaching a cutoff temperature, at which point the model
-is isothermal.</p>
+<li><p><code class="docutils literal notranslate"><span class="pre">toy_atm</span></code></p>
+<p>An isentropic layer is placed on top of an isothermal base.  A
+jump in temperature at the base of the isentropic layer is
+specified, with a linear transition between the base and
+isentropic layer.  The isentropic layer is continued down until
+reaching a cutoff temperature, at which point the model is
+isothermal.  This was used for some of the X-ray burst models.</p>
 </li>
 </ul>
 </div></blockquote>
@@ -198,7 +217,7 @@ is isothermal.</p>
 <h2>stellar evolution code convertors<a class="headerlink" href="#stellar-evolution-code-convertors" title="Permalink to this headline">¶</a></h2>
 <blockquote>
 <div><ul>
-<li><p>lagrangian_planar</p>
+<li><p><code class="docutils literal notranslate"><span class="pre">lagrangian_planar</span></code></p>
 <p>This takes an existing initial model that is unequally gridded (in
 space) and maps it onto a uniform grid and puts it in HSE using
 our equation of state.  At the moment, it assumes a constant
@@ -206,7 +225,7 @@ gravitational acceleration and plane-parallel.  The integration is
 down (up and down) from the location of the peak T in the model,
 and the temperature profile of the initial model is preserved.</p>
 </li>
-<li><p>kepler_hybrid</p>
+<li><p><code class="docutils literal notranslate"><span class="pre">kepler_hybrid</span></code></p>
 <p>These were used for our original set of wdconvect calculations.
 They take a 1-d model from the Kepler stellar evolution code
 (which may not be uniformly spaced), and put it into HSE on the
