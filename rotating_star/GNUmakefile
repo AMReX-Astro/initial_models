@@ -19,8 +19,8 @@ EBASE := initialmodel
 # EOS and network
 EOS_DIR := helmholtz
 
-NETWORK_DIR := general_null
-NETWORK_INPUTS := aprox21.net
+NETWORK_DIR := aprox19
+USE_NSE := TRUE
 
 Bpack := ./Make.package ../read_mesa/Make.package
 Blocs := . ../read_mesa

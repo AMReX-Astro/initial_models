@@ -18,25 +18,19 @@ module model_params
   !! Set up the model parameters
 
   use amrex_fort_module, only: rt => amrex_real
-
+  use extern_probin_module
   use network
 
   integer, parameter :: nx = 6400
 
   ! define convenient indices for the scalars
+  integer, parameter :: nvar = 5 + nspec
   integer, parameter :: idens = 1, &
-       itemp = 2, &
-       ipres = 3, &
-       ientr = 4, &
-       ienuc = 5, & 
-       ispec = 6
-    !    isndspd = 5, &
-    !    imass = 6, &
-    !    igradr = 7, &
-    !    igrav = 8, &
-    !    ibrunt = 9, &
-    !    iconv_vel = 10, &
-    !    ispec = 11
+                        itemp = 2, &
+                        ipres = 3, &
+                        ientr = 4, &
+                        ienuc = 5, & 
+                        ispec = 6
 
   real (kind=rt), parameter :: TOL = 1.d-10
 
@@ -59,12 +53,6 @@ module model_params
   real(kind=rt), parameter :: anelastic_cutoff = 9.d4  ! this is for diagnostics only -- not used in the HSEing
   real (kind=rt), parameter :: smallx = 1.d-10
 
-!   character (len=100), parameter :: model_file = "18m_500_s_rot_b_eq_1.dat"
-!   logical, parameter :: mesa = .true.
-
-  character (len=100), parameter :: model_file = "15m_500_sec.txt"
-  logical, parameter :: mesa = .false.
-
   real (kind=rt), parameter :: xmin = 0.d0, xmax = 1.75d10 !1.732050808d10
   real (kind=rt), parameter :: delx = (xmax - xmin) / dble(nx)
 
@@ -80,12 +68,22 @@ module model_params
   real (kind=rt), save :: temp_fluff_cutoff = 2.d-7
   real (kind=rt), save :: temp_fluff = 1.d5
 
-  character(len=MAX_VARNAME_LENGTH), allocatable :: varnames_stored(:)
-
-  integer, parameter :: nvar = ispec - 1 + nspec
-
 end module model_params
 
+
+subroutine set_aux(eos_state)
+
+  use eos_type_module
+  use eos_module
+  use network
+
+  type(eos_t), intent(inout) :: eos_state
+
+  eos_state % aux(iye) = sum(eos_state % xn * zion * aion_inv)
+  eos_state % aux(iabar) = 1.0d0 / sum(eos_state % xn * aion_inv)
+  eos_state % aux(ibea) = sum(eos_state % xn * bion * aion_inv)
+
+end subroutine set_aux
 
 module initial_model_module
 
@@ -354,21 +352,9 @@ contains
 
     do i = 1, nx
 
-        if (mesa) then
-
-            ! write (50,1000) xzn_hse(i), model_state(i,idens), model_state(i,itemp), &
-            !         model_state(i,ipres), model_state(i,iconv_vel), &
-            !         (model_state(i,ispec-1+n), n=1,nspec)
-
-        else
-
-            write (50,1000) xzn_hse(i), model_state(i,idens), model_state(i,itemp), &
-                 model_state(i,ipres), &
-                 (model_state(i,ispec-1+n), n=1,nspec)
-     
-
-        endif
-
+       write (50,1000) xzn_hse(i), model_state(i,idens), model_state(i,itemp), &
+            model_state(i,ipres), &
+            (model_state(i,ispec-1+n), n=1,nspec)
     enddo
 
     close (unit=50)
@@ -376,118 +362,116 @@ contains
 
   end subroutine write_model
 
-  subroutine read_file(filename, base_state, base_r, var_names_model, nvars_model, npts_file) 
+  subroutine read_file(filename, base_state, base_r, npts_model)
 
     use amrex_fort_module, only: rt => amrex_real
     use amrex_constants_module
     use amrex_error_module
     use network
     use fundamental_constants_module
-
+    use model_params
     implicit none
-
-    integer, parameter :: MAX_VARNAME_LENGTH=80
 
     character (len=100), intent(in) :: filename
     real(kind=rt), allocatable, intent(inout) :: base_state(:,:)
     real(kind=rt), allocatable, intent(inout) :: base_r(:)
-    character (len=MAX_VARNAME_LENGTH), intent(in) :: var_names_model(:)
-    integer, intent(in) :: nvars_model
-    integer, intent(out) :: npts_file
+    integer, intent(out) :: npts_model
 
-    integer :: nparams_file, nvars_file, status, ipos
+    real(kind=rt), allocatable :: vars_stored(:)
+    character(len=MAX_VARNAME_LENGTH), allocatable :: varnames_stored(:)
+
+    integer :: nvars_model_file, npts_model_file
+    integer :: status, ipos
     character (len=5000) :: header_line
-    real(kind=rt), allocatable :: vars_stored(:), params_stored(:)
-    character(len=MAX_VARNAME_LENGTH), allocatable :: paramnames_stored(:)
-    character(len=MAX_VARNAME_LENGTH), allocatable :: var_names_file(:)
-    integer, allocatable :: var_indices_file(:)
     logical :: found
     integer :: i, j, k, n
 
 1000 format (1x, 30(g26.16, 1x))
 
-    open(99,file=filename)
+    open(99,file=model_file)
 
-    ! going to first do a pass through the file to count the line numbers
-    npts_file = 0
-    do
-        read (99,*,iostat=status)
-        if (status > 0) then
-            write(*,*) "Something went wrong :("
-        else if (status < 0) then
-            exit
-        else
-            npts_file = npts_file + 1
-        endif
-    enddo
+    ! the first line has the number of points in the model
+    read (99, '(a256)') header_line
+    ipos = index(header_line, '=') + 1
+    read (header_line(ipos:),*) npts_model_file
 
-    rewind(99)
+    print *, npts_model_file, '    points found in the initial model file'
 
-     ! the second line gives the number of variables
-    read(99, *)
-    read(99, '(a2000)') header_line
-    ! find last space in line
-    ipos = index(trim(header_line), ' ', back=.true.)
-    header_line = trim(adjustl(header_line(ipos:)))
-    read (header_line, *) nvars_file
+    npts_model = npts_model_file
 
-    print *, nvars_file, ' variables found in the initial model file'
+    ! now read in the number of variables
+    read (99, '(a256)') header_line
+    ipos = index(header_line, '=') + 1
+    read (header_line(ipos:),*) nvars_model_file
 
-    allocate (vars_stored(0:nvars_file))
-    allocate (var_names_file(nvars_file))
-    allocate (var_indices_file(nvars_file))
+    print *, nvars_model_file, ' variables found in the initial model file'
 
-    ! subtract header rows 
-    npts_file = npts_file - nvars_file - 2
-
-    print *, npts_file, '    points found in the initial model file'
-
-    var_indices_file(:) = -1
+    allocate (vars_stored(nvars_model_file))
+    allocate (varnames_stored(nvars_model_file))
 
     ! now read in the names of the variables
-    ipos = 1
-    do i = 1, nvars_file
-       read (99, '(a5000)') header_line
-    !    header_line = trim(adjustl(header_line(ipos:)))
-    !    ipos = index(header_line, ' ') + 1
-       var_names_file(i) = trim(adjustl(header_line))
-
-       ! create map of file indices to model indices
-       do j = 1, nvars_model
-          if (var_names_file(i) == var_names_model(j)) then
-             var_indices_file(i) = j
-             exit
-          endif
-       enddo
-
-       ! map species as well
-       if (var_indices_file(i) == -1) then
-          k = network_species_index(var_names_file(i))
-          if (k > 0) then
-             var_indices_file(i) = nvars_model + k
-          endif
-       endif
+    do i = 1, nvars_model_file
+       read (99, '(a256)') header_line
+       ipos = index(header_line, '#') + 1
+       varnames_stored(i) = trim(adjustl(header_line(ipos:)))
     enddo
 
     ! allocate storage for the model data
-    allocate (base_state(npts_file, nvars_model+nspec))
-    allocate (base_r(npts_file))
+    allocate (base_state(npts_model_file, nvar))
+    allocate (base_r(npts_model_file))
 
-    do i = 1, npts_file
-       read(99, *) (vars_stored(j), j = 0, nvars_file)
+    do i = 1, npts_model_file
+       read(99,*) base_r(i), (vars_stored(j), j = 1, nvars_model_file)
 
        base_state(i,:) = ZERO
 
-       base_r(i) = vars_stored(0)
+       do j = 1, nvars_model_file
 
-       do j = 1, nvars_file
-          if (var_indices_file(j) .ge. 0) then
-             base_state(i, var_indices_file(j)) = vars_stored(j)
+          found = .false.
+
+          select case (trim(varnames_stored(j)))
+
+          case ("density")
+             base_state(i,idens) = vars_stored(j)
+             found = .true.
+
+          case ("temperature")
+             base_state(i,itemp) = vars_stored(j)
+             found = .true.
+
+          case ("pressure")
+             base_state(i,ipres) = vars_stored(j)
+             found = .true.
+
+          case default
+
+             ! check if they are species
+             n = network_species_index(trim(varnames_stored(j)))
+             if (n > 0) then
+                base_state(i,ispec-1+n) = vars_stored(j)
+                found = .true.
+             endif
+
+          end select
+
+          if (.NOT. found .and. i == 1) then
+             print *, 'ERROR: variable not found: ', varnames_stored(j)
           endif
 
        enddo
 
     enddo
+
+
+    open (unit=50, file="model.orig", status="unknown")
+
+    write (50,*) "# initial model as read in"
+
+    do i = 1, npts_model_file
+       write (50,1000) base_r(i), (base_state(i,j), j = 1, nvar)
+    enddo
+
+    close (50)
 
   end subroutine read_file
 
@@ -502,7 +486,6 @@ contains
     use network
     use fundamental_constants_module
     use extern_probin_module, only: use_eos_coulomb
-    use mesa_reader
     use model_params
 
     implicit none
@@ -527,8 +510,6 @@ contains
     integer :: igood
 
     logical :: converged_hse, converged_central_density, fluff, isentropic, print_n
-
-    real (kind=rt) :: max_temp
 
     integer :: index_hse_fluff = 1
 
@@ -580,34 +561,7 @@ contains
     ! read in the MESA model
     !===========================================================================
 
-    if (mesa) then 
-
-       allocate(varnames_stored(nvar-nspec))
-       varnames_stored(idens) = "rho"
-       varnames_stored(itemp) = "temperature"
-       varnames_stored(ipres) = "pressure"
-       varnames_stored(ientr) = "entropy"
-       ! varnames_stored(isndspd) = "csound"
-       ! varnames_stored(imass) = "mass"
-       ! varnames_stored(igradr) = "gradT"
-       ! varnames_stored(igrav) = "grav"
-       ! varnames_stored(ibrunt) = "brunt_N2"
-       ! varnames_stored(iconv_vel) = "conv_vel"
-
-       call read_mesa(model_file, base_state, base_r, varnames_stored, nvar-nspec, npts_model)
-
-    else 
-
-       allocate(varnames_stored(nvar-nspec))
-       varnames_stored(idens) = "dens"
-       varnames_stored(itemp) = "temp"
-       varnames_stored(ipres) = "pres"
-       varnames_stored(ientr) = "entr"
-       varnames_stored(ienuc) = "enuc"
-
-       call read_file(model_file, base_state, base_r, varnames_stored, nvar-nspec, npts_model)
-
-    endif
+    call read_file(model_file, base_state, base_r, npts_model)
 
     !===========================================================================
     ! put the model onto our new uniform grid
@@ -654,17 +608,8 @@ contains
 
     do i = 1, nx
 
-       if (mesa) then 
-
-          !  write (30,1000) xzn_hse(i), model_mesa_hse(i,idens), model_mesa_hse(i,itemp), &
-          !       model_mesa_hse(i,ipres), model_mesa_hse(i,iconv_vel), (model_mesa_hse(i,ispec-1+n), n=1,nspec)
-
-       else 
-
-          write (30,1000) xzn_hse(i), model_mesa_hse(i,idens), model_mesa_hse(i,itemp), &
-               model_mesa_hse(i,ipres), (model_mesa_hse(i,ispec-1+n), n=1,nspec)
-
-       endif
+       write (30,1000) xzn_hse(i), model_mesa_hse(i,idens), model_mesa_hse(i,itemp), &
+            model_mesa_hse(i,ipres), (model_mesa_hse(i,ispec-1+n), n=1,nspec)
 
     enddo
 
@@ -711,6 +656,8 @@ contains
        eos_state%rho   = model_mesa_hse(ibegin,idens)
        eos_state%xn(:) = model_mesa_hse(ibegin,ispec:nvar)
 
+       call set_aux(eos_state)
+
        call eos(eos_input_rt, eos_state)
 
        model_mesa_hse(ibegin,ipres) = eos_state%p
@@ -756,6 +703,8 @@ contains
              eos_state%rho   = dens_zone
              eos_state%xn(:) = xn(:)
 
+             call set_aux(eos_state)
+
              call eos(eos_input_rt, eos_state)
 
              entropy = eos_state%s
@@ -796,7 +745,7 @@ contains
           if (.NOT. converged_hse) then
 
              print *, 'Error zone', i, ' did not converge in init_1d'
-             print *, 'integrate up'
+             print *, 'integrate down'
              print *, 'dens_zone, temp_zone = ', dens_zone, temp_zone
              print *, "p_want = ", p_want
              print *, "drho = ", drho
@@ -810,6 +759,8 @@ contains
           eos_state%T     = temp_zone
           eos_state%rho   = dens_zone
           eos_state%xn(:) = xn(:)
+
+          call set_aux(eos_state)
 
           call eos(eos_input_rt, eos_state)
 
@@ -868,6 +819,8 @@ contains
        ! i-1 and i
        g_zone = -Gconst*M_enclosed(i-1)/(xznr(i-1)*xznr(i-1))
 
+       print *, "i, g = ", i, g_zone, dens_zone, temp_zone
+
        !-----------------------------------------------------------------------
        ! iteration loop
        !-----------------------------------------------------------------------
@@ -892,6 +845,8 @@ contains
              eos_state%T     = temp_zone
              eos_state%rho   = dens_zone
              eos_state%xn(:) = xn(:)
+
+             call set_aux(eos_state)
 
              call eos(eos_input_rt, eos_state)
 
@@ -946,6 +901,10 @@ contains
        eos_state%T     = temp_zone
        eos_state%rho   = dens_zone
        eos_state%xn(:) = xn(:)
+
+       print *, "output: ", eos_state%T, eos_state%rho, eos_state%xn(:)
+
+       call set_aux(eos_state)
 
        call eos(eos_input_rt, eos_state)
 
