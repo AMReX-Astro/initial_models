@@ -37,10 +37,7 @@ module model_params
   real (kind=rt), allocatable :: xzn_hse(:), xznl(:), xznr(:)
   real (kind=rt), allocatable :: M_enclosed(:)
   real (kind=rt), allocatable :: model_mesa_hse(:,:)
-  real (kind=rt), allocatable :: model_isentropic_hse(:,:)
   real (kind=rt), allocatable :: model_hybrid_hse(:,:)
-  real (kind=rt), allocatable :: model_conservative(:,:)
-  real (kind=rt), allocatable :: model_convective(:,:)
   real (kind=rt), allocatable :: entropy_want(:)
 
   integer, parameter :: MAX_ITER = 250, AD_ITER = 2500
@@ -72,12 +69,33 @@ subroutine set_aux(eos_state)
   use eos_type_module
   use eos_module
   use network
+  use nse_module
+  use nse_check_module
+  use burn_type_module
 
   type(eos_t), intent(inout) :: eos_state
 
-  eos_state % aux(iye) = sum(eos_state % xn * zion * aion_inv)
-  eos_state % aux(iabar) = 1.0d0 / sum(eos_state % xn * aion_inv)
-  eos_state % aux(ibea) = sum(eos_state % xn * bion * aion_inv)
+  type(burn_t) :: burn_state
+
+  real(rt) :: abar_pass, dq_pass, dyedt_pass
+  integer :: nse_check
+
+  call eos_to_burn(eos_state, burn_state)
+
+  call in_nse(burn_state, nse_check)
+
+  if (nse_check == 1) then
+
+     ! we are in NSE, so leave ye alone, but get abar
+
+     call nse_interp(eos_state % T, eos_state % rho, eos_state % aux(iye), &
+                     abar_pass, dq_pass, dyedt_pass, eos_state % xn(:))
+
+     eos_state % aux(iabar) = abar_pass
+  else
+     eos_state % aux(iye) = sum(eos_state % xn * zion * aion_inv)
+     eos_state % aux(iabar) = 1.0d0 / sum(eos_state % xn * aion_inv)
+  end if
 
 end subroutine set_aux
 
@@ -276,6 +294,9 @@ contains
     use extern_probin_module, only: use_eos_coulomb
     use model_params
     use interpolate_module
+    use nse_module
+    use nse_check_module
+    use burn_type_module
 
     implicit none
 
@@ -294,6 +315,9 @@ contains
 
     real (kind=rt) :: max_hse_error, dpdr, rhog
 
+    real (kind=rt) :: abar_pass, dq_pass, dyedt_pass
+    integer :: nse_check
+
     integer :: iter, iter_dens, status
 
     integer :: igood
@@ -303,6 +327,8 @@ contains
     integer :: index_hse_fluff = 1
 
     real (kind=rt), dimension(nspec) :: xn
+    real (kind=rt) :: ye
+
     integer :: npts_model
 
     real(kind=rt), allocatable :: base_state(:,:), base_r(:)
@@ -316,6 +342,7 @@ contains
     real(kind=rt) :: grav_ener, M_center
 
     type (eos_t) :: eos_state
+    type (burn_t) :: burn_state
 
     !===========================================================================
     ! Create a 1-d uniform grid that is identical to the mesh that we are
@@ -327,9 +354,7 @@ contains
     allocate(xznl(nx))
     allocate(xznr(nx))
     allocate(model_mesa_hse(nx,nvar))
-    allocate(model_isentropic_hse(nx,nvar))
     allocate(model_hybrid_hse(nx,nvar))
-    allocate(model_convective(nx,nvar))
     allocate(M_enclosed(nx))
     allocate(entropy_want(nx))
 
@@ -383,8 +408,6 @@ contains
 
     enddo
 
-    print *, "model_hse(1,idens) =", model_mesa_hse(1,idens)
-
     open (unit=30, file="model.uniform", status="unknown")
 
 1000 format (1x, 30(g26.16, 1x))
@@ -394,7 +417,7 @@ contains
     do i = 1, nx
 
        write (30,1000) xzn_hse(i), model_mesa_hse(i,idens), model_mesa_hse(i,itemp), &
-            model_mesa_hse(i,ipres), (model_mesa_hse(i,ispec-1+n), n=1,nspec)
+            model_mesa_hse(i,ipres), model_mesa_hse(i,iyef), (model_mesa_hse(i,ispec-1+n), n=1,nspec)
 
     enddo
 
@@ -406,6 +429,44 @@ contains
     ! reset the composition if we are in NSE
     !===========================================================================
 
+    do i = 1, nx
+
+       ! we need to fill a burn_t in order to check for NSE
+
+       eos_state % rho = model_mesa_hse(i,idens)
+       eos_state % T = model_mesa_hse(i,idens)
+       eos_state % aux(:) = 0.0
+       eos_state % aux(iye) = model_mesa_hse(i,iyef)
+
+       do n = 1, nspec
+          eos_state % xn(n) = model_mesa_hse(i,ispec-1+n)
+       end do
+
+
+       call eos_to_burn(eos_state, burn_state)
+
+       call in_nse(burn_state, nse_check)
+
+       if (nse_check == 1) then
+
+          ! we are in NSE, so let's call the table to get the correct mass fractions
+
+          call nse_interp(eos_state % T, eos_state % rho, eos_state % aux(iye), &
+                          abar_pass, dq_pass, dyedt_pass, eos_state % xn(:))
+
+       else
+
+          ! we are not in NSE, so let's compute a consistent ye from the composition
+          eos_state % aux(iye) = sum(eos_state % xn * zion * aion_inv)
+
+       end if
+
+       ! copy the composition variables back
+
+       model_mesa_hse(i,ispec:ispec-1+nspec) = eos_state % xn(:)
+       model_mesa_hse(i,iyef) = eos_state % aux(iye)
+
+    end do
 
 
     !===========================================================================
@@ -449,6 +510,8 @@ contains
        eos_state%rho   = model_mesa_hse(ibegin,idens)
        eos_state%xn(:) = model_mesa_hse(ibegin,ispec:nvar)
 
+       eos_state%aux(iye) = model_mesa_hse(ibegin,iyef)
+
        call set_aux(eos_state)
 
        call eos(eos_input_rt, eos_state)
@@ -467,6 +530,8 @@ contains
           dens_zone = model_mesa_hse(i+1,idens)
           temp_zone = model_mesa_hse(i+1,itemp)
           xn(:) = model_mesa_hse(i,ispec:nvar)
+
+          ye = model_mesa_hse(i,iyef)
 
           ! compute the gravitational acceleration on the interface between zones
           ! i and i+1
@@ -495,6 +560,8 @@ contains
              eos_state%T     = temp_zone
              eos_state%rho   = dens_zone
              eos_state%xn(:) = xn(:)
+
+             eos_state%aux(iye) = ye
 
              call set_aux(eos_state)
 
@@ -553,6 +620,8 @@ contains
           eos_state%rho   = dens_zone
           eos_state%xn(:) = xn(:)
 
+          eos_state%aux(iye) = ye
+
           call set_aux(eos_state)
 
           call eos(eos_input_rt, eos_state)
@@ -608,11 +677,11 @@ contains
 
        xn(:) = model_mesa_hse(i,ispec:nvar)
 
+       ye = model_mesa_hse(i,iyef)
+
        ! compute the gravitational acceleration on the interface between zones
        ! i-1 and i
        g_zone = -Gconst*M_enclosed(i-1)/(xznr(i-1)*xznr(i-1))
-
-       print *, "i, g = ", i, g_zone, dens_zone, temp_zone
 
        !-----------------------------------------------------------------------
        ! iteration loop
@@ -638,6 +707,8 @@ contains
              eos_state%T     = temp_zone
              eos_state%rho   = dens_zone
              eos_state%xn(:) = xn(:)
+
+             eos_state%aux(iye) = ye
 
              call set_aux(eos_state)
 
@@ -695,9 +766,14 @@ contains
        eos_state%rho   = dens_zone
        eos_state%xn(:) = xn(:)
 
-       print *, "output: ", eos_state%T, eos_state%rho, eos_state%xn(:)
+       eos_state%aux(iye) = ye
 
        call set_aux(eos_state)
+
+       ! if we were in NSE, then this updated eos_State % xn(:), so copy that over
+       model_mesa_hse(i,ispec:ispec-1+nspec) = eos_state % xn(:)
+
+       print *, "output: ", eos_state%T, eos_state%rho, eos_state%aux(iye)
 
        call eos(eos_input_rt, eos_state)
 
