@@ -97,3 +97,10 @@ stellar evolution code convertors
     (which may not be uniformly spaced), and put it into HSE on the
     MAESTRO grid.  This particular version forces the inner region of
     the star to be completely isentropic.
+
+  * ``massive_star``
+
+    This takes a model for a massive star and puts into to HSE.  It
+    uses the temperature structure from the model and Ye or X,
+    depending on whether the state is in nuclear statistical
+    equilibrium.
