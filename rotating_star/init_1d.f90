@@ -7,10 +7,13 @@
 !!
 !!   (1/dr) [ <P>_i - <P>_{i-1} ] = (1/2) [ <rho>_i + <rho>_{i-1} ] g
 !!
-!!
 !!  We take the temperature structure directly from the original
-!!  initial model.  We adjust the density and pressure according to
-!!  HSE using the EOS.
+!!  initial model.  For the composition, we interpolate Ye and X
+!!  from the initial model.  If we are in an NSE region, then we
+!!  take Ye and call the NSE table to get X.  If we are not in NSE,
+!!  then we use X to compute Ye.  Since we build with USE_NSE = TRUE,
+!!  the EOS always requires Ye and abar through the aux data.
+!!  We adjust the density and pressure according to HSE using the EOS.
 !!
 !!***
 
@@ -20,8 +23,6 @@ module model_params
   use amrex_fort_module, only: rt => amrex_real
   use extern_probin_module
   use network
-
-  integer, parameter :: nx = 6400
 
   ! define convenient indices for the scalars
   integer, parameter :: nvar = 5 + nspec
@@ -46,8 +47,7 @@ module model_params
 
   real (kind=rt), parameter :: smallx = 1.d-10
 
-  real (kind=rt), parameter :: xmin = 0.d0, xmax = 1.75d10 !1.732050808d10
-  real (kind=rt), parameter :: delx = (xmax - xmin) / dble(nx)
+  real (kind=rt) :: delx
 
   real (kind=rt), save :: low_density_cutoff =1.d-7
 
@@ -359,6 +359,8 @@ contains
     allocate(entropy_want(nx))
 
     ! compute the coordinates of the new gridded function
+
+    delx = (xmax - xmin) / dble(nx)
 
     do i = 1, nx
        xznl(i) = xmin + (dble(i) - 1.0d0)*delx
