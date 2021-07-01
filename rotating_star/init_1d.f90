@@ -38,7 +38,6 @@ module model_params
   real (kind=rt), allocatable :: xzn_hse(:), xznl(:), xznr(:)
   real (kind=rt), allocatable :: M_enclosed(:)
   real (kind=rt), allocatable :: model_mesa_hse(:,:)
-  real (kind=rt), allocatable :: model_hybrid_hse(:,:)
   real (kind=rt), allocatable :: entropy_want(:)
 
   integer, parameter :: MAX_ITER = 250, AD_ITER = 2500
@@ -354,7 +353,6 @@ contains
     allocate(xznl(nx))
     allocate(xznr(nx))
     allocate(model_mesa_hse(nx,nvar))
-    allocate(model_hybrid_hse(nx,nvar))
     allocate(M_enclosed(nx))
     allocate(entropy_want(nx))
 
@@ -399,13 +397,13 @@ contains
        ! make sure that the species (mass fractions) summ to 1
 
        summ = 0.0d0
-       do n = ispec,ispec-1+nspec
+       do n = ispec, ispec-1+nspec
           model_mesa_hse(i,n) = max(model_mesa_hse(i,n),smallx)
           summ = summ + model_mesa_hse(i,n)
        enddo
 
        do n = ispec,ispec-1+nspec
-          model_mesa_hse(i,n) = model_mesa_hse(i,n)/summ
+          model_mesa_hse(i,n) = model_mesa_hse(i,n) / summ
        enddo
 
     enddo
@@ -436,7 +434,7 @@ contains
        ! we need to fill a burn_t in order to check for NSE
 
        eos_state % rho = model_mesa_hse(i,idens)
-       eos_state % T = model_mesa_hse(i,idens)
+       eos_state % T = model_mesa_hse(i,itemp)
        eos_state % aux(:) = 0.0
        eos_state % aux(iye) = model_mesa_hse(i,iyef)
 
@@ -510,7 +508,7 @@ contains
        ! now start at ibegin and integrate inward
        eos_state%T     = model_mesa_hse(ibegin,itemp)
        eos_state%rho   = model_mesa_hse(ibegin,idens)
-       eos_state%xn(:) = model_mesa_hse(ibegin,ispec:nvar)
+       eos_state%xn(:) = model_mesa_hse(ibegin,ispec:ispec-1+nspec)
 
        eos_state%aux(iye) = model_mesa_hse(ibegin,iyef)
 
@@ -630,8 +628,6 @@ contains
 
           pres_zone = eos_state%p
 
-          dpd = eos_state%dpdr
-
           ! update the thermodynamics in this zone
           model_mesa_hse(i,idens) = dens_zone
           model_mesa_hse(i,itemp) = temp_zone
@@ -673,9 +669,11 @@ contains
 
     do i = 2, nx
 
-       ! use previous zone as initial guess for T, rho
+       ! use previous zone as initial guess for rho
        dens_zone = model_mesa_hse(i-1,idens)
-       temp_zone = model_mesa_hse(i-1,itemp)
+
+       ! we use the model value for temperature and compositon
+       temp_zone = model_mesa_hse(i,itemp)
 
        xn(:) = model_mesa_hse(i,ispec:nvar)
 
@@ -688,6 +686,8 @@ contains
        !-----------------------------------------------------------------------
        ! iteration loop
        !-----------------------------------------------------------------------
+
+       ! the goal here is to find the density that is consistent with HSE
 
        converged_hse = .FALSE.
 
@@ -722,7 +722,7 @@ contains
              drho = (p_want - pres_zone)/(dpd - 0.5d0*delx*g_zone)
 
              dens_zone = max(0.9d0*dens_zone, &
-                  min(dens_zone + drho, 1.1d0*dens_zone))
+                             min(dens_zone + drho, 1.1d0*dens_zone))
 
              if (abs(drho) < TOL*dens_zone) then
                 converged_hse = .TRUE.
@@ -772,8 +772,13 @@ contains
 
        call set_aux(eos_state)
 
-       ! if we were in NSE, then this updated eos_State % xn(:), so copy that over
+       ! if we were in NSE, then this updated eos_state % xn(:), so copy that over
+
        model_mesa_hse(i,ispec:ispec-1+nspec) = eos_state % xn(:)
+
+       ! if we were not in NSE, then this updated ye
+
+       model_mesa_hse(i,iyef) = eos_state % aux(iye)
 
        print *, "output: ", eos_state%T, eos_state%rho, eos_state%aux(iye)
 
@@ -786,6 +791,7 @@ contains
        model_mesa_hse(i,itemp) = temp_zone
        model_mesa_hse(i,ipres) = pres_zone
        model_mesa_hse(i,ientr) = eos_state%s
+
        !  model_mesa_hse(i,isndspd) = &
        !       sqrt(eos_state%gam1*eos_state%p/eos_state%rho)
 
