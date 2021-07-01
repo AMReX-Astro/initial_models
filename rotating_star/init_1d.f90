@@ -143,7 +143,7 @@ contains
     write (50,1002) "# density"
     write (50,1002) "# temperature"
     write (50,1002) "# pressure"
-    write (50,1002) "# ye"
+    write (50,1002) "# Ye"
 
     ! write (50,1002) "# conv_vel"
 
@@ -244,7 +244,7 @@ contains
              base_state(i,ipres) = vars_stored(j)
              found = .true.
 
-          case ("ye")
+          case ("ye", "Ye")
              base_state(i,iyef) = vars_stored(j)
              found = .true.
 
