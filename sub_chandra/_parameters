@@ -6,6 +6,9 @@ M_tot                real         0.6
 
 M_He                 real         0.2
 
+# mass fraction of N14 to put in the accreted envelope
+X_N14                real         0.00
+
 delta                real         1.e-6
 
 xmin                 real         0.0
