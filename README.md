@@ -3,12 +3,19 @@
 # initial_models
 
 These are various codes for generating 1-d HSE initial models for the
-AMReX astrophysics codes.  We require FBoxLib and StarKiller
+AMReX astrophysics codes.  We require amrex and StarKiller
 Microphysics.
 
-To build all of the dependencies, you need to set the
-`INITIAL_MODEL_HOME` environment variable to point to the top-level
-directory.
+To build all of the dependencies, you need to set the `AMREX_HOME` and
+`MICROPHYSICS_HOME` environment variables to point to their respective
+top-level directories, e.g., as:
+
+```
+export AMREX_HOME=/path/to/amrex/
+export MICROPHYSICS_HOME=/path/to/Microphysics/
+```
+
+where you replace `/path/to/` with the appropriate path on your system.
 
 The routines are:
 
