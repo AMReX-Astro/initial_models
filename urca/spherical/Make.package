@@ -1,0 +1,4 @@
+# the local sources needed to build the initial model generator
+f90EXE_sources += init_1d.f90
+f90EXE_sources += urca_composition.f90
+CEXE_sources += main.cpp
