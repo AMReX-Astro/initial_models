@@ -211,7 +211,8 @@ contains
     use network
     use actual_network, only: k_na23__ne23, k_ne23__na23
     use actual_rhs_module, only: rate_eval_t, evaluate_rates
-    use eos_type_module, only: eos_t !, composition
+    use eos_type_module, only: eos_t
+    use eos_composition_module, only : composition
     use burn_type_module, only: burn_t, eos_to_burn
 
     implicit none
@@ -241,7 +242,7 @@ contains
 
     ! Estimate the mass fractions approximating the rates as
     ! independent of ye.
-    ! call composition(eos_state)
+    call composition(eos_state)
     call eos_to_burn(eos_state, burn_state)
     call evaluate_rates(burn_state, rate_eval)
 
@@ -283,7 +284,8 @@ contains
   subroutine fopt_urca_23(eos_state, fopt, r_ecap, r_beta)
 
     use amrex_constants_module, only: HALF
-    use eos_type_module, only: eos_t !, composition
+    use eos_type_module, only: eos_t
+    use eos_composition_module, only : composition
     use network
     use actual_network, only: k_na23__ne23, k_ne23__na23
     use actual_rhs_module, only: rate_eval_t, evaluate_rates
@@ -301,7 +303,7 @@ contains
     ine23 = network_species_index("neon-23")
     ina23 = network_species_index("sodium-23")
 
-    ! call composition(eos_state)
+    call composition(eos_state)
     call eos_to_burn(eos_state, burn_state)
     call evaluate_rates(burn_state, rate_eval)
 
