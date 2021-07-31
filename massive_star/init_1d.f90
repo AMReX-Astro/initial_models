@@ -118,6 +118,7 @@ contains
     character(len=100) :: outfile
     integer :: ipos, i, n
     character (len=8) num
+    real(kind=rt) :: dx
 
 1000 format (1x, 30(g26.16, 1x))
 1001 format(a, i5)
@@ -130,9 +131,11 @@ contains
     endif
     outfile = model_file(1:ipos-1) // '.' // trim(adjustl(model_name))
 
-    write(num,'(i8)') nx
+    dx = (xzn_hse(2) - xzn_hse(1)) / 1.d5   ! km
 
-    outfile = trim(outfile) // '.' // trim(adjustl(num))
+    write(num,'(f4.1)') dx
+
+    outfile = trim(outfile) // '.' // trim(adjustl(num)) // "km"
 
     print *, 'writing ', trim(adjustl(model_name)), ' model to ', trim(outfile)
 
