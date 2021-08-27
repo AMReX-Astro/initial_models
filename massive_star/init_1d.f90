@@ -24,25 +24,16 @@ module model_params
   use extern_probin_module
   use network
 
-  ! define convenient indices for the scalars
-  integer, parameter :: nvar = 5 + nspec
-  integer, parameter :: idens = 1, &
-                        itemp = 2, &
-                        ipres = 3, &
-                        ientr = 4, &
-                        iyef  = 5, &    ! this is ye -- we add "f" for file to not clash with the network
-                        ispec = 6
-
-  real (kind=rt), parameter :: TOL = 1.d-10
-
   real (kind=rt), allocatable :: xzn_hse(:), xznl(:), xznr(:)
   real (kind=rt), allocatable :: M_enclosed(:)
   real (kind=rt), allocatable :: model_mesa_hse(:,:)
   real (kind=rt), allocatable :: entropy_want(:)
 
-  integer, parameter :: MAX_ITER = 250, AD_ITER = 2500
 
-  integer, parameter :: MAX_VARNAME_LENGTH=80
+  real (kind=rt), parameter :: TOL = 1.d-10
+
+
+  integer, parameter :: MAX_ITER = 250, AD_ITER = 2500
 
   real (kind=rt), parameter :: smallx = 1.d-10
 
@@ -108,6 +99,7 @@ contains
     !! Write data stored in `model_state` array to file
 
     use model_params
+    use model_module
 
     implicit none
 
@@ -166,122 +158,6 @@ contains
 
   end subroutine write_model
 
-  subroutine read_file(filename, base_state, base_r, npts_model)
-
-    use amrex_fort_module, only: rt => amrex_real
-    use amrex_constants_module
-    use amrex_error_module
-    use network
-    use fundamental_constants_module
-    use model_params
-    implicit none
-
-    character (len=100), intent(in) :: filename
-    real(kind=rt), allocatable, intent(inout) :: base_state(:,:)
-    real(kind=rt), allocatable, intent(inout) :: base_r(:)
-    integer, intent(out) :: npts_model
-
-    real(kind=rt), allocatable :: vars_stored(:)
-    character(len=MAX_VARNAME_LENGTH), allocatable :: varnames_stored(:)
-
-    integer :: nvars_model_file, npts_model_file
-    integer :: status, ipos
-    character (len=5000) :: header_line
-    logical :: found
-    integer :: i, j, k, n
-
-1000 format (1x, 30(g26.16, 1x))
-
-    open(99,file=model_file)
-
-    ! the first line has the number of points in the model
-    read (99, '(a256)') header_line
-    ipos = index(header_line, '=') + 1
-    read (header_line(ipos:),*) npts_model_file
-
-    print *, npts_model_file, '    points found in the initial model file'
-
-    npts_model = npts_model_file
-
-    ! now read in the number of variables
-    read (99, '(a256)') header_line
-    ipos = index(header_line, '=') + 1
-    read (header_line(ipos:),*) nvars_model_file
-
-    print *, nvars_model_file, ' variables found in the initial model file'
-
-    allocate (vars_stored(nvars_model_file))
-    allocate (varnames_stored(nvars_model_file))
-
-    ! now read in the names of the variables
-    do i = 1, nvars_model_file
-       read (99, '(a256)') header_line
-       ipos = index(header_line, '#') + 1
-       varnames_stored(i) = trim(adjustl(header_line(ipos:)))
-    enddo
-
-    ! allocate storage for the model data
-    allocate (base_state(npts_model_file, nvar))
-    allocate (base_r(npts_model_file))
-
-    do i = 1, npts_model_file
-       read(99,*) base_r(i), (vars_stored(j), j = 1, nvars_model_file)
-
-       base_state(i,:) = ZERO
-
-       do j = 1, nvars_model_file
-
-          found = .false.
-
-          select case (trim(varnames_stored(j)))
-
-          case ("density")
-             base_state(i,idens) = vars_stored(j)
-             found = .true.
-
-          case ("temperature")
-             base_state(i,itemp) = vars_stored(j)
-             found = .true.
-
-          case ("pressure")
-             base_state(i,ipres) = vars_stored(j)
-             found = .true.
-
-          case ("ye", "Ye")
-             base_state(i,iyef) = vars_stored(j)
-             found = .true.
-
-          case default
-
-             ! check if they are species
-             n = network_species_index(trim(varnames_stored(j)))
-             if (n > 0) then
-                base_state(i,ispec-1+n) = vars_stored(j)
-                found = .true.
-             endif
-
-          end select
-
-          if (.NOT. found .and. i == 1) then
-             print *, 'ERROR: variable not found: ', varnames_stored(j)
-          endif
-
-       enddo
-
-    enddo
-
-
-    open (unit=50, file="model.orig", status="unknown")
-
-    write (50,*) "# initial model as read in"
-
-    do i = 1, npts_model_file
-       write (50,1000) base_r(i), (base_state(i,j), j = 1, nvar)
-    enddo
-
-    close (50)
-
-  end subroutine read_file
 
 
   subroutine init_1d() bind(C, name="init_1d")
@@ -299,10 +175,11 @@ contains
     use nse_module
     use nse_check_module
     use burn_type_module
+    use model_module
 
     implicit none
 
-    integer :: i, k, n
+    integer :: i, j, k, n
 
     real (kind=rt) :: dens_zone, temp_zone, pres_zone, entropy, temp_min, temp_max
 
@@ -374,6 +251,16 @@ contains
     !===========================================================================
 
     call read_file(model_file, base_state, base_r, npts_model)
+
+    open (unit=50, file="model.orig", status="unknown")
+
+    write (50,*) "# initial model as read in"
+
+    do i = 1, npts_model
+       write (50,1000) base_r(i), (base_state(i,j), j = 1, nvar)
+    enddo
+
+    close (50)
 
     !===========================================================================
     ! put the model onto our new uniform grid
