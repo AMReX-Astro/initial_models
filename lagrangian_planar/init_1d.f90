@@ -7,16 +7,16 @@
 !!
 
 subroutine init_1d() bind(C, name="init_1d")
- 
-  use bl_types
-  use bl_constants_module
-  use bl_error_module
+
+  use amrex_fort_module, only: rt => amrex_real
+  use amrex_constants_module
+  use amrex_error_module
   use eos_module, only: eos, eos_init
   use eos_type_module, only: eos_t, eos_input_rt
   use extern_probin_module, only: use_eos_coulomb
   use network, only : nspec, network_species_index, spec_names, network_init
   use fundamental_constants_module, only: Gconst
-  use model_parser_module
+  use model_module
 
   implicit none
 
@@ -24,25 +24,25 @@ subroutine init_1d() bind(C, name="init_1d")
 
   character(len=128) :: params_file
 
-  real (kind=dp_t), DIMENSION(nspec) :: xn
+  real (kind=rt), DIMENSION(nspec) :: xn
 
-  real (kind=dp_t), allocatable :: xzn_hse(:), xznl_hse(:), xznr_hse(:)
-  real (kind=dp_t), allocatable :: model_hse(:,:)
+  real (kind=rt), allocatable :: xzn_hse(:), xznl_hse(:), xznr_hse(:)
+  real (kind=rt), allocatable :: model_hse(:,:)
 
   real :: A
 
   integer :: lun1, lun2
 
-  real (kind=dp_t) :: dCoord
+  real (kind=rt) :: dCoord
 
-  real (kind=dp_t) :: dens_zone, temp_zone, pres_zone, entropy
-  real (kind=dp_t) :: dpd
+  real (kind=rt) :: dens_zone, temp_zone, pres_zone, entropy
+  real (kind=rt) :: dpd
 
-  real (kind=dp_t) :: p_want, drho, dtemp, delx
-  
-  real (kind=dp_t) :: g_zone
+  real (kind=rt) :: p_want, drho, dtemp, delx
 
-  real (kind=dp_t), parameter :: TOL = 1.e-10
+  real (kind=rt) :: g_zone
+
+  real (kind=rt), parameter :: TOL = 1.e-10
 
   integer, parameter :: MAX_ITER = 250
 
@@ -50,7 +50,7 @@ subroutine init_1d() bind(C, name="init_1d")
 
   logical :: converged_hse, fluff
 
-  real (kind=dp_t) :: max_T
+  real (kind=rt) :: max_T
 
   integer :: index_base
 
@@ -60,7 +60,7 @@ subroutine init_1d() bind(C, name="init_1d")
   character (len=32) :: num_to_unitstring
   character (len=64) :: model_file
 
-  real (kind=dp_t) :: max_hse_error, dpdr, rhog
+  real (kind=rt) :: max_hse_error, dpdr, rhog
 
   character (len=128) :: model_prefix
 
@@ -100,7 +100,7 @@ subroutine init_1d() bind(C, name="init_1d")
      xzn_hse(i)  = xmin + (dble(i) - HALF)*dCoord
      xznr_hse(i) = xmin + (dble(i))*dCoord
   enddo
-  
+
 
 !-----------------------------------------------------------------------------
 ! put the model onto our new uniform grid
@@ -130,7 +130,7 @@ subroutine init_1d() bind(C, name="init_1d")
 
   ! find the index to integrate from by looking for the peak temperature
   index_base = -1
-  max_T = -1.0_dp_t
+  max_T = -1.0_rt
 
   do i = 1, nx
      if (model_hse(i,itemp_model) > max_T) then
@@ -138,9 +138,9 @@ subroutine init_1d() bind(C, name="init_1d")
         max_T = model_hse(i,itemp_model)
      endif
   enddo
-     
+
   if (index_base == -1) then
-     call bl_error('ERROR: invalid base_height')
+     call amrex_error('ERROR: invalid base_height')
   endif
 
   print *, 'index_base = ', index_base
@@ -154,13 +154,13 @@ subroutine init_1d() bind(C, name="init_1d")
   call eos(eos_input_rt, eos_state)
 
   model_hse(index_base,ipres_model) = eos_state%p
-  
-  
+
+
 !-----------------------------------------------------------------------------
 ! HSE + entropy solve
 !-----------------------------------------------------------------------------
 
-  ! the HSE state will be done respecting the interpolated temperature 
+  ! the HSE state will be done respecting the interpolated temperature
   ! from the initial model.  When the temperature drops below T_lo,
   ! we floor it.
 
@@ -184,7 +184,7 @@ subroutine init_1d() bind(C, name="init_1d")
      temp_zone = max(temp_cutoff, model_hse(i,itemp_model))
      xn(:) = model_hse(i,ispec_model:ispec_model-1+nspec)
 
-     
+
      !-----------------------------------------------------------------------
      ! iteration loop
      !-----------------------------------------------------------------------
@@ -197,24 +197,24 @@ subroutine init_1d() bind(C, name="init_1d")
         ! what pressure does HSE say we want?
         p_want = model_hse(i-1,ipres_model) + &
              delx*0.5*(dens_zone + model_hse(i-1,idens_model))*g_zone
-         
+
         ! (t, rho) -> (p)
         eos_state%T   = temp_zone
         eos_state%rho = dens_zone
         eos_state%xn(:) = xn(:)
 
         call eos(eos_input_rt, eos_state)
-              
+
         entropy = eos_state%s
         pres_zone = eos_state%p
 
         dpd = eos_state%dpdr
 
         drho = (p_want - pres_zone)/(dpd - 0.5*delx*g_zone)
-              
+
         dens_zone = max(0.9*dens_zone, &
              min(dens_zone + drho, 1.1*dens_zone))
-       
+
         if (abs(drho) < TOL*dens_zone) then
            converged_hse = .TRUE.
            exit
@@ -229,17 +229,17 @@ subroutine init_1d() bind(C, name="init_1d")
 
      enddo
 
-        
+
      if (.NOT. converged_hse) then
         print *, 'Error zone', i, ' did not converge in init_1d'
         print *, 'integrate up'
         print *, dens_zone, temp_zone
         print *, p_want
         print *, drho, dtemp
-        call bl_error('Error: HSE non-convergence')
+        call amrex_error('Error: HSE non-convergence')
      endif
-        
-  
+
+
      ! call the EOS one more time for this zone and then go on to the next
      ! (t, rho) -> (p)
      eos_state%T     = temp_zone
@@ -249,7 +249,7 @@ subroutine init_1d() bind(C, name="init_1d")
      call eos(eos_input_rt, eos_state)
 
      pres_zone = eos_state%p
-     
+
      ! update the thermodynamics in this zone
      model_hse(i,idens_model) = dens_zone
      model_hse(i,itemp_model) = temp_zone
@@ -298,52 +298,52 @@ subroutine init_1d() bind(C, name="init_1d")
         ! the density of the two zones as an approximation of the
         ! interface value -- this means that we need to iterate for
         ! find the density and pressure that are consistent
-        
+
         ! HSE differencing
         p_want = model_hse(i+1,ipres_model) - &
              delx*0.5*(dens_zone + model_hse(i+1,idens_model))*g_zone
 
-        
+
         ! we will take the temperature already defined in model_hse
         ! so we only need to zero:
         !   A = p_want - p(rho)
-        
+
         ! (t, rho) -> (p)
         eos_state%T     = temp_zone
         eos_state%rho   = dens_zone
         eos_state%xn(:) = xn(:)
 
         call eos(eos_input_rt, eos_state)
-        
-        pres_zone = eos_state%p
-        
-        dpd = eos_state%dpdr
-              
-        A = p_want - pres_zone
-              
-        drho = A/(dpd + 0.5*delx*g_zone)
-        
-        dens_zone = max(0.9_dp_t*dens_zone, &
-             min(dens_zone + drho, 1.1_dp_t*dens_zone))
 
-                        
+        pres_zone = eos_state%p
+
+        dpd = eos_state%dpdr
+
+        A = p_want - pres_zone
+
+        drho = A/(dpd + 0.5*delx*g_zone)
+
+        dens_zone = max(0.9_rt*dens_zone, &
+             min(dens_zone + drho, 1.1_rt*dens_zone))
+
+
         if (abs(drho) < TOL*dens_zone) then
            converged_hse = .TRUE.
            exit
         endif
-        
+
 
      enddo
-        
+
      if (.NOT. converged_hse) then
-        
+
         print *, 'Error zone', i, ' did not converge in init_1d'
         print *, 'integrate down'
         print *, dens_zone, temp_zone
         print *, p_want
         print *, drho
-        call bl_error('Error: HSE non-convergence')
-           
+        call amrex_error('Error: HSE non-convergence')
+
      endif
 
 
@@ -356,7 +356,7 @@ subroutine init_1d() bind(C, name="init_1d")
      call eos(eos_input_rt, eos_state)
 
      pres_zone = eos_state%p
-     
+
      ! update the thermodynamics in this zone
      model_hse(i,idens_model) = dens_zone
      model_hse(i,itemp_model) = temp_zone
@@ -372,7 +372,7 @@ subroutine init_1d() bind(C, name="init_1d")
   outfile2 = trim(outfile) // ".extras"
 
   open (newunit=lun1, file=outfile, status="unknown")
-  open (newunit=lun2, file=outfile2, status="unknown")  
+  open (newunit=lun2, file=outfile2, status="unknown")
 
   write (lun1,1001) "# npts = ", nx
   write (lun1,1001) "# num of variables = ", nvars_model
@@ -400,7 +400,7 @@ subroutine init_1d() bind(C, name="init_1d")
   write (lun2,1001), "# num of variables = ", 2
   write (lun2,1002), "# entropy"
   write (lun2,1002), "# c_s"
-  
+
   ! test: bulk EOS call -- Maestro will do this once we are mapped, so make
   ! sure that we are in HSE with updated thermodynamics
   do i = 1, nx
@@ -414,7 +414,7 @@ subroutine init_1d() bind(C, name="init_1d")
 
      write (lun2,1000), xzn_hse(i), eos_state%s, eos_state%cs
   enddo
-  
+
   ! compute the maximum HSE error
   max_hse_error = -1.d30
 
@@ -441,23 +441,23 @@ subroutine init_1d() bind(C, name="init_1d")
 
   close (unit=lun1)
   close (unit=lun2)
-  
+
 end subroutine init_1d
 
 
 function num_to_unitstring(value)
 
-  use bl_types
+  use amrex_fort_module, only: rt => amrex_real
   implicit none
 
-  real (kind=dp_t) :: value
+  real (kind=rt) :: value
   character (len=32) :: num_to_unitstring
   character (len=16) :: temp
 
   if (value > 1.d5) then
 
      ! work in km
-     write(temp,'(f6.3)') value/1.d5     
+     write(temp,'(f6.3)') value/1.d5
      num_to_unitstring = trim(temp) // "km"
   else
 
@@ -473,7 +473,5 @@ function num_to_unitstring(value)
 
   endif
 
-  return 
+  return
 end function num_to_unitstring
-
-
