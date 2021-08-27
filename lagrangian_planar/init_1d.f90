@@ -6,7 +6,7 @@
 !!  P(i-1) = P_eos(rho(i-1), T(i-1), X(i-1)
 !!
 
-program init_1d
+subroutine init_1d() bind(C, name="init_1d")
  
   use bl_types
   use bl_constants_module
@@ -31,19 +31,16 @@ program init_1d
 
   real :: A
 
-  integer ::nx
-
   integer :: lun1, lun2
 
-  real (kind=dp_t) :: xmin, xmax, dCoord
+  real (kind=dp_t) :: dCoord
 
   real (kind=dp_t) :: dens_zone, temp_zone, pres_zone, entropy
   real (kind=dp_t) :: dpd
 
   real (kind=dp_t) :: p_want, drho, dtemp, delx
   
-  real (kind=dp_t) :: g_zone, g_const, M_enclosed
-  logical :: do_invsq_grav
+  real (kind=dp_t) :: g_zone
 
   real (kind=dp_t), parameter :: TOL = 1.e-10
 
@@ -53,8 +50,7 @@ program init_1d
 
   logical :: converged_hse, fluff
 
-  real (kind=dp_t) :: low_density_cutoff, temp_cutoff, smallx, max_T
-  real (kind=dp_t) :: model_shift
+  real (kind=dp_t) :: max_T
 
   integer :: index_base
 
@@ -72,54 +68,7 @@ program init_1d
 
   type (eos_t) :: eos_state
 
-  namelist /params/ nx, model_file, xmin, xmax, g_const, &
-                    temp_cutoff, do_invsq_grav, &
-                    low_density_cutoff, model_prefix, model_shift
 
-  ! determine if we specified a runtime parameters file or use the default      
-  narg = command_argument_count()
-
-  if (narg == 0) then
-     params_file = "_params"
-  else
-     call get_command_argument(1, value = params_file)
-  endif
-
-
-  ! define defaults for the parameters for this model
-  nx = 640 
-
-  model_file = "model.in"
-
-  model_shift = 0.0_dp_t
-
-  xmin = 0.0_dp_t
-  xmax = 2.e3_dp_t
-
-  do_invsq_grav = .false.
-  g_const = -1.0
-
-  model_prefix = "model"
-
-  low_density_cutoff = 1.d-4
-  temp_cutoff = 1.d6
-
-  smallx = 1.d-10
-
-
-  ! this comes in via extern_probin_module -- override the default
-  ! here if we want
-  use_eos_coulomb = .true.
-
-
-  ! initialize the EOS and network
-  call eos_init()
-  call network_init()
-
-  ! check the namelist for any changed parameters
-  open(unit=11, file=params_file, status="old", action="read")
-  read(unit=11, nml=params)
-  close(unit=11)
 
 
   ! start by reading in the Lagrangian initial model
@@ -493,7 +442,7 @@ program init_1d
   close (unit=lun1)
   close (unit=lun2)
   
-end program init_1d
+end subroutine init_1d
 
 
 function num_to_unitstring(value)

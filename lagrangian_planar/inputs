@@ -1,0 +1,17 @@
+problem.model_file = xrb_new.raw
+
+problem.model_prefix = xrb_new
+
+problem.nx = 1536
+
+problem.temp_cutoff = 1.e6
+
+problem.model_shift = 1.e6
+
+problem.xmin = 0.0
+problem.xmax = 9216.0
+
+problem.g_const = -2.4679e14
+
+problem.low_density_cutoff = 1.e-4
+

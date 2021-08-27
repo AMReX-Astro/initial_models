@@ -1,0 +1,22 @@
+@namespace: problem
+
+nx                  integer      640
+
+model_file          character    "model.in"
+
+model_shift         real         0.0
+
+xmin                real         0.0
+xmax                real         2.e3
+
+do_invsq_grav       integer      0
+g_const             real         -1.0
+
+M_enclosed          real         2.e33
+
+model_prefix        character    "model"
+
+low_density_cutoff  real     1.e-4
+temp_cutoff         real     1.e6
+
+smallx              real     1.e-10
