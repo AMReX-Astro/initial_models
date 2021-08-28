@@ -1,2 +1,3 @@
 f90EXE_sources += read_model.f90
+f90EXE_sources += interpolate.f90
 

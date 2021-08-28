@@ -22,8 +22,8 @@ EOS_DIR := helmholtz
 NETWORK_DIR := general_null
 NETWORK_INPUTS := xrb.net
 
-Bpack := ./Make.package
-Blocs := .
+Bpack := ./Make.package ../Make.package
+Blocs := . ..
 
 EXTERN_SEARCH += . ..
 

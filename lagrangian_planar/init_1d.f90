@@ -13,10 +13,11 @@ subroutine init_1d() bind(C, name="init_1d")
   use amrex_error_module
   use eos_module, only: eos, eos_init
   use eos_type_module, only: eos_t, eos_input_rt
-  use extern_probin_module, only: use_eos_coulomb
+  use extern_probin_module
   use network, only : nspec, network_species_index, spec_names, network_init
   use fundamental_constants_module, only: Gconst
   use model_module
+  use interpolate_module
 
   implicit none
 
@@ -58,21 +59,17 @@ subroutine init_1d() bind(C, name="init_1d")
   character (len=8) :: num
   character (len=32) :: dxstr
   character (len=32) :: num_to_unitstring
-  character (len=64) :: model_file
 
   real (kind=rt) :: max_hse_error, dpdr, rhog
 
-  character (len=128) :: model_prefix
-
-  integer :: narg
-
   type (eos_t) :: eos_state
 
-
+  integer :: npts_model
+  real(kind=rt), allocatable :: model_state(:,:), model_r(:)
 
 
   ! start by reading in the Lagrangian initial model
-  call read_model_file(model_file)
+  call read_file(model_file, model_state, model_r, npts_model)
 
   ! apply the shift
   do i = 1, npts_model
@@ -89,7 +86,7 @@ subroutine init_1d() bind(C, name="init_1d")
   allocate(xzn_hse(nx))
   allocate(xznl_hse(nx))
   allocate(xznr_hse(nx))
-  allocate(model_hse(nx,nvars_model))
+  allocate(model_hse(nx,nvar))
 
 
   ! compute the coordinates of the new gridded function
@@ -109,22 +106,23 @@ subroutine init_1d() bind(C, name="init_1d")
   fluff = .false.
 
   do i = 1, nx
-     do n = 1, nvars_model
-        if (n == itemp_model) then
-           model_hse(i,n) = max(temp_cutoff, interpolate(xzn_hse(i), n, interpolate_top=.true.))
+     do n = 1, nvar
+        if (n == itemp) then
+           model_hse(i,n) = max(temp_cutoff, &
+                                interpolate(xzn_hse(i), npts_model, model_r, model_state(:,n)))
         else
-           model_hse(i,n) = interpolate(xzn_hse(i), n)
+           model_hse(i,n) = interpolate(xzn_hse(i), npts_model, model_r, model_state(:,n))
         endif
      enddo
 
      ! make it all thermodynamically consistent
-     eos_state%rho = model_hse(i,idens_model)
-     eos_state%T = model_hse(i,itemp_model)
-     eos_state%xn(:) = model_hse(i,ispec_model:ispec_model-1+nspec)
+     eos_state%rho = model_hse(i,idens)
+     eos_state%T = model_hse(i,itemp)
+     eos_state%xn(:) = model_hse(i,ispec:ispec-1+nspec)
 
      call eos(eos_input_rt, eos_state)
 
-     model_hse(i,ipres_model) = eos_state%p
+     model_hse(i,ipres) = eos_state%p
   enddo
 
 
@@ -133,9 +131,9 @@ subroutine init_1d() bind(C, name="init_1d")
   max_T = -1.0_rt
 
   do i = 1, nx
-     if (model_hse(i,itemp_model) > max_T) then
+     if (model_hse(i,itemp) > max_T) then
         index_base = i
-        max_T = model_hse(i,itemp_model)
+        max_T = model_hse(i,itemp)
      endif
   enddo
 
@@ -147,13 +145,13 @@ subroutine init_1d() bind(C, name="init_1d")
 
   ! make the base thermodynamics consistent for this base point -- that is
   ! what we will integrate from!
-  eos_state%rho = model_hse(index_base,idens_model)
-  eos_state%T = model_hse(index_base,itemp_model)
-  eos_state%xn(:) = model_hse(index_base,ispec_model:ispec_model-1+nspec)
+  eos_state%rho = model_hse(index_base,idens)
+  eos_state%T = model_hse(index_base,itemp)
+  eos_state%xn(:) = model_hse(index_base,ispec:ispec-1+nspec)
 
   call eos(eos_input_rt, eos_state)
 
-  model_hse(index_base,ipres_model) = eos_state%p
+  model_hse(index_base,ipres) = eos_state%p
 
 
 !-----------------------------------------------------------------------------
@@ -172,7 +170,7 @@ subroutine init_1d() bind(C, name="init_1d")
      delx = xzn_hse(i) - xzn_hse(i-1)
 
      ! compute the gravitation acceleration at the lower edge
-     if (do_invsq_grav) then
+     if (do_invsq_grav == 1) then
         g_zone = -Gconst*M_enclosed/xznl_hse(i)**2
      else
         g_zone = g_const
@@ -180,9 +178,9 @@ subroutine init_1d() bind(C, name="init_1d")
 
      ! we've already set initial guesses for density, temperature, and
      ! composition
-     dens_zone = model_hse(i,idens_model)
-     temp_zone = max(temp_cutoff, model_hse(i,itemp_model))
-     xn(:) = model_hse(i,ispec_model:ispec_model-1+nspec)
+     dens_zone = model_hse(i,idens)
+     temp_zone = max(temp_cutoff, model_hse(i,itemp))
+     xn(:) = model_hse(i,ispec:ispec-1+nspec)
 
 
      !-----------------------------------------------------------------------
@@ -195,8 +193,8 @@ subroutine init_1d() bind(C, name="init_1d")
      do iter = 1, MAX_ITER
 
         ! what pressure does HSE say we want?
-        p_want = model_hse(i-1,ipres_model) + &
-             delx*0.5*(dens_zone + model_hse(i-1,idens_model))*g_zone
+        p_want = model_hse(i-1,ipres) + &
+             delx*0.5*(dens_zone + model_hse(i-1,idens))*g_zone
 
         ! (t, rho) -> (p)
         eos_state%T   = temp_zone
@@ -251,9 +249,9 @@ subroutine init_1d() bind(C, name="init_1d")
      pres_zone = eos_state%p
 
      ! update the thermodynamics in this zone
-     model_hse(i,idens_model) = dens_zone
-     model_hse(i,itemp_model) = temp_zone
-     model_hse(i,ipres_model) = pres_zone
+     model_hse(i,idens) = dens_zone
+     model_hse(i,itemp) = temp_zone
+     model_hse(i,ipres) = pres_zone
 
      ! to make this process converge faster, set the density in the
      ! next zone to the density in this zone
@@ -270,18 +268,18 @@ subroutine init_1d() bind(C, name="init_1d")
      delx = xzn_hse(i+1) - xzn_hse(i)
 
      ! compute the gravitation acceleration at the upper edge
-     if (do_invsq_grav) then
+     if (do_invsq_grav == 1) then
         g_zone = -Gconst*M_enclosed/xznr_hse(i)**2
      else
         g_zone = g_const
      endif
 
      ! we already set the temperature and composition profiles
-     temp_zone = max(temp_cutoff, model_hse(i,itemp_model))
-     xn(:) = model_hse(i,ispec_model:ispec_model-1+nspec)
+     temp_zone = max(temp_cutoff, model_hse(i,itemp))
+     xn(:) = model_hse(i,ispec:ispec-1+nspec)
 
      ! use our previous initial guess for density
-     dens_zone = model_hse(i,idens_model)
+     dens_zone = model_hse(i,idens)
 
 
      !-----------------------------------------------------------------------
@@ -300,8 +298,8 @@ subroutine init_1d() bind(C, name="init_1d")
         ! find the density and pressure that are consistent
 
         ! HSE differencing
-        p_want = model_hse(i+1,ipres_model) - &
-             delx*0.5*(dens_zone + model_hse(i+1,idens_model))*g_zone
+        p_want = model_hse(i+1,ipres) - &
+             delx*0.5*(dens_zone + model_hse(i+1,idens))*g_zone
 
 
         ! we will take the temperature already defined in model_hse
@@ -358,11 +356,17 @@ subroutine init_1d() bind(C, name="init_1d")
      pres_zone = eos_state%p
 
      ! update the thermodynamics in this zone
-     model_hse(i,idens_model) = dens_zone
-     model_hse(i,itemp_model) = temp_zone
-     model_hse(i,ipres_model) = pres_zone
+     model_hse(i,idens) = dens_zone
+     model_hse(i,itemp) = temp_zone
+     model_hse(i,ipres) = pres_zone
 
   enddo
+
+
+1000 format (1x, 100(g26.16, 1x))
+1001 format (a, i5)
+1002 format (a)
+1003 format (a,a)
 
   write(num,'(i8)') nx
 
@@ -375,7 +379,7 @@ subroutine init_1d() bind(C, name="init_1d")
   open (newunit=lun2, file=outfile2, status="unknown")
 
   write (lun1,1001) "# npts = ", nx
-  write (lun1,1001) "# num of variables = ", nvars_model
+  write (lun1,1001) "# num of variables = ", nvar
   write (lun1,1002) "# density"
   write (lun1,1002) "# temperature"
   write (lun1,1002) "# pressure"
@@ -384,35 +388,30 @@ subroutine init_1d() bind(C, name="init_1d")
      write (lun1, 1003) "# ", spec_names(n)
   enddo
 
-1000 format (1x, 100(g26.16, 1x))
-1001 format (a, i5)
-1002 format (a)
-1003 format (a,a)
-
   do i = 1, nx
-     write (lun1,1000) xzn_hse(i), model_hse(i,idens_model), &
-                       model_hse(i,itemp_model), model_hse(i,ipres_model), &
-                      (model_hse(i,ispec_model-1+n), n=1,nspec)
+     write (lun1,1000) xzn_hse(i), model_hse(i,idens), &
+                       model_hse(i,itemp), model_hse(i,ipres), &
+                      (model_hse(i,ispec-1+n), n=1,nspec)
   enddo
 
 
-  write (lun2,1001), "# npts = ", nx
-  write (lun2,1001), "# num of variables = ", 2
-  write (lun2,1002), "# entropy"
-  write (lun2,1002), "# c_s"
+  write (lun2,1001) "# npts = ", nx
+  write (lun2,1001) "# num of variables = ", 2
+  write (lun2,1002) "# entropy"
+  write (lun2,1002) "# c_s"
 
   ! test: bulk EOS call -- Maestro will do this once we are mapped, so make
   ! sure that we are in HSE with updated thermodynamics
   do i = 1, nx
-     eos_state%rho = model_hse(i,idens_model)
-     eos_state%T = model_hse(i,itemp_model)
-     eos_state%xn(:) = model_hse(i,ispec_model:ispec_model-1+nspec)
+     eos_state%rho = model_hse(i,idens)
+     eos_state%T = model_hse(i,itemp)
+     eos_state%xn(:) = model_hse(i,ispec:ispec-1+nspec)
 
      call eos(eos_input_rt, eos_state)
 
-     model_hse(i,ipres_model) = eos_state%p
+     model_hse(i,ipres) = eos_state%p
 
-     write (lun2,1000), xzn_hse(i), eos_state%s, eos_state%cs
+     write (lun2,1000) xzn_hse(i), eos_state%s, eos_state%cs
   enddo
 
   ! compute the maximum HSE error
@@ -421,16 +420,16 @@ subroutine init_1d() bind(C, name="init_1d")
   do i = 2, nx-1
 
      ! compute the gravitation acceleration at the lower edge
-     if (do_invsq_grav) then
+     if (do_invsq_grav == 1) then
         g_zone = -Gconst*M_enclosed/xznl_hse(i)**2
      else
         g_zone = g_const
      endif
 
-     dpdr = (model_hse(i,ipres_model) - model_hse(i-1,ipres_model))/delx
-     rhog = HALF*(model_hse(i,idens_model) + model_hse(i-1,idens_model))*g_zone
+     dpdr = (model_hse(i,ipres) - model_hse(i-1,ipres))/delx
+     rhog = HALF*(model_hse(i,idens) + model_hse(i-1,idens))*g_zone
 
-     if (dpdr /= ZERO .and. model_hse(i+1,idens_model) > low_density_cutoff) then
+     if (dpdr /= ZERO .and. model_hse(i+1,idens) > low_density_cutoff) then
         max_hse_error = max(max_hse_error, abs(dpdr - rhog)/abs(dpdr))
      endif
 
