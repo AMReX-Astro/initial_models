@@ -7,7 +7,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   
-  <title>low_mass_convective_star &mdash; initial models  documentation</title>
+  <title>lagrangian_planar &mdash; initial models  documentation</title>
   
 
   
@@ -90,7 +90,8 @@
 <li class="toctree-l1"><a class="reference internal" href="Introduction.html">Introduction</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="rp_intro.html">Runtime Parameters</a><ul class="current">
 <li class="toctree-l2 current"><a class="reference internal" href="rp_intro.html#microphysics-extern-parameter-format">Microphysics/extern parameter format</a><ul class="current">
-<li class="toctree-l3 current"><a class="current reference internal" href="#">low_mass_convective_star</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">lagrangian_planar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#low-mass-convective-star">low_mass_convective_star</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#massive-star">massive_star</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#nova">nova</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#spherical">spherical</a></li>
@@ -151,7 +152,7 @@
         
           <li><a href="rp_intro.html">Runtime Parameters</a> &raquo;</li>
         
-      <li>low_mass_convective_star</li>
+      <li>lagrangian_planar</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -194,6 +195,72 @@
 </tr>
 </tbody>
 </table>
+<div class="section" id="lagrangian-planar">
+<h1>lagrangian_planar<a class="headerlink" href="#lagrangian-planar" title="Permalink to this headline">¶</a></h1>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30%" />
+<col style="width: 51%" />
+<col style="width: 19%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>parameter</p></th>
+<th class="head"><p>description</p></th>
+<th class="head"><p>default value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nx</span></code></p></td>
+<td></td>
+<td><p>640</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">model_file</span></code></p></td>
+<td></td>
+<td><p>“model.in”</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">model_shift</span></code></p></td>
+<td></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">xmin</span></code></p></td>
+<td></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">xmax</span></code></p></td>
+<td></td>
+<td><p>2.e3</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">do_invsq_grav</span></code></p></td>
+<td></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">g_const</span></code></p></td>
+<td></td>
+<td><p>-1.0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M_enclosed</span></code></p></td>
+<td></td>
+<td><p>2.e33</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">model_prefix</span></code></p></td>
+<td></td>
+<td><p>“model”</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">low_density_cutoff</span></code></p></td>
+<td></td>
+<td><p>1.e-4</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">temp_cutoff</span></code></p></td>
+<td></td>
+<td><p>1.e6</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">smallx</span></code></p></td>
+<td></td>
+<td><p>1.e-10</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <div class="section" id="low-mass-convective-star">
 <h1>low_mass_convective_star<a class="headerlink" href="#low-mass-convective-star" title="Permalink to this headline">¶</a></h1>
 <table class="docutils align-default">
