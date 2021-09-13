@@ -264,30 +264,21 @@ contains
 
     close (50)
 
-    ! compute the mass of the initial model -- the data is non-uniform, so
-    ! we need to reconstruct the widths of the zones:
-    !
-    ! the first zone goes from [0, 2r1], where r1 is the cell-center value,
-    ! therefore dr1 = 2 * r1
-    !
-    ! the distance from r1 to r2 (the next zone center) is dr = r2 - r1
-    ! and this is 1/2 (dr1 + dr2), therefore dr2 = 2 * dr - dr1
-    !
-    ! and then we use this for the remaining zones
+    ! compute the mass of the initial model -- the data is
+    ! non-uniform, and appears to be node-centered finite difference.
+    ! We'll just do a very simple trapezoid rule.
 
-    M_total = 0.0_rt
+    ! the first node is not at r = 0, so just use a rectangle rule to get us started
+    M_total = FOUR3RD * M_PI * base_r(1)**3 * base_state(1, idens)
 
-    dr_current = 2 * base_r(1)
+    do i = 2, npts_model-1
 
-    do i = 1, npts_model
-       rl = base_r(i) - 0.5_rt * dr_current
-       rr = base_r(i) + 0.5_rt * dr_current
+       ! integrate 4pi r**2 rho using trapezoid
+       rl = base_r(i-1)
+       rr = base_r(i)
 
-       M_total = M_total + FOUR3RD * M_PI * (rr**2 + rl * rr + rl**2) * (rr - rl) * base_state(i, idens)
-
-       if (i < npts_model) then
-          dr_current = 2 * (base_r(i+1) - base_r(i)) - dr_current
-       endif
+       M_total = M_total + 4.0_rt * M_PI * 0.5_rt * (rr - rl) * &
+            (rl**2 * base_state(i-1, idens) + rr**2 * base_state(i, idens))
 
     end do
 
