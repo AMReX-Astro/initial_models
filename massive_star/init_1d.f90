@@ -223,6 +223,8 @@ contains
     type (eos_t) :: eos_state
     type (burn_t) :: burn_state
 
+    real(kind=rt) :: M_total, rl, rr, dr_current
+
     !===========================================================================
     ! Create a 1-d uniform grid that is identical to the mesh that we are
     ! mapping onto, and then we want to force it into HSE on that mesh.
@@ -261,6 +263,35 @@ contains
     enddo
 
     close (50)
+
+    ! compute the mass of the initial model -- the data is non-uniform, so
+    ! we need to reconstruct the widths of the zones:
+    !
+    ! the first zone goes from [0, 2r1], where r1 is the cell-center value,
+    ! therefore dr1 = 2 * r1
+    !
+    ! the distance from r1 to r2 (the next zone center) is dr = r2 - r1
+    ! and this is 1/2 (dr1 + dr2), therefore dr2 = 2 * dr - dr1
+    !
+    ! and then we use this for the remaining zones
+
+    M_total = 0.0_rt
+
+    dr_current = 2 * base_r(1)
+
+    do i = 1, npts_model
+       rl = base_r(i) - 0.5_rt * dr_current
+       rr = base_r(i) + 0.5_rt * dr_current
+
+       M_total = M_total + FOUR3RD * M_PI * (rr**2 + rl * rr + rl**2) * (rr - rl) * base_state(i, idens)
+
+       if (i < npts_model) then
+          dr_current = 2 * (base_r(i+1) - base_r(i)) - dr_current
+       endif
+
+    end do
+
+    print *, "total mass as read from original model = ", M_total
 
     !===========================================================================
     ! put the model onto our new uniform grid
