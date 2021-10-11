@@ -379,7 +379,7 @@ subroutine init_1d() bind(C, name="init_1d")
   open (newunit=lun2, file=outfile2, status="unknown")
 
   write (lun1,1001) "# npts = ", nx
-  write (lun1,1001) "# num of variables = ", nvar
+  write (lun1,1001) "# num of variables = ", 3 + nspec
   write (lun1,1002) "# density"
   write (lun1,1002) "# temperature"
   write (lun1,1002) "# pressure"
