@@ -1,17 +1,17 @@
-problem.model_file = xrb_new.raw
+problem.model_file = glasner_T5.raw
 
-problem.model_prefix = xrb_new
+problem.model_prefix = glasner_T5
 
-problem.nx = 1536
+problem.nx = 1638
 
-problem.temp_cutoff = 1.e6
-
-problem.model_shift = 1.e6
+problem.model_shift = 4.2000e8
 
 problem.xmin = 0.0
-problem.xmax = 9216.0
+problem.xmax = 1.6384e8
 
-problem.g_const = -2.4679e14
+problem.g_const = -5.67e9
+
+problem.temp_cutoff = 1.e6
 
 problem.low_density_cutoff = 1.e-4
 

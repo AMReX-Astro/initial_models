@@ -6,13 +6,13 @@ model_file          character    "model.in"
 
 model_shift         real         0.0
 
-xmin                real         0.0
-xmax                real         2.e3
+xmin                real         4.2000e8
+xmax                real         5.8384e8
 
 do_invsq_grav       integer      0
 g_const             real         -1.0
 
-M_enclosed          real         2.e33
+M_enclosed          real         2.283993873322e33
 
 model_prefix        character    "model"
 
