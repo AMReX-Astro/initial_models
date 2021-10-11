@@ -18,6 +18,7 @@ subroutine init_1d() bind(C, name="init_1d")
   use fundamental_constants_module, only: Gconst
   use model_module
   use interpolate_module
+  use cfmt_module
 
   implicit none
 
@@ -389,9 +390,9 @@ subroutine init_1d() bind(C, name="init_1d")
   enddo
 
   do i = 1, nx
-     write (lun1,1000) xzn_hse(i), model_hse(i,idens), &
-                       model_hse(i,itemp), model_hse(i,ipres), &
-                      (model_hse(i,ispec-1+n), n=1,nspec)
+     write (lun1,1000) cfmt(xzn_hse(i)), cfmt(model_hse(i,idens)), &
+                       cfmt(model_hse(i,itemp)), cfmt(model_hse(i,ipres)), &
+                      (cfmt(model_hse(i,ispec-1+n)), n=1,nspec)
   enddo
 
 
@@ -411,7 +412,7 @@ subroutine init_1d() bind(C, name="init_1d")
 
      model_hse(i,ipres) = eos_state%p
 
-     write (lun2,1000) xzn_hse(i), eos_state%s, eos_state%cs
+     write (lun2,1000) cfmt(xzn_hse(i)), cfmt(eos_state%s), cfmt(eos_state%cs)
   enddo
 
   ! compute the maximum HSE error
