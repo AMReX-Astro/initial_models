@@ -21,7 +21,7 @@ EBASE := initialmodel
 EOS_DIR := helmholtz
 
 NETWORK_DIR := general_null
-NETWORK_INPUTS := xrb.net
+NETWORK_INPUTS := nova2.net
 
 Bpack := ./Make.package ../Make.package
 Blocs := . ..
