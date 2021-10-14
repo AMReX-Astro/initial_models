@@ -9,7 +9,7 @@ subroutine init_1d() bind(C, name="init_1d")
   use extern_probin_module
   use eos_module, only: eos, eos_init
   use eos_type_module, only: eos_input_rt, eos_t
-  use network
+  use network, only: nspec, network_species_index, spec_names
   use fundamental_constants_module, only: Gconst
 
   implicit none
@@ -85,6 +85,8 @@ subroutine init_1d() bind(C, name="init_1d")
 
   character (len=256) :: outfile
   character (len=8) num, mass_wd_str, mass_he_str
+  character (len=32) :: dxstr
+  character (len=32) :: num_to_unitstring
 
   real (kind=rt) :: max_hse_error, dpdr, rhog
 
@@ -531,6 +533,9 @@ subroutine init_1d() bind(C, name="init_1d")
 
   ! store the model
   write(num,'(i8)') nx
+
+  dxstr = num_to_unitstring(dCoord)
+
   write(mass_wd_str,'(f4.2)') mass_wd/solar_mass
   write(mass_he_str,'(f5.3)') mass_He/solar_mass
   !if (mass_He/solar_mass > 0.01) then
@@ -552,7 +557,7 @@ subroutine init_1d() bind(C, name="init_1d")
      outfile = trim(outfile) // ".N14"
   endif
 
-  outfile = trim(outfile) // "." // trim(adjustl(num))
+  outfile = trim(outfile) // "." // trim(adjustl(dxstr))
 
   open (unit=50, file=outfile, status="unknown")
 
@@ -583,11 +588,11 @@ subroutine init_1d() bind(C, name="init_1d")
   if (mixed_co_wd) then
      outfile = "sub_chandra.M_WD-" // trim(adjustl(mass_wd_str)) // &
           ".M_He-" // trim(adjustl(mass_he_str)) // &
-          ".extras.CO." // trim(adjustl(num))
+          ".extras.CO." // trim(adjustl(dxstr))
   else
      outfile = "sub_chandra.M_WD-" // trim(adjustl(mass_wd_str)) // &
           ".M_He-" // trim(adjustl(mass_he_str)) // &
-          ".extras.C." // trim(adjustl(num))
+          ".extras.C." // trim(adjustl(dxstr))
   endif
 
   open (unit=51, file=outfile, status="unknown")
@@ -622,3 +627,34 @@ subroutine init_1d() bind(C, name="init_1d")
   print *, ' '
 
 end subroutine init_1d
+
+function num_to_unitstring(value)
+
+  use amrex_fort_module, only: rt => amrex_real
+  implicit none
+
+  real (kind=rt) :: value
+  character (len=32) :: num_to_unitstring
+  character (len=16) :: temp
+
+  if (value > 1.d5) then
+
+     ! work in km
+     write(temp,'(f6.3)') value/1.d5
+     num_to_unitstring = trim(temp) // "km"
+  else
+
+     ! work in cm
+     if (value > 1.d3) then
+        write(temp,'(f8.3)') value
+        num_to_unitstring = trim(temp) // "cm"
+
+     else
+        write(temp,'(f6.3)') value
+        num_to_unitstring = trim(temp) // "cm"
+     endif
+
+  endif
+
+  return
+end function num_to_unitstring
