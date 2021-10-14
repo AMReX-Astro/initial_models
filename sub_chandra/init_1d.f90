@@ -40,7 +40,7 @@ subroutine init_1d() bind(C, name="init_1d")
                         ispec = 4
 
   ! we'll get the composition indices from the network module
-  integer, save :: ihe4, ic12, io16
+  integer, save :: ihe4, ic12, io16, in14
 
   real (kind=rt) dCoord
 
@@ -108,8 +108,14 @@ subroutine init_1d() bind(C, name="init_1d")
   ic12 = network_species_index("carbon-12")
   io16 = network_species_index("oxygen-16")
 
+  in14 = network_species_index("nitrogen-14")
+
   if (ihe4 < 0 .or. ic12 < 0 .or. io16 < 0) then
      call amrex_error("ERROR: species not defined")
+  endif
+
+  if (in14 < 0 .and. X_N14 > 0.0) then
+     call amrex_error("ERROR: N14 not defined")
   endif
 
   if (mixed_co_wd) then
@@ -123,8 +129,12 @@ subroutine init_1d() bind(C, name="init_1d")
 
 
   xn_he(:)    = smallx
-  xn_he(ihe4) = 1.0_rt - (nspec - 1)*smallx
-
+  if (X_N14 > 0.0) then
+     xn_he(in14) = X_N14
+     xn_he(ihe4) = 1.0_rt - (nspec - 2)*smallx - X_N14
+  else
+     xn_he(ihe4) = 1.0_rt - (nspec - 1)*smallx
+  endif
 
   !----------------------------------------------------------------------------
   ! Create a 1-d uniform grid that is identical to the mesh that we are
@@ -529,15 +539,20 @@ subroutine init_1d() bind(C, name="init_1d")
   !   write(mass_he_str,'(f6.4)') mass_He/solar_mass
   !endif
 
+  outfile = "sub_chandra.M_WD-" // trim(adjustl(mass_wd_str)) // &
+       ".M_He-" // trim(adjustl(mass_he_str)) // ".hse"
+
   if (mixed_co_wd) then
-     outfile = "sub_chandra.M_WD-" // trim(adjustl(mass_wd_str)) // &
-          ".M_He-" // trim(adjustl(mass_he_str)) // &
-          ".hse.CO." // trim(adjustl(num))
+     outfile = trim(outfile) // ".CO"
   else
-     outfile = "sub_chandra.M_WD-" // trim(adjustl(mass_wd_str)) // &
-          ".M_He-" // trim(adjustl(mass_he_str)) // &
-          ".hse.C." // trim(adjustl(num))
+     outfile = trim(outfile) // ".C"
   endif
+
+  if (X_N14 > 0.0) then
+     outfile = trim(outfile) // ".N14"
+  endif
+
+  outfile = trim(outfile) // "." // trim(adjustl(num))
 
   open (unit=50, file=outfile, status="unknown")
 
@@ -551,7 +566,7 @@ subroutine init_1d() bind(C, name="init_1d")
      write (50,1003) "# ", spec_names(n)
   enddo
 
-1000 format (1x, 12(g26.16, 1x))
+1000 format (1x, 24(g26.16, 1x))
 1001 format(a, i5)
 1002 format(a)
 1003 format(a,a)
