@@ -2,14 +2,14 @@ problem.model_file = glasner_T5.raw
 
 problem.model_prefix = glasner_T5
 
-problem.nx = 1638
+problem.nx = 1000
 
-problem.model_shift = 4.2000e8
+problem.model_shift = 4.534081e8
 
 problem.xmin = 0.0
-problem.xmax = 1.6384e8
+problem.xmax = 2.7184e7
 
-problem.g_const = -5.67e9
+problem.g_const = -7.34e8
 
 problem.temp_cutoff = 1.e6
 
