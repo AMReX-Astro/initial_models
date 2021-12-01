@@ -72,8 +72,8 @@ source_suffix = '.rst'
 # see https://github.com/phn/pytpm/issues/3#issuecomment-12133978
 numpydoc_show_class_members = False
 
-# The master toctree document.
-master_doc = 'index'
+# The main toctree document.
+main_doc = 'index'
 
 # General information about the project.
 project = 'initial models'
@@ -109,16 +109,16 @@ todo_include_todos = False
 
 
 # -- Options for MathJax
-mathjax_config = {'TeX': {'Macros': {}}}
+mathjax3_config = {'tex': {'macros': {}}}
 
 with open('mathsymbols.tex', 'r') as f:
     for line in f:
         macros = re.findall(r'\\newcommand{\\(.*?)}(\[(\d)\])?{(.+)}', line)
         for macro in macros:
             if len(macro[1]) == 0:
-                mathjax_config['TeX']['Macros'][macro[0]] = "{"+macro[3]+"}"
+                mathjax3_config['tex']['macros'][macro[0]] = "{"+macro[3]+"}"
             else:
-                mathjax_config['TeX']['Macros'][macro[0]] = ["{"+macro[3]+"}", int(macro[2])]
+                mathjax3_config['tex']['macros'][macro[0]] = ["{"+macro[3]+"}", int(macro[2])]
 
 
 # -- Options for HTML output ----------------------------------------------
@@ -143,6 +143,8 @@ html_static_path = ['_static']
 html_context = {
     'css_files': [
         '_static/theme_overrides.css',  # override wide tables in RTD theme
+        '_static/css/theme.css',
+        '_static/pygments.css'
         ],
     }
 
@@ -189,7 +191,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'initial_model.tex', 'initial_model Documentation',
+    (main_doc, 'initial_model.tex', 'initial_model Documentation',
      'initial_model development team', 'manual'),
 ]
 
@@ -199,7 +201,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'initial_model', 'initial_model Documentation',
+    (main_doc, 'initial_model', 'initial_model Documentation',
      [author], 1)
 ]
 
@@ -210,7 +212,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'initial_model', 'initial_model Documentation',
+    (main_doc, 'initial_model', 'initial_model Documentation',
      author, 'initial_model', 'One line description of project.',
      'Miscellaneous'),
 ]
