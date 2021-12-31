@@ -67,7 +67,7 @@ AMREX_INLINE void init_1d() {
     // the He envelope mass we can achieve will depend on our grid
     // spacing.
 
-    const Real TOL_HE_MASS = 2.d-2;
+    const Real TOL_HE_MASS = 2.e-2;
 
     const int MAX_ITER = 250;
 
@@ -152,7 +152,7 @@ AMREX_INLINE void init_1d() {
     // where we will be isentropic, and rho_he is the currrent guess.
 
     Real rho_he_old = -1.0_rt;
-    Real rho_he     = 0.5_rt * rho_c;
+    Real rho_he = 0.5_rt * rho_c;
 
     bool mass_converged = false;
 
@@ -212,19 +212,19 @@ AMREX_INLINE void init_1d() {
 
         Real entropy_base;
 
+        Real dens_zone;
+        Real temp_zone;
+        Real pres_zone;
+        Real entropy;
+        Real xn[NumSpec];
+
         for (int i = 1; i < nx; ++i) {
 
             Real delx = xzn_hse(i) - xzn_hse(i-1);
 
             // as the initial guess for the density, use the previous zone
 
-            Real dens_zone = model_hse(i-1, idens);
-
-            Real temp_zone;
-            Real pres_zone;
-            Real entropy;
-
-            Real xn[NumSpec];
+            dens_zone = model_hse(i-1, idens);
 
             if (dens_zone > rho_he) {
                 temp_zone = temp_core;
@@ -645,7 +645,7 @@ AMREX_INLINE void init_1d() {
   close (51)
 
   ! compute the maximum HSE error
-  max_hse_error = -1.d30
+  max_hse_error = -1.e30
 
   do i = 2, nx-1
      g_zone = -Gconst*M_enclosed(i-1)/xznr(i-1)**2
