@@ -163,6 +163,8 @@ AMREX_INLINE void init_1d() {
     int ihe_entropy;
     int icutoff;
 
+    Real delx = xzn_hse(1) - xzn_hse(0);
+
     for (int iter_mass = 0; iter_mass < MAX_ITER; ++iter_mass) {
 
         std::cout << "mass iter = " << iter_mass << " " << rho_c << " " << temp_core << std::endl;
@@ -219,8 +221,6 @@ AMREX_INLINE void init_1d() {
         Real xn[NumSpec];
 
         for (int i = 1; i < nx; ++i) {
-
-            Real delx = xzn_hse(i) - xzn_hse(i-1);
 
             // as the initial guess for the density, use the previous zone
 
@@ -620,49 +620,44 @@ AMREX_INLINE void init_1d() {
 
     of.close();
 
-#if 0
-  ! extra info
-  if (mixed_co_wd) then
-     outfile = "sub_chandra.M_WD-" // trim(adjustl(mass_wd_str)) // &
-          ".M_He-" // trim(adjustl(mass_he_str)) // &
-          ".extras.CO." // trim(adjustl(dxstr))
-  else
-     outfile = "sub_chandra.M_WD-" // trim(adjustl(mass_wd_str)) // &
-          ".M_He-" // trim(adjustl(mass_he_str)) // &
-          ".extras.C." // trim(adjustl(dxstr))
-  endif
+    // extra info
 
-  open (unit=51, file=outfile, status="unknown")
+    if (mixed_co_wd) {
+        outfile = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str + ".extras.CO." + dxstr;
+    } else {
+        outfile = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str + ".extras.C." + dxstr;
+    }
 
-  write (51,1001) "# npts = ", nx
-  write (51,1002) "# cs"
-  write (51,1002) "# entropy"
+    std::ofstream ef;
+    ef.open(outfile);
 
-  do i = 1, nx
-     write (51,1000) xzn_hse(i), cs_hse(i), s_hse(i)
-  enddo
+    ef << "# npts = " << nx << std::endl;
+    ef << "# cs" << std::endl;
+    ef << "# entropy" << std::endl;
 
-  close (51)
+    for (int i = 0; i < nx; ++i) { 
+        ef << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
+        ef << std::setprecision(12) << std::setw(20) << cs_hse(i) << " ";
+        ef << std::setprecision(12) << std::setw(20) << s_hse(i) << std::endl;
+    }
 
-  ! compute the maximum HSE error
-  max_hse_error = -1.e30
+    ef.close();
 
-  do i = 2, nx-1
-     g_zone = -Gconst*M_enclosed(i-1)/xznr(i-1)**2
-     dpdr = (model_hse(i,ipres) - model_hse(i-1,ipres))/delx
-     rhog = HALF*(model_hse(i,idens) + model_hse(i-1,idens))*g_zone
+    // compute the maximum HSE error
 
-     print *, xzn_hse(i), g_zone*xzn_hse(i)
+    Real max_hse_error = -1.e30_rt;
 
-     if (dpdr /= ZERO .and. model_hse(i+1,idens) > low_density_cutoff) then
-        max_hse_error = max(max_hse_error, abs(dpdr - rhog)/abs(dpdr))
-     endif
+    for (int i = 1; i < nx-1; ++i) {
+        Real g_zone = -C::Gconst * M_enclosed(i-1) / (xznr(i-1) * xznr(i-1));
+        Real dpdr = (model_hse(i, ipres) - model_hse(i-1, ipres)) / delx;
+        Real rhog = 0.5_rt * (model_hse(i, idens) + model_hse(i-1, idens)) * g_zone;
 
-  enddo
+        if (dpdr != 0.0_rt && model_hse(i+1, idens) > low_density_cutoff) {
+            max_hse_error = amrex::max(max_hse_error, std::abs(dpdr - rhog) / std::abs(dpdr));
+        }
+    }
 
-  print *, 'maximum HSE error = ', max_hse_error
-  print *, ' '
-#endif
+    std::cout << "maximum HSE error = " << max_hse_error << std::endl;
 }
 
 
