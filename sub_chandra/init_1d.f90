@@ -112,6 +112,8 @@ subroutine init_1d() bind(C, name="init_1d")
 
   in14 = network_species_index("nitrogen-14")
 
+  print *, ihe4, ic12, io16
+
   if (ihe4 < 0 .or. ic12 < 0 .or. io16 < 0) then
      call amrex_error("ERROR: species not defined")
   endif
