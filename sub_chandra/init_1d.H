@@ -117,6 +117,10 @@ AMREX_INLINE void init_1d() {
     // are mapping onto, and then we want to force it into HSE on that
     // mesh.
 
+    if (nx > NPTS_MODEL) {
+        amrex::Error("too many zones requested -- increase NPTS_MODEL");
+    }
+
     Array1D<Real, 0, NPTS_MODEL-1> xzn_hse;
     Array1D<Real, 0, NPTS_MODEL-1> xznl;
     Array1D<Real, 0, NPTS_MODEL-1> xznr;
@@ -192,6 +196,8 @@ AMREX_INLINE void init_1d() {
             model_hse(i,itemp) = eos_state.T;
             model_hse(i,ipres) = eos_state.p;
 
+            cs_hse(i) = eos_state.cs;
+            s_hse(i) = eos_state.s;
 
             for (int n = 0; n < NumSpec; ++n) {
                 model_hse(i,ispec+n) = eos_state.xn[n];
