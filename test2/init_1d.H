@@ -378,7 +378,7 @@ AMREX_INLINE void init_1d() {
 
     // integrate down
 
-    for (int i = index_base-1; i > 0; --i) {
+    for (int i = index_base-1; i >= 0; --i) {
 
         // as the initial guess for the temperature and density, use
         // the previous zone
