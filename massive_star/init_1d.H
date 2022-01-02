@@ -57,9 +57,9 @@ set_aux(eos_t& eos_state) {
 
     bool nse_check = in_nse(eos_state);
 
-    if (nse_check == 1) {
+    if (nse_check) {
 
-        // we are in NSE, so leave ye alone, but get abar
+        // we are in NSE, so leave ye alone, but get abar and redo xn
 
         Real abar_pass;
         Real dq_pass;
@@ -135,373 +135,312 @@ write_model(str::string model_name,
 }
 
 
-  subroutine init_1d() bind(C, name="init_1d")
+AMREX_INLINE void init_1d() {
 
-    use amrex_fort_module, only: rt => amrex_real
-    use amrex_constants_module
-    use amrex_error_module
-    use eos_module, only: eos, eos_init
-    use eos_type_module, only : eos_t, eos_input_rt, eos_input_re, eos_input_rp
-    use network
-    use fundamental_constants_module
-    use extern_probin_module, only: use_eos_coulomb
-    use model_params
-    use interpolate_module
-    use nse_module
-    use nse_check_module
-    use burn_type_module
-    use model_module
+    // Create a 1-d uniform grid that is identical to the mesh that we
+    // are mapping onto, and then we want to force it into HSE on that
+    // mesh.
 
-    implicit none
+    if (nx > NPTS_MODEL) {
+        amrex::Error("too many zones requested -- increase NPTS_MODEL");
+    }
 
-    integer :: i, j, k, n
+    Array1D<Real, 0, NPTS_MODEL-1> xzn_hse;
+    Array1D<Real, 0, NPTS_MODEL-1> xznl;
+    Array1D<Real, 0, NPTS_MODEL-1> xznr;
 
-    real (kind=rt) :: dens_zone, temp_zone, pres_zone, entropy, temp_min, temp_max
+    Array2D<Real, 0, NPTS_MODEL-1, 0, nvar-1> model_mesa_hse;
 
-    real (kind=rt) :: A, B, dAdT, dAdrho, dBdT, dBdrho
-    real (kind=rt) :: dpd, dpt, dsd, dst
+    Array1D<Real, 0, NPTS_MODEL-1> M_enclosed;
 
-    real (kind=rt) :: central_density
+    Array1D<Real, 0, NPTS_MODEL-1> entropy_want;
 
-    real (kind=rt) :: p_want, drho, dtemp, p_old, eos_p_old,  ledoux
+    // compute the coordinates of the new gridded function
 
-    real (kind=rt) :: g_zone, err_min, err_max
+    Real dCoord = (xmax - xmin) / static_cast<Real>(nx);
 
-    real (kind=rt) :: max_hse_error, dpdr, rhog
+    for (int i = 0; i < nx; ++i) {
+        xznl(i) = xmin + static_cast<Real>(i) * dCoord;
+        xznr(i) = xmin + (static_cast<Real>(i) + 1.0_rt) * dCoord;
+        xzn_hse(i) = 0.5_rt * (xznl(i) + xznr(i));
+    }
 
-    real (kind=rt) :: abar_pass, dq_pass, dyedt_pass
-    integer :: nse_check
+    // read in the MESA model
 
-    integer :: iter, iter_dens, status
+    initial_model_t initial_model;
 
-    integer :: igood
+    read_file(model_file, initial_model);
 
-    logical :: converged_hse, converged_central_density, fluff, isentropic
+    std::ofstream of;
+    of.open("model.orig");
 
-    integer :: index_hse_fluff = 1
+    of << "# initial model as read in" << std::endl;
 
-    real (kind=rt), dimension(nspec) :: xn
-    real (kind=rt) :: ye
+    for (int i = 0; i < initial_model.npts; ++i) {
+        of << std::setprecision(12) << std::setw(20) << initial_model.r(i);
+        for (int j = 0; j < model::nvar; ++j) {
+            of << std::setprecision(12) << std::setw(20) << initial_model.state(i,j);
+        }
+        of << std::endl;
+    }
 
-    integer :: npts_model
+    of.close();
 
-    real(kind=rt), allocatable :: base_state(:,:), base_r(:)
+    // compute the mass of the initial model -- the data is
+    // non-uniform, and appears to be node-centered finite difference.
+    // We'll just do a very simple trapezoid rule.
 
-    integer :: ipos
-    character (len=500) :: outfile, model_name
+    // the first node is not at r = 0, so just use a rectangle rule to get us started
 
-    real(kind=rt) :: summ
+    Real M_total = (4.0_rt / 3.0_rt) * M_PI * std::pow(initial_model.r(0), 3) *
+        initial_model.state(0, idens);
 
-    integer :: ibegin
-    real(kind=rt) :: grav_ener, M_center
+    for (int i = 1; i < initial_model.npts-1; ++i) {
 
-    type (eos_t) :: eos_state
-    type (burn_t) :: burn_state
+        // integrate 4pi r**2 rho using trapezoid
 
-    real(kind=rt) :: M_total, rl, rr, dr_current
+        Real rl = initial_model.r(i-1);
+        Real rr = initial_model.r(i);
 
-    !===========================================================================
-    ! Create a 1-d uniform grid that is identical to the mesh that we are
-    ! mapping onto, and then we want to force it into HSE on that mesh.
-    !===========================================================================
+        M_total += 4.0_rt * M_PI * 0.5_rt * (rr - rl) *
+            (rl * rl * initial_model.state(i-1, idens) +
+             rr * rr * initial_model.state(i, idens));
+    }
 
-    ! allocate storage
-    allocate(xzn_hse(nx))
-    allocate(xznl(nx))
-    allocate(xznr(nx))
-    allocate(model_mesa_hse(nx,nvar))
-    allocate(M_enclosed(nx))
-    allocate(entropy_want(nx))
+    std::cout << "total mass as read from original model = " << M_total << std::endl;
 
-    ! compute the coordinates of the new gridded function
+    // put the model onto our new uniform grid
 
-    delx = (xmax - xmin) / dble(nx)
+    for (int i = 0; i < nx; ++i) {
 
-    do i = 1, nx
-       xznl(i) = xmin + (dble(i) - 1.0d0)*delx
-       xznr(i) = xmin + (dble(i))*delx
-       xzn_hse(i) = 0.5d0*(xznl(i) + xznr(i))
-    enddo
+       for (int n = 0; n < model::nvar; ++n) {
 
-    !===========================================================================
-    ! read in the MESA model
-    !===========================================================================
+           if (xzn_hse(i) < initial_model.r(initial_model.npts-1)) {
+               model_mesa_hse(i,n) = interpolate(xzn_hse(i), n, initial_model);
+           } else {
+               model_mesa_hse(i,n) = base_state(npts_model, n);
+           }
 
-    call read_file(model_file, base_state, base_r, npts_model)
+       }
 
-    open (unit=50, file="model.orig", status="unknown")
+       // make sure that the species (mass fractions) summ to 1
 
-    write (50,*) "# initial model as read in"
+       Real summ = 0.0_rt;
+       for (int n = 0; n < NumSpec; ++n) {
+           model_mesa_hse(i, model::ispec+n) =
+               amrex::max(model_mesa_hse(i, model::ispec+n), smallx);
+           summ += model_mesa_hse(i, model::ispec+n);
+       }
 
-    do i = 1, npts_model
-       write (50,1000) base_r(i), (base_state(i,j), j = 1, nvar)
-    enddo
+       for (int n = 0; n < NumSpec; ++n) {
+           model_mesa_hse(i, model::ispec+n) /= summ;
+       }
 
-    close (50)
+    }
 
-    ! compute the mass of the initial model -- the data is
-    ! non-uniform, and appears to be node-centered finite difference.
-    ! We'll just do a very simple trapezoid rule.
+    write_model("model.uniform", xzn_hse, model_mesa_hse);
 
-    ! the first node is not at r = 0, so just use a rectangle rule to get us started
-    M_total = FOUR3RD * M_PI * base_r(1)**3 * base_state(1, idens)
 
-    do i = 2, npts_model-1
+    // reset the composition if we are in NSE
 
-       ! integrate 4pi r**2 rho using trapezoid
-       rl = base_r(i-1)
-       rr = base_r(i)
+    eos_t eos_state;
 
-       M_total = M_total + 4.0_rt * M_PI * 0.5_rt * (rr - rl) * &
-            (rl**2 * base_state(i-1, idens) + rr**2 * base_state(i, idens))
+    for (int i = 0; i < nx; ++i) {
 
-    end do
+        // we need to fill a burn_t in order to check for NSE
 
-    print *, "total mass as read from original model = ", M_total
+        eos_state.rho = model_mesa_hse(i, model::idens);
+        eos_state.T = model_mesa_hse(i, model::itemp);
 
-    !===========================================================================
-    ! put the model onto our new uniform grid
-    !===========================================================================
+        for (int n = 0; n < NumAux; ++n) {
+            eos_state.aux[n] = 0.0_rt;
+        }
 
-    igood = -1
+        eos_state.aux[iye] = model_mesa_hse(i, model::iyef);
 
-    do i = 1, nx
+        for (int n = 0; n < NumSpec; ++n) {
+            eos_state.xn[n] = model_mesa_hse(i, model::ispec+n);
+        }
 
-       do n = 1, nvar
+        set_aux(eos_state);
 
-          if (xzn_hse(i) < base_r(npts_model)) then
+        // copy the composition variables back
 
-             model_mesa_hse(i,n) = interpolate(xzn_hse(i), npts_model, &
-                                               base_r, base_state(:,n))
+        for (int n = 0; n < NumSpec; ++n) {
+            model_mesa_hse(i, model::ispec+n) = eos_state.xn[n];
+        }
 
-             igood = i
-          else
-             model_mesa_hse(i,n) = base_state(npts_model,n)
-          endif
+        model_mesa_hse(i,model::iyef) = eos_state.aux[iye];
 
-       enddo
+    }
 
-       ! make sure that the species (mass fractions) summ to 1
 
-       summ = 0.0d0
-       do n = ispec, ispec-1+nspec
-          model_mesa_hse(i,n) = max(model_mesa_hse(i,n),smallx)
-          summ = summ + model_mesa_hse(i,n)
-       enddo
+    // iterate to find the central density
 
-       do n = ispec,ispec-1+nspec
-          model_mesa_hse(i,n) = model_mesa_hse(i,n) / summ
-       enddo
+    Real dens_zone;
+    Real temp_zone;
+    Real pres_zone;
+    Real ye;
+    Real xn[NumSpec];
 
-    enddo
+    // because the MESA model likely begins at a larger radius than
+    // our first HSE model zone, simple interpolation will not do a
+    // good job.  We want to integrate in from the zone that best
+    // matches the first MESA model zone, assumming HSE and constant
+    // entropy.
 
-    open (unit=30, file="model.uniform", status="unknown")
+    // find the zone in the uniformly gridded model that corresponds to the
+    // first zone of the original model
 
-1000 format (1x, 30(g26.16, 1x))
+    int ibegin = -1;
 
-    write (30,*) "# initial model just after putting onto a uniform grid"
+    for (int i = 0; i < nx; ++i) {
+        if (xzn_hse(i) >= initial_model.r(0)) {
+            ibegin = i;
+            break;;
+        }
+    }
 
-    do i = 1, nx
+    // store the central density.  We will iterate until the central density
+    // converges
 
-       write (30,1000) xzn_hse(i), model_mesa_hse(i,idens), model_mesa_hse(i,itemp), &
-            model_mesa_hse(i,ipres), model_mesa_hse(i,iyef), (model_mesa_hse(i,ispec-1+n), n=1,nspec)
+    Real central_density = model_mesa_hse(1, model::idens);
 
-    enddo
+    std::cout << "interpolated central density = " << central_density << std::endl;
 
-    close (unit=30)
+    for (int iter_dens = 0; iter_dens < MAX_ITER; ++iter_dens) {
 
+        // compute the enclosed mass
 
+        M_enclosed(0) = (4.0_rt/3.0_rt) * M_PI * std::pow(delx, 3) * model_mesa_hse(0, model::idens);
 
-    !===========================================================================
-    ! reset the composition if we are in NSE
-    !===========================================================================
+        for (int i = 1; i <= ibegin; ++i) {
+            M_enclosed(i) = M_enclosed(i-1) +
+                (4.0_rt/3.0_rt) * M_PI * (xznr(i) - xznl(i)) *
+                (std::pow(xznr(i), 2) + xznl(i) * xznr(i) + std::pow(xznl(i), 2)) *
+                model_mesa_hse(i, model::idens);
+        }
 
-    do i = 1, nx
+        // now start at ibegin and integrate inward
 
-       ! we need to fill a burn_t in order to check for NSE
+        eos_state.T = model_mesa_hse(ibegin, model::itemp);
+        eos_state.rho = model_mesa_hse(ibegin, model::idens);
+        for (int n = 0; n < NumSpec; ++n) {
+            eos_state.xn[n] = model_mesa_hse(ibegin, model::ispec+n);
+        }
 
-       eos_state % rho = model_mesa_hse(i,idens)
-       eos_state % T = model_mesa_hse(i,itemp)
-       eos_state % aux(:) = 0.0
-       eos_state % aux(iye) = model_mesa_hse(i,iyef)
+       eos_state.aux[iye] = model_mesa_hse(ibegin, model::iyef);
 
-       do n = 1, nspec
-          eos_state % xn(n) = model_mesa_hse(i,ispec-1+n)
-       end do
+       set_aux(eos_state)
 
+       eos(eos_input_rt, eos_state);
 
-       call eos_to_burn(eos_state, burn_state)
+       model_mesa_hse(ibegin, model::ipres) = eos_state.p;
 
-       call in_nse(burn_state, nse_check)
+       for (int i = 0; i < nx; ++i) {
+           entropy_want(i) = eos_state.s;
+       }
 
-       if (nse_check == 1) then
+       for (int i = ibegin-1; i >= 0; --i) {
 
-          ! we are in NSE, so let's call the table to get the correct mass fractions
+           // as the initial guess for the temperature and density, use
+           // the previous zone
 
-          call nse_interp(eos_state % T, eos_state % rho, eos_state % aux(iye), &
-                          abar_pass, dq_pass, dyedt_pass, eos_state % xn(:))
+           dens_zone = model_mesa_hse(i+1, model::idens);
+           temp_zone = model_mesa_hse(i+1, model::itemp);
+           for (int n = 0; n < NumSpec; ++n) {
+               xn[n] = model_mesa_hse(i, model::ispec+n);
+           }
 
-       else
+          ye = model_mesa_hse(i, model::iyef);
 
-          ! we are not in NSE, so let's compute a consistent ye from the composition
-          eos_state % aux(iye) = sum(eos_state % xn * zion * aion_inv)
+          // compute the gravitational acceleration on the interface between zones
+          // i and i+1
 
-       end if
+          Real g_zone = -C::Gconst * M_enclosed(i) / (xznr(i) * xznr(i));
 
-       ! copy the composition variables back
+          // iteration loop
 
-       model_mesa_hse(i,ispec:ispec-1+nspec) = eos_state % xn(:)
-       model_mesa_hse(i,iyef) = eos_state % aux(iye)
+          // start off the Newton loop by saying that the zone has not converged
 
-    end do
+          bool converged_hse = false;
 
+          Real p_want;
+          Real drho;
+          Real dtemp;
 
-    !===========================================================================
-    ! iterate to find the central density
-    !===========================================================================
+          for (int iter = 0; iter < MAX_ITER; ++iter) {
 
-    ! because the MESA model likely begins at a larger radius than our first
-    ! HSE model zone, simple interpolation will not do a good job.  We want to
-    ! integrate in from the zone that best matches the first MESA model zone,
-    ! assumming HSE and constant entropy.
+             p_want = model_mesa_hse(i+1, model::ipres) -
+                 delx * 0.5_rt * (dens_zone + model_mesa_hse(i+1, model::idens)) * g_zone;
 
-    ! find the zone in the uniformly gridded model that corresponds to the
-    ! first zone of the original model
-    ibegin = -1
+             // now we have two functions to zero:
+             //   A = p_want - p(rho,T)
+             //   B = entropy_want - s(rho,T)
+             // We use a two dimensional Taylor expansion and find the
+             // deltas for both density and temperature
 
-    do i = 1, nx
-       if (xzn_hse(i) >= base_r(1)) then
-          ibegin = i
-          exit
-       endif
-    enddo
+             // (t, rho) -> (p, s)
 
-    ! store the central density.  We will iterate until the central density
-    ! converges
-    central_density = model_mesa_hse(1,idens)
-    print *, 'interpolated central density = ', central_density
+             eos_state.T = temp_zone;
+             eos_state.rho = dens_zone;
+             for (int n = 0; n < NumSpec; ++n) {
+                 eos_state.xn[n] = xn[n];
+             }
 
-    do iter_dens = 1, max_iter
+             eos_state.aux[iye] = ye;
 
-       ! compute the enclosed mass
-       M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_mesa_hse(1,idens)
+             set_aux(eos_state);
 
-       do i = 2, ibegin
-          M_enclosed(i) = M_enclosed(i-1) + &
-               FOUR3RD*M_PI*(xznr(i) - xznl(i)) * &
-               (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_mesa_hse(i,idens)
-       enddo
+             eos(eos_input_rt, eos_state);
 
-       ! now start at ibegin and integrate inward
-       eos_state%T     = model_mesa_hse(ibegin,itemp)
-       eos_state%rho   = model_mesa_hse(ibegin,idens)
-       eos_state%xn(:) = model_mesa_hse(ibegin,ispec:ispec-1+nspec)
+             entropy = eos_state.s;
+             pres_zone = eos_state.p;
 
-       eos_state%aux(iye) = model_mesa_hse(ibegin,iyef)
+             Real dpT = eos_state.dpdT;
+             Real dpd = eos_state.dpdr;
+             Real dsT = eos_state.dsdT;
+             Real dsd = eos_state.dsdr;
 
-       call set_aux(eos_state)
+             Real A = p_want - pres_zone;
+             Real B = entropy_want(i) - entropy;
 
-       call eos(eos_input_rt, eos_state)
+             Real dAdT = -dpT;
+             Real dAdrho = -0.5_rt * delx * g_zone - dpd;
+             Real dBdT = -dsT;
+             Real dBdrho = -dsd;
 
-       model_mesa_hse(ibegin,ipres) = eos_state%p
-       !  model_mesa_hse(ibegin,ientr) = eos_state%s
-       !  model_mesa_hse(ibegin,isndspd) = &
-       !   sqrt(eos_state%gam1*eos_state%p/eos_state%rho)
+             dtemp = (B - (dBdrho / dAdrho) * A) /
+                 ((dBdrho / dAdrho) * dAdT - dBdT);
 
-       entropy_want(:) = eos_state%s
+             drho = -(A + dAdT * dtemp) / dAdrho;
 
-       do i = ibegin-1, 1, -1
+             dens_zone =
+                 amrex::max(0.9_rt * dens_zone,
+                            amrex::min(dens_zone + drho, 1.1_rt * dens_zone));
 
-          ! as the initial guess for the temperature and density, use
-          ! the previous zone
-          dens_zone = model_mesa_hse(i+1,idens)
-          temp_zone = model_mesa_hse(i+1,itemp)
-          xn(:) = model_mesa_hse(i,ispec:nvar)
+             temp_zone =
+                 amrex::max(0.9_rt * temp_zone,
+                            amrex::min(temp_zone + dtemp, 1.1_rt * temp_zone));
 
-          ye = model_mesa_hse(i,iyef)
+             if (std::abs(drho) < TOL * dens_zone && std::abs(dtemp) < TOL * temp_zone) {
+                 converged_hse = true;
+                 break;
+             }
 
-          ! compute the gravitational acceleration on the interface between zones
-          ! i and i+1
-          g_zone = -Gconst*M_enclosed(i)/(xznr(i)*xznr(i))
+          }
 
-          !-----------------------------------------------------------------------
-          ! iteration loop
-          !-----------------------------------------------------------------------
+          if (! converged_hse) {
+              std::cout << "Error zone " << i << " did not converge in init_1d" << std::endl;
+              std::cout << "integrate down" << std::endl;
+              std::cout << "dens_zone, temp_zone = " << dens_zone << " " << temp_zone << std::endl;
+              std::cout << "p_want = " << p_want << std::endl;
+              std::cout << "drho = " << drho << std::endl;
+              amrex::Error("Error: HSE non-convergence");
+          }
 
-          ! start off the Newton loop by saying that the zone has not converged
-          converged_hse = .FALSE.
-
-          do iter = 1, MAX_ITER
-
-             p_want = model_mesa_hse(i+1,ipres) - &
-                  delx*0.5d0*(dens_zone + model_mesa_hse(i+1,idens))*g_zone
-
-             ! now we have two functions to zero:
-             !   A = p_want - p(rho,T)
-             !   B = entropy_want - s(rho,T)
-             ! We use a two dimensional Taylor expansion and find the deltas
-             ! for both density and temperature
-
-             ! (t, rho) -> (p, s)
-
-             eos_state%T     = temp_zone
-             eos_state%rho   = dens_zone
-             eos_state%xn(:) = xn(:)
-
-             eos_state%aux(iye) = ye
-
-             call set_aux(eos_state)
-
-             call eos(eos_input_rt, eos_state)
-
-             entropy = eos_state%s
-             pres_zone = eos_state%p
-
-             dpt = eos_state%dpdt
-             dpd = eos_state%dpdr
-             dst = eos_state%dsdt
-             dsd = eos_state%dsdr
-
-             A = p_want - pres_zone
-             B = entropy_want(i) - entropy
-
-             dAdT = -dpt
-             dAdrho = -0.5d0*delx*g_zone - dpd
-             dBdT = -dst
-             dBdrho = -dsd
-
-             dtemp = (B - (dBdrho/dAdrho)*A)/ &
-                  ((dBdrho/dAdrho)*dAdT - dBdT)
-
-             drho = -(A + dAdT*dtemp)/dAdrho
-
-             dens_zone = max(0.9d0*dens_zone, &
-                  min(dens_zone + drho, 1.1d0*dens_zone))
-
-             temp_zone = max(0.9d0*temp_zone, &
-                  min(temp_zone + dtemp, 1.1d0*temp_zone))
-
-             ! if (A < TOL .and. B < ETOL) then
-             if (abs(drho) < TOL*dens_zone .and. abs(dtemp) < TOL*temp_zone) then
-                converged_hse = .TRUE.
-                exit
-             endif
-
-          enddo
-
-          if (.NOT. converged_hse) then
-
-             print *, 'Error zone', i, ' did not converge in init_1d'
-             print *, 'integrate down'
-             print *, 'dens_zone, temp_zone = ', dens_zone, temp_zone
-             print *, "p_want = ", p_want
-             print *, "drho = ", drho
-             call amrex_error('Error: HSE non-convergence')
-
-          endif
-
-          ! call the EOS one more time for this zone and then go on to the next
-          ! (t, rho) -> (p, s)
+          // call the EOS one more time for this zone and then go on to the next
+          // (t, rho) -> (p, s)
 
           eos_state%T     = temp_zone
           eos_state%rho   = dens_zone
