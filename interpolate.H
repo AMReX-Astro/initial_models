@@ -39,7 +39,7 @@ locate(const Real r, const initial_model_t& initial_model) {
 
 AMREX_INLINE AMREX_GPU_HOST_DEVICE
 Real
-interpolate(const Real r, const int var_index, const initial_model_t initial_model) {
+interpolate(const Real r, const int var_index, const initial_model_t& initial_model) {
 
     // find the value of model_state component var_index at point r
     // using linear interpolation.  Eventually, we can do something
