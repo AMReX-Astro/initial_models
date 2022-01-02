@@ -241,7 +241,7 @@ AMREX_INLINE void init_1d() {
 
     }
 
-    write_model("model.uniform", xzn_hse, model_mesa_hse);
+    write_model("uniform", xzn_hse, model_mesa_hse);
 
 
     // reset the composition if we are in NSE
@@ -276,6 +276,8 @@ AMREX_INLINE void init_1d() {
         model_mesa_hse(i,model::iyef) = eos_state.aux[AuxZero::iye];
 
     }
+
+    write_model("composition", xzn_hse, model_mesa_hse);
 
 
     // iterate to find the central density

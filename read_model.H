@@ -126,7 +126,7 @@ read_file(const std::string filename, initial_model_t& initial_model) {
 
             } else {
                 for (int comp = 0; comp < NumSpec; comp++) {
-                    if (varnames_stored[j] == spec_names_cxx[comp]) {
+                    if (varnames_stored[j] == spec_names_cxx[comp] || varnames_stored[j] == short_spec_names_cxx[comp]) {
                         initial_model.state(i,model::ispec+comp) = vars_stored[j];
                         found_model = true;
                         break;

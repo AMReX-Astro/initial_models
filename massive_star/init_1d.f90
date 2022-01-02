@@ -354,7 +354,7 @@ contains
           eos_state % xn(n) = model_mesa_hse(i,ispec-1+n)
        end do
 
-
+#if 0
        call eos_to_burn(eos_state, burn_state)
 
        call in_nse(burn_state, nse_check)
@@ -372,6 +372,9 @@ contains
           eos_state % aux(iye) = sum(eos_state % xn * zion * aion_inv)
 
        end if
+#endif
+
+       call set_aux(eos_state)
 
        ! copy the composition variables back
 
@@ -405,6 +408,8 @@ contains
     ! converges
     central_density = model_mesa_hse(1,idens)
     print *, 'interpolated central density = ', central_density
+
+    converged_central_density = .false.
 
     do iter_dens = 1, max_iter
 
