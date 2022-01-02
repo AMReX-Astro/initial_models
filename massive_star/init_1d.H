@@ -68,10 +68,10 @@ set_aux(eos_t& eos_state) {
         Real dq_pass;
         Real dyedt_pass;
 
-        nse_interp(eos_state.T, eos_state.rho, eos_state.aux[iye],
+        nse_interp(eos_state.T, eos_state.rho, eos_state.aux[AuxZero::iye],
                    abar_pass, dq_pass, dyedt_pass, eos_state.xn);
 
-        eos_state.aux[iabar] = abar_pass;
+        eos_state.aux[AuxZero::iabar] = abar_pass;
 
     } else {
         set_nse_aux_from_X(eos_state);
@@ -83,8 +83,6 @@ AMREX_INLINE void
 write_model(std::string model_name,
             const Array1D<Real, 0, NPTS_MODEL-1>& xzn_hse,
             const Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1>& model_hse) {
-
-    using namespace model;
 
     // Write data stored in `model_state` array to file
 
@@ -128,7 +126,7 @@ write_model(std::string model_name,
         of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ipres) << " ";
         of << std::setprecision(12) << std::setw(20) << model_hse(i, model::iyef) << " ";
         for (int n = 0; n < NumSpec; ++n) {
-            of << std::setprecision(12) << std::setw(20) << model_hse(i, ispec+n) << " ";
+            of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ispec+n) << " ";
         }
         of << std::endl;
     }
@@ -143,6 +141,8 @@ AMREX_INLINE void init_1d() {
     // Create a 1-d uniform grid that is identical to the mesh that we
     // are mapping onto, and then we want to force it into HSE on that
     // mesh.
+
+    std::cout << "here " << nx << " " << NPTS_MODEL << std::endl;
 
     if (nx > NPTS_MODEL) {
         amrex::Error("too many zones requested -- increase NPTS_MODEL");
@@ -196,7 +196,7 @@ AMREX_INLINE void init_1d() {
     // the first node is not at r = 0, so just use a rectangle rule to get us started
 
     Real M_total = (4.0_rt / 3.0_rt) * M_PI * std::pow(initial_model.r(0), 3) *
-        initial_model.state(0, idens);
+        initial_model.state(0, model::idens);
 
     for (int i = 1; i < initial_model.npts-1; ++i) {
 
@@ -206,8 +206,8 @@ AMREX_INLINE void init_1d() {
         Real rr = initial_model.r(i);
 
         M_total += 4.0_rt * M_PI * 0.5_rt * (rr - rl) *
-            (rl * rl * initial_model.state(i-1, idens) +
-             rr * rr * initial_model.state(i, idens));
+            (rl * rl * initial_model.state(i-1, model::idens) +
+             rr * rr * initial_model.state(i, model::idens));
     }
 
     std::cout << "total mass as read from original model = " << M_total << std::endl;
@@ -259,7 +259,7 @@ AMREX_INLINE void init_1d() {
             eos_state.aux[n] = 0.0_rt;
         }
 
-        eos_state.aux[iye] = model_mesa_hse(i, model::iyef);
+        eos_state.aux[AuxZero::iye] = model_mesa_hse(i, model::iyef);
 
         for (int n = 0; n < NumSpec; ++n) {
             eos_state.xn[n] = model_mesa_hse(i, model::ispec+n);
@@ -273,7 +273,7 @@ AMREX_INLINE void init_1d() {
             model_mesa_hse(i, model::ispec+n) = eos_state.xn[n];
         }
 
-        model_mesa_hse(i,model::iyef) = eos_state.aux[iye];
+        model_mesa_hse(i,model::iyef) = eos_state.aux[AuxZero::iye];
 
     }
 
@@ -335,7 +335,7 @@ AMREX_INLINE void init_1d() {
             eos_state.xn[n] = model_mesa_hse(ibegin, model::ispec+n);
         }
 
-       eos_state.aux[iye] = model_mesa_hse(ibegin, model::iyef);
+       eos_state.aux[AuxZero::iye] = model_mesa_hse(ibegin, model::iyef);
 
        set_aux(eos_state);
 
@@ -394,7 +394,7 @@ AMREX_INLINE void init_1d() {
                  eos_state.xn[n] = xn[n];
              }
 
-             eos_state.aux[iye] = ye;
+             eos_state.aux[AuxZero::iye] = ye;
 
              set_aux(eos_state);
 
@@ -454,7 +454,7 @@ AMREX_INLINE void init_1d() {
               eos_state.xn[n] = xn[n];
           }
 
-          eos_state.aux[iye] = ye;
+          eos_state.aux[AuxZero::iye] = ye;
 
           set_aux(eos_state);
 
@@ -552,7 +552,7 @@ AMREX_INLINE void init_1d() {
                    eos_state.xn[n] = xn[n];
                }
 
-               eos_state.aux[iye] = ye;
+               eos_state.aux[AuxZero::iye] = ye;
 
                set_aux(eos_state);
 
@@ -609,7 +609,7 @@ AMREX_INLINE void init_1d() {
            eos_state.xn[n] = xn[n];
        }
 
-       eos_state.aux[iye] = ye;
+       eos_state.aux[AuxZero::iye] = ye;
 
        set_aux(eos_state);
 
@@ -621,9 +621,9 @@ AMREX_INLINE void init_1d() {
 
        // if we were not in NSE, then this updated ye
 
-       model_mesa_hse(i, model::iyef) = eos_state.aux[iye];
+       model_mesa_hse(i, model::iyef) = eos_state.aux[AuxZero::iye];
 
-       std::cout << "output: " << eos_state.T << " " << eos_state.rho << " " << eos_state.aux[iye] << std::endl;
+       std::cout << "output: " << eos_state.T << " " << eos_state.rho << " " << eos_state.aux[AuxZero::iye] << std::endl;
 
        eos(eos_input_rt, eos_state);
 
