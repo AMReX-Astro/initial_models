@@ -89,12 +89,26 @@ interpolate(const Real r, const int var_index, const initial_model_t& initial_mo
                 (initial_model.r(id+1) - initial_model.r(id));
             interp = slope * (r - initial_model.r(id)) + initial_model.state(id, var_index);
 
+            Real minvar = amrex::min(initial_model.state(id+1, var_index),
+                                     initial_model.state(id, var_index));
+            Real maxvar = amrex::max(initial_model.state(id+1, var_index),
+                                     initial_model.state(id, var_index));
+            interp = amrex::max(interp, minvar);
+            interp = amrex::min(interp, maxvar);
+
         } else {
 
             slope = (initial_model.state(id, var_index) -
                      initial_model.state(id-1, var_index)) /
                 (initial_model.r(id) - initial_model.r(id-1));
             interp = slope * (r - initial_model.r(id)) + initial_model.state(id, var_index);
+
+            Real minvar = amrex::min(initial_model.state(id-1, var_index),
+                                     initial_model.state(id, var_index));
+            Real maxvar = amrex::max(initial_model.state(id-1, var_index),
+                                     initial_model.state(id, var_index));
+            interp = amrex::max(interp, minvar);
+            interp = amrex::min(interp, maxvar);
 
         }
 
