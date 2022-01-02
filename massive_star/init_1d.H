@@ -22,13 +22,16 @@
 #include <AMReX_Array.H>
 
 #include <sstream>
+#include <string>
 
 #include <extern_parameters.H>
 #include <fundamental_constants.H>
 
+#include <network.H>
 #include <nse.H>
 
 #include <read_model.H>
+#include <interpolate.H>
 
 using namespace amrex;
 
@@ -45,7 +48,7 @@ constexpr Real low_density_cutoff = 1.e-7_rt;
 // constant for the MESA model
 
 // MAESTRO
-constexpr Real temp_fluff_cutoff = 1.e-4_rt;
+// constexpr Real temp_fluff_cutoff = 1.e-4_rt;
 
 // CASTRO
 constexpr Real temp_fluff_cutoff = 2.e-7_rt;
@@ -77,9 +80,9 @@ set_aux(eos_t& eos_state) {
 
 
 AMREX_INLINE void
-write_model(str::string model_name,
-            const  Array1D<Real, 0, NPTS_MODEL-1>& xzn_hse;
-            const Array2D<Real, 0, NPTS_MODEL-1, 0, nvar-1>& model_hse) {
+write_model(std::string model_name,
+            const Array1D<Real, 0, NPTS_MODEL-1>& xzn_hse,
+            const Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1>& model_hse) {
 
     using namespace model;
 
@@ -90,9 +93,9 @@ write_model(str::string model_name,
         ipos = model_file.find(".txt");
     }
 
-    std::string outfile = model_file.substr(0, ipos) + "." model_name;
+    std::string outfile = model_file.substr(0, ipos) + "." + model_name;
 
-    Real dx = (xzn_hse(1) - xzn_hse(0)) / 1.e5_rt  // km
+    Real dx = (xzn_hse(1) - xzn_hse(0)) / 1.e5_rt;  // km
 
     std::stringstream ss;
     ss << dx;
@@ -106,7 +109,7 @@ write_model(str::string model_name,
     of.open(outfile);
 
     of << "# npts = " << nx << std::endl;
-    of << "# num of variables = " << nvar << std::endl;
+    of << "# num of variables = " << model::nvar << std::endl;
     of << "# density" << std::endl;
     of << "# temperature" << std::endl;
     of << "# pressure" << std::endl;
@@ -120,10 +123,10 @@ write_model(str::string model_name,
 
     for (int i = 0; i < nx; ++i) {
         of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, idens) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, itemp) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, ipres) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, iyef) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ipres) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::iyef) << " ";
         for (int n = 0; n < NumSpec; ++n) {
             of << std::setprecision(12) << std::setw(20) << model_hse(i, ispec+n) << " ";
         }
@@ -149,7 +152,7 @@ AMREX_INLINE void init_1d() {
     Array1D<Real, 0, NPTS_MODEL-1> xznl;
     Array1D<Real, 0, NPTS_MODEL-1> xznr;
 
-    Array2D<Real, 0, NPTS_MODEL-1, 0, nvar-1> model_mesa_hse;
+    Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1> model_mesa_hse;
 
     Array1D<Real, 0, NPTS_MODEL-1> M_enclosed;
 
@@ -157,11 +160,11 @@ AMREX_INLINE void init_1d() {
 
     // compute the coordinates of the new gridded function
 
-    Real dCoord = (xmax - xmin) / static_cast<Real>(nx);
+    Real delx = (xmax - xmin) / static_cast<Real>(nx);
 
     for (int i = 0; i < nx; ++i) {
-        xznl(i) = xmin + static_cast<Real>(i) * dCoord;
-        xznr(i) = xmin + (static_cast<Real>(i) + 1.0_rt) * dCoord;
+        xznl(i) = xmin + static_cast<Real>(i) * delx;
+        xznr(i) = xmin + (static_cast<Real>(i) + 1.0_rt) * delx;
         xzn_hse(i) = 0.5_rt * (xznl(i) + xznr(i));
     }
 
@@ -218,7 +221,7 @@ AMREX_INLINE void init_1d() {
            if (xzn_hse(i) < initial_model.r(initial_model.npts-1)) {
                model_mesa_hse(i,n) = interpolate(xzn_hse(i), n, initial_model);
            } else {
-               model_mesa_hse(i,n) = base_state(npts_model, n);
+               model_mesa_hse(i,n) = initial_model.state(initial_model.npts-1, n);
            }
 
        }
@@ -280,6 +283,7 @@ AMREX_INLINE void init_1d() {
     Real dens_zone;
     Real temp_zone;
     Real pres_zone;
+    Real entropy;
     Real ye;
     Real xn[NumSpec];
 
@@ -304,9 +308,11 @@ AMREX_INLINE void init_1d() {
     // store the central density.  We will iterate until the central density
     // converges
 
-    Real central_density = model_mesa_hse(1, model::idens);
+    Real central_density = model_mesa_hse(0, model::idens);
 
     std::cout << "interpolated central density = " << central_density << std::endl;
+
+    bool converged_central_density = false;
 
     for (int iter_dens = 0; iter_dens < MAX_ITER; ++iter_dens) {
 
@@ -331,7 +337,7 @@ AMREX_INLINE void init_1d() {
 
        eos_state.aux[iye] = model_mesa_hse(ibegin, model::iyef);
 
-       set_aux(eos_state)
+       set_aux(eos_state);
 
        eos(eos_input_rt, eos_state);
 
@@ -442,232 +448,224 @@ AMREX_INLINE void init_1d() {
           // call the EOS one more time for this zone and then go on to the next
           // (t, rho) -> (p, s)
 
-          eos_state%T     = temp_zone
-          eos_state%rho   = dens_zone
-          eos_state%xn(:) = xn(:)
+          eos_state.T = temp_zone;
+          eos_state.rho = dens_zone;
+          for (int n = 0; n < NumSpec; ++n) {
+              eos_state.xn[n] = xn[n];
+          }
 
-          eos_state%aux(iye) = ye
+          eos_state.aux[iye] = ye;
 
-          call set_aux(eos_state)
+          set_aux(eos_state);
 
-          call eos(eos_input_rt, eos_state)
+          eos(eos_input_rt, eos_state);
 
-          pres_zone = eos_state%p
+          pres_zone = eos_state.p;
 
-          ! update the thermodynamics in this zone
-          model_mesa_hse(i,idens) = dens_zone
-          model_mesa_hse(i,itemp) = temp_zone
-          model_mesa_hse(i,ipres) = pres_zone
-          model_mesa_hse(i,ientr) = eos_state%s
-          ! model_mesa_hse(i,isndspd) = &
-          !      sqrt(eos_state%gam1*eos_state%p/eos_state%rho)
+          // update the thermodynamics in this zone
+          model_mesa_hse(i, model::idens) = dens_zone;
+          model_mesa_hse(i, model::itemp) = temp_zone;
+          model_mesa_hse(i, model::ipres) = pres_zone;
+          model_mesa_hse(i, model::ientr) = eos_state.s;
 
-       enddo
+       }
 
-       if (abs(model_mesa_hse(1,idens) - central_density) < TOL*central_density) then
-          converged_central_density = .true.
-          exit
-       endif
+       if (std::abs(model_mesa_hse(0, model::idens) - central_density) < TOL*central_density) {
+           converged_central_density = true;
+           break;
+       }
 
-       central_density = model_mesa_hse(1,idens)
+       central_density = model_mesa_hse(0, model::idens);
 
-    enddo
+    }
 
-    if (.NOT. converged_central_density) then
-       print *, 'ERROR: central density iterations did not converge'
-       call amrex_error('ERROR: non-convergence')
-    endif
+    if (! converged_central_density) {
+        amrex::Error("Error: non-convergence of central density");
+    }
 
-    print *, 'converged central density = ', model_mesa_hse(1,idens)
-    print *, ' '
+    std::cout << "converged central density = " << model_mesa_hse(0, model::idens) << std::endl << std::endl;
 
-    !===========================================================================
-    ! compute the full HSE model using our new central density and temperature,
-    ! and the temperature structure as dictated by the MESA model.
-    !===========================================================================
 
-    print *, 'putting MESA model into HSE on our grid...'
+    // compute the full HSE model using our new central density and
+    // temperature, and the temperature structure as dictated by the
+    // MESA model.
 
-    ! compute the enclosed mass
-    M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_mesa_hse(1,idens)
+    std::cout << "putting MESA model into HSE on our grid..." << std::endl;
 
-    fluff = .FALSE.
+    // compute the enclosed mass
 
-    do i = 2, nx
+    M_enclosed(0) = (4.0_rt/3.0_rt) * M_PI * std::pow(delx, 3) * model_mesa_hse(0, model::idens);
 
-       ! use previous zone as initial guess for rho
-       dens_zone = model_mesa_hse(i-1,idens)
+    bool fluff = false;
+    int index_hse_fluff = -1;
 
-       ! we use the model value for temperature and compositon
-       temp_zone = model_mesa_hse(i,itemp)
+    for (int i = 1; i < nx; ++i) {
 
-       xn(:) = model_mesa_hse(i,ispec:nvar)
+        // use previous zone as initial guess for rho
 
-       ye = model_mesa_hse(i,iyef)
+        dens_zone = model_mesa_hse(i-1, model::idens);
 
-       ! compute the gravitational acceleration on the interface between zones
-       ! i-1 and i
-       g_zone = -Gconst*M_enclosed(i-1)/(xznr(i-1)*xznr(i-1))
+        // we use the model value for temperature and compositon
 
-       !-----------------------------------------------------------------------
-       ! iteration loop
-       !-----------------------------------------------------------------------
+        temp_zone = model_mesa_hse(i, model::itemp);
 
-       ! the goal here is to find the density that is consistent with HSE
+        for (int n = 0; n < NumSpec; ++n) {
+            xn[n] = model_mesa_hse(i, model::ispec+n);
+        }
 
-       converged_hse = .FALSE.
+       ye = model_mesa_hse(i, model::iyef);
 
-       if (.not. fluff) then
+       // compute the gravitational acceleration on the interface between zones
+       // i-1 and i
 
-          do iter = 1, MAX_ITER
+       Real g_zone = -C::Gconst * M_enclosed(i-1) / (xznr(i-1) * xznr(i-1));
 
-             ! HSE differencing
-             p_want = model_mesa_hse(i-1,ipres) + &
-                  delx*0.5d0*(dens_zone + model_mesa_hse(i-1,idens))*g_zone
+       // iteration loop
 
-             temp_zone = model_mesa_hse(i,itemp)
+       // the goal here is to find the density that is consistent with HSE
 
-             if (model_mesa_hse(i-1,idens) .lt. temp_fluff_cutoff) then
-                temp_zone = temp_fluff
-             end if
+       bool converged_hse = false;
 
-             ! (t, rho) -> (p)
-             eos_state%T     = temp_zone
-             eos_state%rho   = dens_zone
-             eos_state%xn(:) = xn(:)
+       if (! fluff) {
 
-             eos_state%aux(iye) = ye
+           Real p_want;
+           Real drho;
 
-             call set_aux(eos_state)
+           for (int iter = 0; iter < MAX_ITER; ++iter) {
 
-             call eos(eos_input_rt, eos_state)
+               // HSE differencing
 
-             pres_zone = eos_state%p
+               p_want = model_mesa_hse(i-1, model::ipres) +
+                   delx * 0.5_rt * (dens_zone + model_mesa_hse(i-1, model::idens)) * g_zone;
 
-             dpd = eos_state%dpdr
-             drho = (p_want - pres_zone)/(dpd - 0.5d0*delx*g_zone)
+               temp_zone = model_mesa_hse(i, model::itemp);
 
-             dens_zone = max(0.9d0*dens_zone, &
-                             min(dens_zone + drho, 1.1d0*dens_zone))
+               if (model_mesa_hse(i-1, model::idens) < temp_fluff_cutoff) {
+                   temp_zone = temp_fluff;
+               }
 
-             if (abs(drho) < TOL*dens_zone) then
-                converged_hse = .TRUE.
-                exit
-             endif
+               // (t, rho) -> (p)
 
-             if (dens_zone < low_density_cutoff) then
-                dens_zone = low_density_cutoff
-                temp_zone = temp_fluff
-                converged_hse = .TRUE.
-                fluff = .TRUE.
-                index_hse_fluff = i
-                exit
+               eos_state.T = temp_zone;
+               eos_state.rho = dens_zone;
+               for (int n = 0; n < NumSpec; ++n) {
+                   eos_state.xn[n] = xn[n];
+               }
 
-             endif
+               eos_state.aux[iye] = ye;
 
-          enddo
+               set_aux(eos_state);
 
-          if (.NOT. converged_hse) then
+               eos(eos_input_rt, eos_state);
 
-             print *, 'Error zone', i, ' did not converge in init_1d'
-             print *, 'integrate up'
-             print *, 'dens_zone, temp_zone = ', dens_zone, temp_zone
-             print *, "p_want = ", p_want
-             print *, "drho = ", drho
-             call amrex_error('Error: HSE non-convergence')
+               pres_zone = eos_state.p;
 
-          endif
+               Real dpd = eos_state.dpdr;
+               drho = (p_want - pres_zone) / (dpd - 0.5_rt * delx * g_zone);
 
-          if (temp_zone < temp_fluff) then
-             temp_zone = temp_fluff
-          endif
+               dens_zone =
+                   amrex::max(0.9_rt * dens_zone,
+                              amrex::min(dens_zone + drho, 1.1_rt * dens_zone));
 
-       else
-          dens_zone = low_density_cutoff
-          temp_zone = temp_fluff
-       endif
+               if (std::abs(drho) < TOL * dens_zone) {
+                   converged_hse = true;
+                   break;
+               }
 
-       ! call the EOS one more time for this zone and then go on to the next
-       ! (t, rho) -> (p)
+               if (dens_zone < low_density_cutoff) {
+                   dens_zone = low_density_cutoff;
+                   temp_zone = temp_fluff;
+                   converged_hse = true;
+                   fluff = true;
+                   index_hse_fluff = i;
+               }
 
-       eos_state%T     = temp_zone
-       eos_state%rho   = dens_zone
-       eos_state%xn(:) = xn(:)
+           }
 
-       eos_state%aux(iye) = ye
+           if (! converged_hse) {
+               std::cout << "Error zone " << i << " did not converge in init_1d" << std::endl;
+               std::cout << "integrate up" << std::endl;
+               std::cout << "dens_zone, temp_zone = " << dens_zone << " " << temp_zone << std::endl;
+               std::cout << "p_want = " << p_want << std::endl;
+               std::cout << "drho = " << drho << std::endl;
+               amrex::Error("Error: HSE non-convergence");
+           }
 
-       call set_aux(eos_state)
+           if (temp_zone < temp_fluff) {
+               temp_zone = temp_fluff;
+           }
 
-       ! if we were in NSE, then this updated eos_state % xn(:), so copy that over
+       } else {
+           dens_zone = low_density_cutoff;
+           temp_zone = temp_fluff;
+       }
 
-       model_mesa_hse(i,ispec:ispec-1+nspec) = eos_state % xn(:)
+       // call the EOS one more time for this zone and then go on to the next
+       // (t, rho) -> (p)
 
-       ! if we were not in NSE, then this updated ye
+       eos_state.T = temp_zone;
+       eos_state.rho = dens_zone;
+       for (int n = 0; n < NumSpec; ++n) {
+           eos_state.xn[n] = xn[n];
+       }
 
-       model_mesa_hse(i,iyef) = eos_state % aux(iye)
+       eos_state.aux[iye] = ye;
 
-       print *, "output: ", eos_state%T, eos_state%rho, eos_state%aux(iye)
+       set_aux(eos_state);
 
-       call eos(eos_input_rt, eos_state)
+       // if we were in NSE, then this updated eos_state % xn(:), so copy that over
 
-       pres_zone = eos_state%p
+       for (int n = 0; n < NumSpec; ++n) {
+           model_mesa_hse(i, model::ispec+n) = eos_state.xn[n];
+       }
 
-       ! update the thermodynamics in this zone
-       model_mesa_hse(i,idens) = dens_zone
-       model_mesa_hse(i,itemp) = temp_zone
-       model_mesa_hse(i,ipres) = pres_zone
-       model_mesa_hse(i,ientr) = eos_state%s
+       // if we were not in NSE, then this updated ye
 
-       !  model_mesa_hse(i,isndspd) = &
-       !       sqrt(eos_state%gam1*eos_state%p/eos_state%rho)
+       model_mesa_hse(i, model::iyef) = eos_state.aux[iye];
 
-       M_enclosed(i) = M_enclosed(i-1) + &
-            FOUR3RD*M_PI*(xznr(i) - xznl(i)) * &
-            (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_mesa_hse(i,idens)
+       std::cout << "output: " << eos_state.T << " " << eos_state.rho << " " << eos_state.aux[iye] << std::endl;
 
-    enddo
+       eos(eos_input_rt, eos_state);
 
+       pres_zone = eos_state.p;
 
+       // update the thermodynamics in this zone
 
-    !===========================================================================
-    ! output
-    !===========================================================================
+       model_mesa_hse(i, model::idens) = dens_zone;
+       model_mesa_hse(i, model::itemp) = temp_zone;
+       model_mesa_hse(i, model::ipres) = pres_zone;
+       model_mesa_hse(i, model::ientr) = eos_state.s;
 
-    !---------------------------------------------------------------------------
-    ! MESA model
-    !---------------------------------------------------------------------------
+       M_enclosed(i) = M_enclosed(i-1) +
+           (4.0_rt/3.0_rt) * M_PI * (xznr(i) - xznl(i)) *
+           (std::pow(xznr(i), 2) + xznl(i) * xznr(i) + std::pow(xznl(i), 2)) * model_mesa_hse(i, model::idens);
 
-    model_name = 'hse'
+    }
 
-    call write_model(model_name, model_mesa_hse)
 
-    ! compute the enclosed mass
-    M_enclosed(1) = FOUR3RD*M_PI*delx**3*model_mesa_hse(1,idens)
+    // output
 
-    do i = 2, nx
-       M_enclosed(i) = M_enclosed(i-1) + &
-            FOUR3RD*M_PI*(xznr(i) - xznl(i)) * &
-            (xznr(i)**2 +xznl(i)*xznr(i) + xznl(i)**2)*model_mesa_hse(i,idens)
-    enddo
+    std::string model_name = "hse";
 
-    print *, 'summ mass = ', real(M_enclosed(nx)), ' g = ', real(M_enclosed(nx)/M_solar), ' solar masses'
+    write_model(model_name, xzn_hse, model_mesa_hse);
 
-    ! compute the maximum HSE error
-    max_hse_error = -1.d30
+    std::cout << "total mass = " << M_enclosed(nx-1) << " g; " << M_enclosed(nx-1) / C::M_solar << " solar masses" << std::endl;
 
-    do i = 2, nx-1
-       g_zone = -Gconst*M_enclosed(i-1)/xznr(i-1)**2
-       dpdr = (model_mesa_hse(i,ipres) - model_mesa_hse(i-1,ipres))/delx
-       rhog = HALF*(model_mesa_hse(i,idens) + model_mesa_hse(i-1,idens))*g_zone
+    // compute the maximum HSE error
 
-       if (dpdr /= ZERO .and. model_mesa_hse(i+1,idens) > low_density_cutoff) then
-          max_hse_error = max(max_hse_error, abs(dpdr - rhog)/abs(dpdr))
-       endif
-    enddo
+    Real max_hse_error = -1.e30_rt;
 
-    print *, 'maximum HSE error = ', max_hse_error
-    print *, ' '
+    for (int i = 1; i < nx-1; ++i) {
+        Real g_zone = -C::Gconst * M_enclosed(i-1) / std::pow(xznr(i-1), 2);
+        Real dpdr = (model_mesa_hse(i, model::ipres) - model_mesa_hse(i-1, model::ipres)) / delx;
+        Real rhog = 0.5_rt * (model_mesa_hse(i, model::idens) + model_mesa_hse(i-1, model::idens)) * g_zone;
 
-  end subroutine init_1d
+        if (dpdr != 0.0_rt && model_mesa_hse(i+1, model::idens) > low_density_cutoff) {
+            max_hse_error = amrex::max(max_hse_error, std::abs(dpdr - rhog) / std::abs(dpdr));
+        }
+    }
 
-end module initial_model_module
+    std::cout << "maximum HSE error = " << max_hse_error << std::endl;
+}
+#endif
+

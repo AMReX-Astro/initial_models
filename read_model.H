@@ -20,9 +20,32 @@ namespace model {
 
 struct initial_model_t {
     int npts;
-    amrex::Array2D<amrex::Real, 0, NPTS_MODEL-1, 0, nvar-1> state;
+    amrex::Array2D<amrex::Real, 0, NPTS_MODEL-1, 0, model::nvar-1> state;
     amrex::Array1D<amrex::Real, 0, NPTS_MODEL-1> r;
 };
+
+namespace model_string
+{
+    inline std::string& ltrim(std::string& s)
+    {
+	auto it = std::find_if(s.begin(), s.end(),
+                               [](int c) {
+                                   return !std::isspace(c);
+                               });
+	s.erase(s.begin(), it);
+	return s;
+    }
+
+    inline std::string& rtrim(std::string& s)
+    {
+	auto it = std::find_if(s.rbegin(), s.rend(),
+                               [](int c) {
+                                   return !std::isspace(c);
+                               });
+	s.erase(it.base(), s.end());
+	return s;
+    }
+}
 
 AMREX_INLINE void
 read_file(const std::string filename, initial_model_t& initial_model) {
@@ -74,7 +97,7 @@ read_file(const std::string filename, initial_model_t& initial_model) {
             mf >> vars_stored[j];
         }
 
-        for (int j = 0; j < model::nvars; j++) {
+        for (int j = 0; j < model::nvar; j++) {
             initial_model.state(i,j) = 0.0_rt;
         }
 
@@ -83,7 +106,7 @@ read_file(const std::string filename, initial_model_t& initial_model) {
 
             // keep track of whether the current variable from the model
             // file is one that we care about
-            found_model = false;
+            bool found_model = false;
 
             if (varnames_stored[j] == "density") {
                 initial_model.state(i,model::idens) = vars_stored[j];

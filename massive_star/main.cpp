@@ -20,7 +20,6 @@
 
 #include <microphysics_F.H>
 
-#include <extern_parameters_F.H>
 #include <extern_parameters.H>
 
 #include <fstream>
