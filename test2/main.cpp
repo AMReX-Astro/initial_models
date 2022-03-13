@@ -18,8 +18,6 @@
 
 #include <time.h>
 
-#include <microphysics_F.H>
-
 #include <extern_parameters.H>
 
 #include <fstream>
