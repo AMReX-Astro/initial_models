@@ -9,31 +9,10 @@
 #include <extern_parameters.H>
 #include <fundamental_constants.H>
 
+#include <model_util.H>
+
 using namespace amrex;
 
-
-
-AMREX_INLINE std::string
-num_to_unitstring(const Real value) {
-
-    std::stringstream ss;
-    std::string result;
-
-    if (value > 1.e5_rt) {
-
-        // work in km
-        ss << std::setprecision(3) << value / 1.e5_rt;
-        result = ss.str() + "km";
-    } else {
-
-        // work in cm
-
-        ss << std::setprecision(3) << value;
-        result = ss.str() + "cm";
-    }
-
-    return result;
-}
 
 // generate an initial model for an arbitrary-mass, isothermal C WD
 // with an isentropic He envelope on the surface.
