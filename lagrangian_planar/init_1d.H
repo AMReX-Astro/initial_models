@@ -22,7 +22,6 @@
 
 using namespace amrex;
 
-
 constexpr Real TOL = 1.e-10_rt;
 
 constexpr int MAX_ITER = 250;
@@ -61,7 +60,7 @@ AMREX_INLINE void init_1d( ) {
 
     for (int i = 0; i < nx; ++i){
         xznl_hse(i) = xmin + static_cast<Real>(i)*dCoord;
-        xzn_hse(i) = xmin + (static_cast<Real>(i) - 0.5_rt)*dCoord;
+        xzn_hse(i) = xmin + (static_cast<Real>(i) + 0.5_rt)*dCoord;
         xznr_hse(i) = xmin + (static_cast<Real>(i) + 1.0_rt)*dCoord;
     }
 
@@ -171,7 +170,7 @@ AMREX_INLINE void init_1d( ) {
         //to enter in HSE
         converged_hse = false;
 
-        for (int iter=0; iter<MAX_ITER; ++iter) {
+        for (int iter=0; iter < MAX_ITER; ++iter) {
             pwant = model_hse(i-1, model::ipres) + delx*0.5_rt*(dens_zone + model_hse(i-1, model::idens))*g_zone;
 
             eos_state.T = temp_zone;
@@ -205,7 +204,7 @@ AMREX_INLINE void init_1d( ) {
             if (!converged_hse) {
                 std::cout << "ERROR: Zone " << i << " did not converged in init_1d" <<std::endl;
                 std::cout << "Integrate up" << std::endl;
-                std::cout << dens_zone << temp_zone << std::endl;
+                std::cout << dens_zone << " " << temp_zone << std::endl;
                 std::cout << pwant << std::endl;
                 std::cout << drho << std::endl;
                 Error("ERROR: HSE non convergence");
@@ -253,7 +252,7 @@ AMREX_INLINE void init_1d( ) {
         //We start the Newton's loop
         for (int iter = 0; iter < MAX_ITER; ++iter) {
             
-            pwant = model_hse(i+1, model::ipres) - delx*0.5*(dens_zone + model_hse(i+1, model::idens));
+            pwant = model_hse(i+1, model::ipres) - delx*0.5*(dens_zone + model_hse(i+1, model::idens))*g_zone;
 
             eos_state.T = temp_zone;
             eos_state.rho = dens_zone;
@@ -270,7 +269,7 @@ AMREX_INLINE void init_1d( ) {
 
             drho = (pwant - pres_zone)/(dpd + 0.5_rt*delx*g_zone);
 
-            dens_zone = max(0.9_rt*dens_zone, min(dens_zone + drho, 1.1_rt*dens_zone));
+            dens_zone = amrex::max(0.9_rt*dens_zone, amrex::min(dens_zone + drho, 1.1_rt*dens_zone));
 
             if (std::abs(drho) < TOL*dens_zone) {
                 converged_hse = true;
@@ -280,7 +279,7 @@ AMREX_INLINE void init_1d( ) {
             if (!converged_hse) {
                 std::cout << "ERROR: Zone " << i << " did not converged in init_1d" << std::endl;
                 std::cout << "Integrate down" << std::endl;
-                std::cout << dens_zone << temp_zone << std::endl;
+                std::cout << dens_zone << " " << temp_zone << std::endl;
                 std::cout << pwant << std::endl;
                 std::cout << drho  << std::endl;
                 Error("ERROR: HSE non convergence");
