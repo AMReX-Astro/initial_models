@@ -29,336 +29,336 @@ constexpr int MAX_ITER = 250;
 
 AMREX_INLINE void init_1d( ) {
 
-	//Creates the type initial_model_t, parse it into read_model
-	//and returns with all the file information.
+    //Creates the type initial_model_t, parse it into read_model
+    //and returns with all the file information.
 
-	initial_model_t lagrangian_planar;
-	read_file(model_file, lagrangian_planar);
+    initial_model_t lagrangian_planar;
+    read_file(model_file, lagrangian_planar);
 
-	//Apply the shift
-	
-	for (int i = 0; i < lagrangian_planar.npts; ++i){
-		lagrangian_planar.r(i) -= model_shift;
-	}
+    //Apply the shift
 
-	//Create a new uniform grid with nx cells.
-	if (nx > NPTS_MODEL) {
-        	Error("too many zones requested -- increase NPTS_MODEL");
-    	}
+    for (int i = 0; i < lagrangian_planar.npts; ++i) {
+        lagrangian_planar.r(i) -= model_shift;
+    }
 
-	Array1D<Real, 0, NPTS_MODEL-1> xzn_hse;
-	Array1D<Real, 0, NPTS_MODEL-1> xznl_hse;
-	Array1D<Real, 0, NPTS_MODEL-1> xznr_hse;
-	Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1> model_hse;
+    //Create a new uniform grid with nx cells.
 
-	Real dCoord = (xmax - xmin) / static_cast<Real>(nx);
+    //testing the state info
+    //for (int i = 0; i < lagrangian_planar.npts; ++i) {
+    //    std::cout << lagrangian_planar.r(i) << " " << lagrangian_planar.state(i, model::idens) << " " << lagrangian_planar.state(i, model::itemp) << " " << lagrangian_planar.npts << std::endl;
+    //}
 
-	for (int i = 0; i < nx; ++i){
-		xznl_hse(i) = xmin + (static_cast<Real>(i) - 1.0_rt)*dCoord;
-		xzn_hse(i) = xmin + (static_cast<Real>(i) - 0.5_rt)*dCoord;
-		xznr_hse(i) = xmin + static_cast<Real>(i)*dCoord;
-	}
+    if (nx > NPTS_MODEL) {
+        Error("too many zones requested -- increase NPTS_MODEL");
+    }
 
-	eos_t eos_state;
+    Array1D<Real, 0, NPTS_MODEL-1> xzn_hse;
+    Array1D<Real, 0, NPTS_MODEL-1> xznl_hse;
+    Array1D<Real, 0, NPTS_MODEL-1> xznr_hse;
+    Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1> model_hse;
 
-	for (int i = 0; i < lagrangian_planar.npts; ++i) {
-		for (int n = 0; n < model::nvar; ++n){
-			
-			if (n == model::itemp) {
-				model_hse(i,n) = max(temp_cutoff, interpolate(xzn_hse(i), n, lagrangian_planar));	
-			} else {
-				model_hse(i,n) = interpolate(xzn_hse(i), n,  lagrangian_planar);
-			}
+    Real dCoord = (xmax - xmin) / static_cast<Real>(nx);
 
-		}
+    for (int i = 0; i < nx; ++i){
+        xznl_hse(i) = xmin + static_cast<Real>(i)*dCoord;
+        xzn_hse(i) = xmin + (static_cast<Real>(i) - 0.5_rt)*dCoord;
+        xznr_hse(i) = xmin + (static_cast<Real>(i) + 1.0_rt)*dCoord;
+    }
 
-		//Now we have to make the thermodynamics of our model 
-		//consistent with the defined e.o.s for each site i.
+    eos_t eos_state;
 
-		eos_state.rho = model_hse(i,model::idens); 
-		eos_state.T = model_hse(i, model::itemp);
+    for (int i = 0; i < nx; ++i) {
+        for (int n = 0; n < model::nvar; ++n) {
 
-		//test0, testing the value
-		std::cout << model_hse(i, model::idens) << " " << model_hse(i, model::itemp)<< std::endl;
+        if (n == model::itemp) {
+            model_hse(i,n) = amrex::max(temp_cutoff, interpolate(xzn_hse(i), n, lagrangian_planar));	
+        } else {
+            model_hse(i,n) = interpolate(xzn_hse(i), n,  lagrangian_planar);
+        }
 
-		for (int n = 0; n < NumSpec; ++n){
-			eos_state.xn[n] = model_hse(i, model::ispec+n);
-		}
+        }
 
-		eos(eos_input_rt, eos_state);
 
-		model_hse(i, model::ipres) = eos_state.p;
-	}
+    //Now we have to make the thermodynamics of our model 
+    //consistent with the defined e.o.s for each site i.
 
-	//Once, the thermodynamical consistent pressure variable is
-	//defined in our model, we pick the biggest T, r[i] state.
-	
-	int index_base = -1;
-	Real max_T = -1.0_rt;
+    eos_state.rho = model_hse(i,model::idens); 
+    eos_state.T = model_hse(i, model::itemp);
 
-	for (int i = 0; i < nx; ++i) {
-		if (model_hse(i, model::itemp) > max_T) {
-			index_base = i;
-			max_T = model_hse(i, model::itemp);
-		}
-	}
+    for (int n = 0; n < NumSpec; ++n){
+        eos_state.xn[n] = model_hse(i, model::ispec+n);
+    }
 
-	if (index_base == -1) {
-		Error("ERROR: invalid base height");
-	}
+    eos(eos_input_rt, eos_state);
+
+    model_hse(i, model::ipres) = eos_state.p;
+    }
+
+    //Once, the thermodynamical consistent pressure variable is
+    //defined in our model, we pick the biggest T, r[i] state.
+
+    int index_base = -1;
+    Real max_T = -1.0_rt;
+
+    for (int i = 0; i < nx; ++i) {
+	    if (model_hse(i, model::itemp) > max_T) {
+            index_base = i;
+            max_T = model_hse(i, model::itemp);
+        }
+    }
+
+    if (index_base == -1) {
+        Error("ERROR: invalid base height");
+    }
 
 	//and make sure again that all thermodyamics is consistent for
 	//the initial choice.
-	
-	eos_state.rho = model_hse(index_base, model::idens);
-	eos_state.T = model_hse(index_base, model::itemp);
 
-	for (int n = 0; n < NumSpec; ++n) {
-		eos_state.xn[n] = model_hse(index_base, model::ispec+n);
-	}
+    eos_state.rho = model_hse(index_base, model::idens);
+    eos_state.T = model_hse(index_base, model::itemp);
 
-	eos(eos_input_rt, eos_state);
+    for (int n = 0; n < NumSpec; ++n) {
+        eos_state.xn[n] = model_hse(index_base, model::ispec+n);
+    }
 
-	model_hse(index_base, model::ipres) = eos_state.p;
+    eos(eos_input_rt, eos_state);
 
-	//test1: ~5.0e7
-	std::cout << model_hse(index_base, model::itemp) << std::endl;
+    model_hse(index_base, model::ipres) = eos_state.p;
 
-	//Now, we have to integrate up:
-	
-	Real xn[NumSpec];
-	Real dens_zone;
-	Real temp_zone;
-	Real pres_zone;
-	bool converged_hse;
-	Real dpd;
-	Real dpdr;
-	Real g_zone;
-	Real delx;
-	Real pwant;
-	Real drho;
-	
-	//Integrating Up
-	for (int i = index_base+1; i < nx; i++) {
+    //test1: ~5.0e7
+    //std::cout << model_hse(index_base, model::itemp) << std::endl;
 
-		delx = xzn_hse(i) - xzn_hse(i-1);
+    //Now, we have to integrate up:
 
-		//Compute the gravitational acceleration 
-		if (do_invsq_grav == 1) {
-			g_zone = -C::Gconst*M_enclosed/std::pow(xznl_hse(i), 2);
-		} else {
-			g_zone = g_const;
-		}
-	
-		//Now, we have to setup our initial guess of rho, T, and
-		//composition variables, for each i-cell.
+    Real xn[NumSpec];
+    Real dens_zone;
+    Real temp_zone;
+    Real pres_zone;
+    bool converged_hse;
+    Real dpd;
+    Real dpdr;
+    Real g_zone;
+    Real delx;
+    Real pwant;
+    Real drho;
 
-		dens_zone = model_hse(i, model::idens);
-		temp_zone = max(temp_cutoff, model_hse(i, model::itemp));
+    //Integrating Up
+    for (int i = index_base+1; i < nx; i++) {
+        
+        delx = xzn_hse(i) - xzn_hse(i-1);
 
-		//test2: should be ~1.e4
+        //Compute the gravitational acceleration 
+        if (do_invsq_grav == 1) {
+            g_zone = -C::Gconst*M_enclosed/std::pow(xznl_hse(i), 2);
+        } else {
+            g_zone = g_const;
+        }
 
-		std::cout << "test:" << dens_zone << std::endl;
+        //Now, we have to setup our initial guess of rho, T, and
+        //composition variables, for each i-cell.
 
-		for (int n = 0; n < NumSpec; ++n){
-			xn[n] = model_hse(i, model::ispec+n);
-		}
+        dens_zone = model_hse(i, model::idens);
+        temp_zone = max(temp_cutoff, model_hse(i, model::itemp));
 
-		//Now, for each i-index point we force the thermodynamical variables
-		//to enter in HSE
-		converged_hse = false;
+        //test2: should be ~1.e4
+        //std::cout << "test:" << dens_zone << std::endl;
+        
+        for (int n = 0; n < NumSpec; ++n){
+            xn[n] = model_hse(i, model::ispec+n);
+        }
 
-		for (int iter=0; iter<MAX_ITER; ++iter) {
-			pwant = model_hse(i-1, model::ipres) + delx*0.5_rt*(dens_zone + model_hse(i-1, model::idens))*g_zone;
+        //Now, for each i-index point we force the thermodynamical variables
+        //to enter in HSE
+        converged_hse = false;
 
-			eos_state.T = temp_zone;
-			eos_state.rho = dens_zone;
+        for (int iter=0; iter<MAX_ITER; ++iter) {
+            pwant = model_hse(i-1, model::ipres) + delx*0.5_rt*(dens_zone + model_hse(i-1, model::idens))*g_zone;
 
-			for (int n = 0; n < NumSpec; ++n) {
-				eos_state.xn[n] = xn[n];
-			}
+            eos_state.T = temp_zone;
+            eos_state.rho = dens_zone;
 
-			eos(eos_input_rt, eos_state);
+            for (int n = 0; n < NumSpec; ++n) {
+                eos_state.xn[n] = xn[n];
+            }
 
-			pres_zone = eos_state.p;
+            eos(eos_input_rt, eos_state);
 
-			dpd = eos_state.dpdr;
-			drho = (pwant - pres_zone)/(dpd - 0.5_rt*delx*g_zone);
+            pres_zone = eos_state.p;
 
-			dens_zone = max(0.9_rt*dens_zone, min(dens_zone+drho, 1.1_rt*dens_zone));
+            dpd = eos_state.dpdr;
+            drho = (pwant - pres_zone)/(dpd - 0.5_rt*delx*g_zone);
 
-			if(std::abs(drho)<TOL*dens_zone) {
-				converged_hse = true;
-				break;
-			}
+            dens_zone = amrex::max(0.9_rt*dens_zone, amrex::min(dens_zone+drho, 1.1_rt*dens_zone));
 
-			if(dens_zone < low_density_cutoff) {
-				dens_zone = low_density_cutoff;
-				temp_zone = temp_cutoff;
-				converged_hse = true;
-				break;
-			}
+            if(std::abs(drho)<TOL*dens_zone) {
+                converged_hse = true;
+                break;
+            }
 
-			if (!converged_hse) {
-				std::cout << "ERROR: Zone " << i << " did not converged in init_1d" <<std::endl;
-				std::cout << "Integrate up" << std::endl;
-				std::cout << dens_zone << temp_zone << std::endl;
-				std::cout << pwant << std::endl;
-				std::cout << drho << std::endl;
-				Error("ERROR: HSE non convergence");
-			}
-		}
+            if(dens_zone < low_density_cutoff) {
+                dens_zone = low_density_cutoff;
+                temp_zone = temp_cutoff;
+                converged_hse = true;
+                break;
+            }
 
-		//Now, we need to make the thermodynamics consistent again:
-		eos_state.T = temp_zone;
-		eos_state.rho = dens_zone;
+            if (!converged_hse) {
+                std::cout << "ERROR: Zone " << i << " did not converged in init_1d" <<std::endl;
+                std::cout << "Integrate up" << std::endl;
+                std::cout << dens_zone << temp_zone << std::endl;
+                std::cout << pwant << std::endl;
+                std::cout << drho << std::endl;
+                Error("ERROR: HSE non convergence");
+            }
+        }
 
-		for (int n=0; n<NumSpec; ++n){
-			eos_state.xn[n] = xn[n];
-		}
+        //Now, we need to make the thermodynamics consistent again:
+        eos_state.T = temp_zone;
+        eos_state.rho = dens_zone;
 
-		eos(eos_input_rt, eos_state);
+        for (int n=0; n<NumSpec; ++n){
+            eos_state.xn[n] = xn[n];
+        }
 
-		pres_zone = eos_state.p;
+        eos(eos_input_rt, eos_state);
 
-		model_hse(i, model::idens) = dens_zone;
-		model_hse(i, model::itemp) = temp_zone;
-		model_hse(i, model::ipres) = pres_zone;
-	}
+        pres_zone = eos_state.p;
 
-	converged_hse = false;
+        model_hse(i, model::idens) = dens_zone;
+        model_hse(i, model::itemp) = temp_zone;
+        model_hse(i, model::ipres) = pres_zone;
+    }
 
-	//Now we have to integrate down:
-	for (int i = index_base - 1; i >= 0; --i) {
+    converged_hse = false;
 
-		delx = xzn_hse(i+1) - xzn_hse(i);
+    //Now we have to integrate down:
+    for (int i = index_base - 1; i >= 0; --i) {
 
+        delx = xzn_hse(i+1) - xzn_hse(i);
 
-		//Compute the gravitational acceleration
-                if (do_invsq_grav == 1) {
-                        g_zone = -C::Gconst*M_enclosed/std::pow(xznr_hse(i), 2);
-                } else {
-                        g_zone = g_const;
-                }
+        //Compute the gravitational acceleration
+        if (do_invsq_grav == 1) {
+            g_zone = -C::Gconst*M_enclosed/std::pow(xznr_hse(i), 2);
+        } else {
+            g_zone = g_const;
+        }
 
-		temp_zone = model_hse(i, model::itemp);
-		dens_zone = model_hse(i, model::idens);
+        temp_zone = model_hse(i, model::itemp);
+        dens_zone = model_hse(i, model::idens);
 
-		for (int n = 0; n < NumSpec; n++) {
-			xn[n] = model_hse(i, model::ispec+n);
-		}
+        for (int n = 0; n < NumSpec; n++) {
+            xn[n] = model_hse(i, model::ispec+n);
+        }
 
-		//We start the Newton's loop
-		for (int iter = 0; iter < MAX_ITER; ++iter) {
+        //We start the Newton's loop
+        for (int iter = 0; iter < MAX_ITER; ++iter) {
+            
+            pwant = model_hse(i+1, model::ipres) - delx*0.5*(dens_zone + model_hse(i+1, model::idens));
 
-			pwant = model_hse(i+1, model::idens) - delx*0.5*(dens_zone + model_hse(i+1, model::idens));
-
-			eos_state.T = temp_zone;
-			eos_state.rho = dens_zone;
+            eos_state.T = temp_zone;
+            eos_state.rho = dens_zone;
 			
-			for (int n = 0; n < NumSpec; ++n) {
-				eos_state.xn[n] = xn[n];
-			}
+            for (int n = 0; n < NumSpec; ++n) {
+                eos_state.xn[n] = xn[n];
+            }
 
-			eos(eos_input_rt, eos_state);
+            eos(eos_input_rt, eos_state);
 
-			pres_zone = eos_state.p;
+            pres_zone = eos_state.p;
 
-			dpd = eos_state.dpdr;
+            dpd = eos_state.dpdr;
 
-			drho = (pwant - pres_zone)/(dpd + 0.5_rt*delx*g_zone);
+            drho = (pwant - pres_zone)/(dpd + 0.5_rt*delx*g_zone);
 
-			dens_zone = max(0.9_rt*dens_zone, min(dens_zone + drho, 1.1_rt*dens_zone));
+            dens_zone = max(0.9_rt*dens_zone, min(dens_zone + drho, 1.1_rt*dens_zone));
 
-			if (std::abs(drho) < TOL*dens_zone) {
-				converged_hse = true;
-				break;
-			}
+            if (std::abs(drho) < TOL*dens_zone) {
+                converged_hse = true;
+                break;
+            }
 
-			if (!converged_hse) {
-				std::cout << "ERROR: Zone " << i << " did not converged in init_1d" << std::endl;
-                        	std::cout << "Integrate down" << std::endl;
-                        	std::cout << dens_zone << temp_zone << std::endl;
-                        	std::cout << pwant << std::endl;
-                        	std::cout << drho  << std::endl;
-                        	Error("ERROR: HSE non convergence");
-			}
-		}
+            if (!converged_hse) {
+                std::cout << "ERROR: Zone " << i << " did not converged in init_1d" << std::endl;
+                std::cout << "Integrate down" << std::endl;
+                std::cout << dens_zone << temp_zone << std::endl;
+                std::cout << pwant << std::endl;
+                std::cout << drho  << std::endl;
+                Error("ERROR: HSE non convergence");
+            }
+        }
 
+        //Now, we enforce one more time the eos:
 
-		//Now, we enforce one more time the eos:
+        eos_state.T = temp_zone;
+        eos_state.rho = dens_zone;
 
-		eos_state.T = temp_zone;
-		eos_state.rho = dens_zone;
+        for (int n=0; n<NumSpec; ++n) {
+            eos_state.xn[n] = xn[n];
+        }
 
-		for (int n=0; n<NumSpec; ++n) {
-			eos_state.xn[n] = xn[n];
-		}
+        eos(eos_input_rt, eos_state);
 
-		eos(eos_input_rt, eos_state);
+        pres_zone = eos_state.p;
 
-		pres_zone = eos_state.p;
+        model_hse(i, model::idens) = dens_zone;
+        model_hse(i, model::itemp) = temp_zone;
+        model_hse(i, model::ipres) = pres_zone;
+    }
 
-		model_hse(i, model::idens) = dens_zone;
-		model_hse(i, model::itemp) = temp_zone;
-		model_hse(i, model::ipres) = pres_zone;
-	}
+    //Write the file
 
-	//Write the file
-	
-	std::stringstream ss;
-	ss << nx;
-	std::string num_to_str = ss.str();
+    std::stringstream ss;
+    ss << nx;
+    std::string num_to_str = ss.str();
 
-	std::string outfile = "model_hse" + num_to_str;
+    std::string outfile = "model_hse" + num_to_str;
 
-	std::ofstream file;
-	file.open(outfile);
+    std::ofstream file;
+    file.open(outfile);
 
-	file << "#npts = " << nx << std::endl;
-	file << "#num of variables =" << 3 + NumSpec << std::endl;
-	file << "#density" << std::endl;
-        file << "#temperature" << std::endl;
-	file << "#pressure" << std::endl;
-	
-	for (int n=0; n<NumSpec; ++n) {
-		file << "#" << spec_names_cxx[n] << std::endl;		
-	}
+    file << "#npts = " << nx << std::endl;
+    file << "#num of variables =" << 3 + NumSpec << std::endl;
+    file << "#density" << std::endl;
+    file << "#temperature" << std::endl;
+    file << "#pressure" << std::endl;
 
-	for (int i=0; i<nx; ++i) {
-		file << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
-		file << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
-		file << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
-		file << std::setprecision(12) << std::setw(20) << model_hse(i, model::ipres) << " ";
-		for (int n=0; n<NumSpec; ++n){
-			file << std::setprecision(12) << std::setw(20) << model_hse(i, model::ispec + n) << " ";
-		}
-		file << std::endl;
-	}
+    for (int n=0; n<NumSpec; ++n) {
+	    file << "#" << spec_names_cxx[n] << std::endl;		
+    }
 
-	file.close();
+    for (int i=0; i<nx; ++i) {
+        file << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
+        file << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
+        file << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
+        file << std::setprecision(12) << std::setw(20) << model_hse(i, model::ipres) << " ";
+        for (int n=0; n<NumSpec; ++n){
+            file << std::setprecision(12) << std::setw(20) << model_hse(i, model::ispec + n) << " ";
+        }
+        file << std::endl;
+    }
 
-	Real max_hse_error = -1.e30_rt;
-	Real rhog;
+    file.close();
 
-    	for (int i = 1; i < nx-1; ++i) {
+    Real max_hse_error = -1.e30_rt;
+    Real rhog;
 
-		if (do_invsq_grav == 1) {
-			g_zone == -C::Gconst * M_enclosed/ std::pow(xznr_hse(i-1), 2);
-		}
-		else {
-			g_zone = g_const;
-		}
+    for (int i = 1; i < nx-1; ++i) {
 
-        	dpdr = (model_hse(i, model::ipres) - model_hse(i-1, model::ipres)) / delx;
-        	rhog = 0.5_rt * (model_hse(i, model::idens) + model_hse(i-1, model::idens)) * g_zone;
+        if (do_invsq_grav == 1) {
+            g_zone == -C::Gconst * M_enclosed/ std::pow(xznr_hse(i-1), 2);
+        } else {
+            g_zone = g_const;
+        }
 
-       		if (dpdr != 0.0_rt && model_hse(i+1, model::idens) > low_density_cutoff) {
-            		max_hse_error = max(max_hse_error, std::abs(dpdr - rhog) / std::abs(dpdr));
-        	}
-    	}
+        dpdr = (model_hse(i, model::ipres) - model_hse(i-1, model::ipres)) / delx;
+        rhog = 0.5_rt * (model_hse(i, model::idens) + model_hse(i-1, model::idens)) * g_zone;
 
-    	std::cout << "maximum HSE error = " << max_hse_error << std::endl;
+        if (dpdr != 0.0_rt && model_hse(i+1, model::idens) > low_density_cutoff) {
+            max_hse_error = max(max_hse_error, std::abs(dpdr - rhog) / std::abs(dpdr));
+        }
+    }
+
+    std::cout << "maximum HSE error = " << max_hse_error << std::endl;
 }
 #endif
 
