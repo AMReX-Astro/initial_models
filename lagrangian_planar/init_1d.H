@@ -11,6 +11,9 @@
 #include <AMReX_Array.H>
 
 #include <sstream>
+#include <string>
+
+#include <network.H>
 
 #include <extern_parameters.H>
 #include <fundamental_constants.H>
@@ -19,10 +22,12 @@
 
 using namespace amrex;
 
-AMREX_INLINE void init_1d( ) {
 
-	const int MAX_ITER = 250;
-        const Real TOL = 1.0e-10;
+constexpr Real TOL = 1.e-10_rt;
+
+constexpr int MAX_ITER = 250;
+
+AMREX_INLINE void init_1d( ) {
 
 	//Creates the type initial_model_t, parse it into read_model
 	//and returns with all the file information.
@@ -32,7 +37,7 @@ AMREX_INLINE void init_1d( ) {
 
 	//Apply the shift
 	
-	for (int i=0; i<lagrangian_planar.npts; ++i){
+	for (int i = 0; i < lagrangian_planar.npts; ++i){
 		lagrangian_planar.r(i) -= model_shift;
 	}
 
@@ -46,21 +51,21 @@ AMREX_INLINE void init_1d( ) {
 	Array1D<Real, 0, NPTS_MODEL-1> xznr_hse;
 	Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1> model_hse;
 
-	Real dx = (xmax - xmin) / static_cast<Real>(nx);
+	Real dCoord = (xmax - xmin) / static_cast<Real>(nx);
 
-	for (int i=0; i<nx; ++i){
-		xznl_hse(i) = xmin + static_cast<Real>(i)*dx;
-		xznr_hse(i) = xmin + (static_cast<Real>(i) + 1.0_rt)*dx;
-		xzn_hse(i) = 0.5*(xznl_hse(i) + xznr_hse(i));
+	for (int i = 0; i < nx; ++i){
+		xznl_hse(i) = xmin + (static_cast<Real>(i) - 1.0_rt)*dCoord;
+		xzn_hse(i) = xmin + (static_cast<Real>(i) - 0.5_rt)*dCoord;
+		xznr_hse(i) = xmin + static_cast<Real>(i)*dCoord;
 	}
 
 	eos_t eos_state;
 
-	for (int i=0; i<lagrangian_planar.npts; ++i) {
-		for (int n=0; n<model::nvar; ++n){
+	for (int i = 0; i < lagrangian_planar.npts; ++i) {
+		for (int n = 0; n < model::nvar; ++n){
 			
 			if (n == model::itemp) {
-				model_hse(i,n) = std::max(temp_cutoff, interpolate(xzn_hse(i), n, lagrangian_planar));	
+				model_hse(i,n) = max(temp_cutoff, interpolate(xzn_hse(i), n, lagrangian_planar));	
 			} else {
 				model_hse(i,n) = interpolate(xzn_hse(i), n,  lagrangian_planar);
 			}
@@ -73,7 +78,10 @@ AMREX_INLINE void init_1d( ) {
 		eos_state.rho = model_hse(i,model::idens); 
 		eos_state.T = model_hse(i, model::itemp);
 
-		for (int n=0; n<NumSpec; ++n){
+		//test0, testing the value
+		std::cout << model_hse(i, model::idens) << " " << model_hse(i, model::itemp)<< std::endl;
+
+		for (int n = 0; n < NumSpec; ++n){
 			eos_state.xn[n] = model_hse(i, model::ispec+n);
 		}
 
@@ -88,7 +96,7 @@ AMREX_INLINE void init_1d( ) {
 	int index_base = -1;
 	Real max_T = -1.0_rt;
 
-	for (int i=0; i<nx; ++i) {
+	for (int i = 0; i < nx; ++i) {
 		if (model_hse(i, model::itemp) > max_T) {
 			index_base = i;
 			max_T = model_hse(i, model::itemp);
@@ -105,7 +113,7 @@ AMREX_INLINE void init_1d( ) {
 	eos_state.rho = model_hse(index_base, model::idens);
 	eos_state.T = model_hse(index_base, model::itemp);
 
-	for (int n=0; n<NumSpec; ++n) {
+	for (int n = 0; n < NumSpec; ++n) {
 		eos_state.xn[n] = model_hse(index_base, model::ispec+n);
 	}
 
@@ -113,13 +121,15 @@ AMREX_INLINE void init_1d( ) {
 
 	model_hse(index_base, model::ipres) = eos_state.p;
 
+	//test1: ~5.0e7
+	std::cout << model_hse(index_base, model::itemp) << std::endl;
+
 	//Now, we have to integrate up:
 	
 	Real xn[NumSpec];
 	Real dens_zone;
 	Real temp_zone;
 	Real pres_zone;
-	Real entropy;
 	bool converged_hse;
 	Real dpd;
 	Real dpdr;
@@ -129,7 +139,7 @@ AMREX_INLINE void init_1d( ) {
 	Real drho;
 	
 	//Integrating Up
-	for (int i=index_base+1; i<nx; ++i) {
+	for (int i = index_base+1; i < nx; i++) {
 
 		delx = xzn_hse(i) - xzn_hse(i-1);
 
@@ -146,7 +156,11 @@ AMREX_INLINE void init_1d( ) {
 		dens_zone = model_hse(i, model::idens);
 		temp_zone = max(temp_cutoff, model_hse(i, model::itemp));
 
-		for (int n=0; n<NumSpec; ++n){
+		//test2: should be ~1.e4
+
+		std::cout << "test:" << dens_zone << std::endl;
+
+		for (int n = 0; n < NumSpec; ++n){
 			xn[n] = model_hse(i, model::ispec+n);
 		}
 
@@ -155,24 +169,23 @@ AMREX_INLINE void init_1d( ) {
 		converged_hse = false;
 
 		for (int iter=0; iter<MAX_ITER; ++iter) {
-			pwant = model_hse(i, model::ipres) + delx*0.5_rt*(dens_zone + model_hse(i, model::idens))*g_zone;
+			pwant = model_hse(i-1, model::ipres) + delx*0.5_rt*(dens_zone + model_hse(i-1, model::idens))*g_zone;
 
 			eos_state.T = temp_zone;
 			eos_state.rho = dens_zone;
 
-			for (int n=0; n<NumSpec; ++n) {
+			for (int n = 0; n < NumSpec; ++n) {
 				eos_state.xn[n] = xn[n];
 			}
 
 			eos(eos_input_rt, eos_state);
 
-			entropy = eos_state.s;
 			pres_zone = eos_state.p;
 
 			dpd = eos_state.dpdr;
-			drho = (pwant - pres_zone)/(dpd - 0.5*delx*g_zone);
+			drho = (pwant - pres_zone)/(dpd - 0.5_rt*delx*g_zone);
 
-			dens_zone = max(0.9*dens_zone, min(dens_zone+drho, 1.1*dens_zone));
+			dens_zone = max(0.9_rt*dens_zone, min(dens_zone+drho, 1.1_rt*dens_zone));
 
 			if(std::abs(drho)<TOL*dens_zone) {
 				converged_hse = true;
@@ -186,8 +199,8 @@ AMREX_INLINE void init_1d( ) {
 				break;
 			}
 
-			if (not converged_hse) {
-				std::cout << "Error zone" << i << "did not converged in init_1d" <<std::endl;
+			if (!converged_hse) {
+				std::cout << "ERROR: Zone " << i << " did not converged in init_1d" <<std::endl;
 				std::cout << "Integrate up" << std::endl;
 				std::cout << dens_zone << temp_zone << std::endl;
 				std::cout << pwant << std::endl;
@@ -208,21 +221,18 @@ AMREX_INLINE void init_1d( ) {
 
 		pres_zone = eos_state.p;
 
-		model_hse(i, model::idens) = eos_state.rho;
-		model_hse(i, model::itemp) = eos_state.T;
-
-		for (int n=0; n<NumSpec; ++n){
-			model_hse(i, model::ispec+n) = eos_state.xn[n];
-		}
+		model_hse(i, model::idens) = dens_zone;
+		model_hse(i, model::itemp) = temp_zone;
+		model_hse(i, model::ipres) = pres_zone;
 	}
 
 	converged_hse = false;
-	Real A;
 
 	//Now we have to integrate down:
-	for (int i=index_base-1; i>=0; --i) {
+	for (int i = index_base - 1; i >= 0; --i) {
 
 		delx = xzn_hse(i+1) - xzn_hse(i);
+
 
 		//Compute the gravitational acceleration
                 if (do_invsq_grav == 1) {
@@ -231,22 +241,22 @@ AMREX_INLINE void init_1d( ) {
                         g_zone = g_const;
                 }
 
-		dens_zone = model_hse(i, model::idens);
 		temp_zone = model_hse(i, model::itemp);
+		dens_zone = model_hse(i, model::idens);
 
-		for (int n=0; n<NumSpec; n++) {
+		for (int n = 0; n < NumSpec; n++) {
 			xn[n] = model_hse(i, model::ispec+n);
 		}
 
 		//We start the Newton's loop
-		for (int iter=0; iter<MAX_ITER; ++iter) {
+		for (int iter = 0; iter < MAX_ITER; ++iter) {
 
-			pwant = model_hse(i, model::idens) - delx*0.5*(dens_zone + model_hse(i, model::idens));
+			pwant = model_hse(i+1, model::idens) - delx*0.5*(dens_zone + model_hse(i+1, model::idens));
 
 			eos_state.T = temp_zone;
 			eos_state.rho = dens_zone;
 			
-			for (int n=0; n<NumSpec; ++n) {
+			for (int n = 0; n < NumSpec; ++n) {
 				eos_state.xn[n] = xn[n];
 			}
 
@@ -256,9 +266,7 @@ AMREX_INLINE void init_1d( ) {
 
 			dpd = eos_state.dpdr;
 
-			A = pres_zone - pwant;
-
-			drho = A/(dpd + 0.5_rt*delx*g_zone);
+			drho = (pwant - pres_zone)/(dpd + 0.5_rt*delx*g_zone);
 
 			dens_zone = max(0.9_rt*dens_zone, min(dens_zone + drho, 1.1_rt*dens_zone));
 
@@ -267,8 +275,8 @@ AMREX_INLINE void init_1d( ) {
 				break;
 			}
 
-			if (not converged_hse) {
-				std::cout << "Error zone" << i << "did not converged in init_1d" << std::endl;
+			if (!converged_hse) {
+				std::cout << "ERROR: Zone " << i << " did not converged in init_1d" << std::endl;
                         	std::cout << "Integrate down" << std::endl;
                         	std::cout << dens_zone << temp_zone << std::endl;
                         	std::cout << pwant << std::endl;
@@ -290,6 +298,7 @@ AMREX_INLINE void init_1d( ) {
 		eos(eos_input_rt, eos_state);
 
 		pres_zone = eos_state.p;
+
 		model_hse(i, model::idens) = dens_zone;
 		model_hse(i, model::itemp) = temp_zone;
 		model_hse(i, model::ipres) = pres_zone;
