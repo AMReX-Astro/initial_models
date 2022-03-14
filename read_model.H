@@ -1,6 +1,7 @@
 #ifndef READ_MODEL_H
 #define READ_MODEL_H
 
+#include <AMReX_Print.H>
 
 const int MAX_VARNAME_LENGTH = 80;
 
