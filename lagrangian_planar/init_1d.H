@@ -41,12 +41,7 @@ AMREX_INLINE void init_1d( ) {
     }
 
     //Create a new uniform grid with nx cells.
-
-    //testing the state info
-    //for (int i = 0; i < lagrangian_planar.npts; ++i) {
-    //    std::cout << lagrangian_planar.r(i) << " " << lagrangian_planar.state(i, model::idens) << " " << lagrangian_planar.state(i, model::itemp) << " " << lagrangian_planar.npts << std::endl;
-    //}
-
+    
     if (nx > NPTS_MODEL) {
         Error("too many zones requested -- increase NPTS_MODEL");
     }
@@ -142,7 +137,7 @@ AMREX_INLINE void init_1d( ) {
     Real drho;
 
     //Integrating Up
-    for (int i = index_base+1; i < nx; i++) {
+    for (int i = index_base+1; i < nx; ++i) {
         
         delx = xzn_hse(i) - xzn_hse(i-1);
 
@@ -157,12 +152,9 @@ AMREX_INLINE void init_1d( ) {
         //composition variables, for each i-cell.
 
         dens_zone = model_hse(i, model::idens);
-        temp_zone = max(temp_cutoff, model_hse(i, model::itemp));
-
-        //test2: should be ~1.e4
-        //std::cout << "test:" << dens_zone << std::endl;
-        
-        for (int n = 0; n < NumSpec; ++n){
+        temp_zone = amrex::max(temp_cutoff, model_hse(i, model::itemp));
+ 
+        for (int n = 0; n < NumSpec; ++n) {
             xn[n] = model_hse(i, model::ispec+n);
         }
 
@@ -171,7 +163,8 @@ AMREX_INLINE void init_1d( ) {
         converged_hse = false;
 
         for (int iter=0; iter < MAX_ITER; ++iter) {
-            pwant = model_hse(i-1, model::ipres) + delx*0.5_rt*(dens_zone + model_hse(i-1, model::idens))*g_zone;
+            pwant = model_hse(i-1, model::ipres) + delx*0.5_rt*(dens_zone + 
+                model_hse(i-1, model::idens))*g_zone;
 
             eos_state.T = temp_zone;
             eos_state.rho = dens_zone;
@@ -187,7 +180,8 @@ AMREX_INLINE void init_1d( ) {
             dpd = eos_state.dpdr;
             drho = (pwant - pres_zone)/(dpd - 0.5_rt*delx*g_zone);
 
-            dens_zone = amrex::max(0.9_rt*dens_zone, amrex::min(dens_zone+drho, 1.1_rt*dens_zone));
+            dens_zone = amrex::max(0.9_rt*dens_zone, 
+                    amrex::min(dens_zone+drho, 1.1_rt*dens_zone));
 
             if(std::abs(drho)<TOL*dens_zone) {
                 converged_hse = true;
@@ -201,21 +195,23 @@ AMREX_INLINE void init_1d( ) {
                 break;
             }
 
-            if (!converged_hse) {
-                std::cout << "ERROR: Zone " << i << " did not converged in init_1d" <<std::endl;
-                std::cout << "Integrate up" << std::endl;
-                std::cout << dens_zone << " " << temp_zone << std::endl;
-                std::cout << pwant << std::endl;
-                std::cout << drho << std::endl;
-                Error("ERROR: HSE non convergence");
-            }
         }
+
+        if (!converged_hse) {
+            std::cout << "ERROR: Zone " << i << " did not converged in init_1d" <<std::endl;
+            std::cout << "Integrate up" << std::endl;
+            std::cout << dens_zone << " " << temp_zone << std::endl;
+            std::cout << pwant << std::endl;
+            std::cout << drho << std::endl;
+            Error("ERROR: HSE non convergence");
+        }
+        
 
         //Now, we need to make the thermodynamics consistent again:
         eos_state.T = temp_zone;
         eos_state.rho = dens_zone;
 
-        for (int n=0; n<NumSpec; ++n){
+        for (int n = 0; n < NumSpec; ++n) {
             eos_state.xn[n] = xn[n];
         }
 
@@ -242,8 +238,8 @@ AMREX_INLINE void init_1d( ) {
             g_zone = g_const;
         }
 
-        temp_zone = model_hse(i, model::itemp);
         dens_zone = model_hse(i, model::idens);
+        temp_zone = amrex::max(temp_cutoff, model_hse(i, model::itemp));
 
         for (int n = 0; n < NumSpec; n++) {
             xn[n] = model_hse(i, model::ispec+n);
@@ -252,7 +248,8 @@ AMREX_INLINE void init_1d( ) {
         //We start the Newton's loop
         for (int iter = 0; iter < MAX_ITER; ++iter) {
             
-            pwant = model_hse(i+1, model::ipres) - delx*0.5*(dens_zone + model_hse(i+1, model::idens))*g_zone;
+            pwant = model_hse(i+1, model::ipres) - 
+                delx*0.5*(dens_zone + model_hse(i+1, model::idens))*g_zone;
 
             eos_state.T = temp_zone;
             eos_state.rho = dens_zone;
@@ -275,16 +272,17 @@ AMREX_INLINE void init_1d( ) {
                 converged_hse = true;
                 break;
             }
-
-            if (!converged_hse) {
-                std::cout << "ERROR: Zone " << i << " did not converged in init_1d" << std::endl;
-                std::cout << "Integrate down" << std::endl;
-                std::cout << dens_zone << " " << temp_zone << std::endl;
-                std::cout << pwant << std::endl;
-                std::cout << drho  << std::endl;
-                Error("ERROR: HSE non convergence");
-            }
         }
+
+        if (!converged_hse) {
+            std::cout << "ERROR: Zone " << i << " did not converged in init_1d" << std::endl;
+            std::cout << "Integrate down" << std::endl;
+            std::cout << dens_zone << " " << temp_zone << std::endl;
+            std::cout << pwant << std::endl;
+            std::cout << drho  << std::endl;
+            Error("ERROR: HSE non convergence");
+        }
+        
 
         //Now, we enforce one more time the eos:
 
