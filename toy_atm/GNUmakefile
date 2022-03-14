@@ -28,7 +28,7 @@ NETWORK_DIR := general_null
 NETWORK_INPUTS := triple_alpha_plus_o.net
 
 Bpack := ./Make.package
-Blocs := .
+Blocs := . ..
 
 EXTERN_SEARCH += . ..
 

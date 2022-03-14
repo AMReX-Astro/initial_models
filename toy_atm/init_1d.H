@@ -54,11 +54,9 @@ using namespace amrex;
 AMREX_INLINE void init_1d()
 {
 
-    subroutine init_1d() bind(C, name = "init_1d")
+    // define convenient indices for the scalars
 
-        // define convenient indices for the scalars
-
-        const int nvar = 3 + NumSpec;
+    const int nvar = 3 + NumSpec;
     const int idens = 0;
     const int itemp = 1;
     const int ipres = 2;
@@ -157,8 +155,11 @@ AMREX_INLINE void init_1d()
     if (!species_defined)
     {
         std::cout << ifuel1 << " " << ifuel2 << " " << ifuel3 << " " << ifuel4 << " " << ifuel5 << " " << ifuel6 << " " << ifuel7 << std::endl;
-        print *, iash1, iash2, iash3, iash4 amrex::Error("ERROR: species not defined");
+        std::cout << iash1 << " " << iash2 << " " << iash3 << " " << iash4 << std::endl;
+        amrex::Error("ERROR: species not defined");
     }
+
+    Real xn[NumSpec] = {0.0_rt};
 
     // set the composition of the underlying star
 
@@ -195,13 +196,13 @@ AMREX_INLINE void init_1d()
     for (auto e : xn_star) {
         sum += e;
     }
-    if (std::abs(sum) - 1.0_rt > nspec * smallx) {
+    if (std::abs(sum) - 1.0_rt > NumSpec * smallx) {
         amrex::Error("ERROR: ash mass fractions don't sum to 1");
     }
 
     sum = 0.0;
     for (auto e : xn_base) {
-    if (std::abs(sum) - 1.0_rt) > nspec * smallx) {
+    if (std::abs(sum) - 1.0_rt > NumSpec * smallx) {
         amrex::Error("ERROR: fuel mass fractions don't sum to 1");
     }
 
@@ -290,13 +291,13 @@ AMREX_INLINE void init_1d()
     }
 
 
-    if (index_base_from_temp == 1) then
+    if (index_base_from_temp == 1) {
         // find the index of the base height -- look at the temperature for this
-        index_base = -1
+        index_base = -1;
         for (int i = 0; i < nx; ++i) {
 
             if (model_hse(i, itemp) > 0.9995 * T_base) {
-                index_base = i+1
+                index_base = i+1;
                 break;  
             }
         }
@@ -331,6 +332,16 @@ AMREX_INLINE void init_1d()
 
     bool isentropic = true;
 
+
+    Real dens_zone;
+    Real temp_zone;
+    Real pres_zone;
+
+    Real p_want;
+    Real drho;
+    Real dtemp;
+    Real entropy;
+
     // integrate up
   
     for (int i = index_base+1; i < nx; ++i) {
@@ -339,8 +350,9 @@ AMREX_INLINE void init_1d()
 
         // compute the gravitation acceleration at the lower edge
      
+        Real g_zone;
         if (do_invsq_grav == 1) {
-            g_zone = -Gconst * M_enclosed / std::pow(xznl_hse(i), 2);
+            g_zone = -C::Gconst * M_enclosed / std::pow(xznl_hse(i), 2);
         } else {
             g_zone = g_const;
         }
@@ -403,18 +415,18 @@ AMREX_INLINE void init_1d()
                     entropy = eos_state.s;
                     pres_zone = eos_state.p;
 
-                    Real dpt = eos_state.dpdt;
+                    Real dpt = eos_state.dpdT;
                     Real dpd = eos_state.dpdr;
-                    Real dst = eos_state.dsdt;
+                    Real dst = eos_state.dsdT;
                     Real dsd = eos_state.dsdr;
 
                     Real A = p_want - pres_zone;
                     Real B = entropy_base - entropy;
 
-                    Real dtemp = ((dsd/(dpd-0.5*delx*g_zone))*A - B)/
-                        (dsd*dpt/(dpd -0.5*delx*g_zone) - dst);
+                    dtemp = ((dsd / (dpd - 0.5_rt * delx * g_zone)) * A - B)/
+                        (dsd * dpt / (dpd - 0.5_rt * delx * g_zone) - dst);
 
-                    Real drho = (A - dpt * dtemp) / (dpd - 0.5_rt * delx * g_zone);
+                    drho = (A - dpt * dtemp) / (dpd - 0.5_rt * delx * g_zone);
 
                     dens_zone = amrex::max(0.9_rt * dens_zone,
                                            amrex::min(dens_zone + drho, 1.1_rt * dens_zone));
@@ -460,7 +472,7 @@ AMREX_INLINE void init_1d()
 
                     Real dpd = eos_state.dpdr;
 
-                    Real drho = (p_want - pres_zone) / (dpd - 0.5_rt * delx * g_zone);
+                    drho = (p_want - pres_zone) / (dpd - 0.5_rt * delx * g_zone);
 
                     dens_zone = amrex::max(0.9_rt * dens_zone,
                                            amrex::min(dens_zone + drho, 1.1_rt * dens_zone));
@@ -538,7 +550,7 @@ AMREX_INLINE void init_1d()
 
         Real g_zone;
         if (do_invsq_grav == 1) {
-            g_zone = -Gconst * M_enclosed / std::pow(xznr_hse(i), 2);
+            g_zone = -C::Gconst * M_enclosed / std::pow(xznr_hse(i), 2);
         } else {
             g_zone = g_const;
         }
@@ -591,7 +603,7 @@ AMREX_INLINE void init_1d()
 
             Real A = p_want - pres_zone;
 
-            Real drho = A / (dpd + 0.5_rt * delx * g_zone);
+            drho = A / (dpd + 0.5_rt * delx * g_zone);
 
             dens_zone = amrex::max(0.9_rt * dens_zone,
                                    amrex::min(dens_zone + drho, 1.1_rt * dens_zone));
@@ -696,6 +708,8 @@ AMREX_INLINE void init_1d()
 
     for (int i = 1; i < nx-1; ++i) {
 
+        Real delx = model_hse(i) - model_hse(i-1);
+        
         // compute the gravitation acceleration at the lower edge
      
         Real g_zone;
