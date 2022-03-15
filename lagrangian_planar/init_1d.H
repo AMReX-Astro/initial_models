@@ -19,6 +19,7 @@
 #include <fundamental_constants.H>
 #include <interpolate.H>
 #include <read_model.H>
+#include <cfmt.H>
 
 using namespace amrex;
 
@@ -324,12 +325,12 @@ AMREX_INLINE void init_1d( ) {
     }
 
     for (int i=0; i<nx; ++i) {
-        file << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
-        file << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
-        file << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
-        file << std::setprecision(12) << std::setw(20) << model_hse(i, model::ipres) << " ";
+        file << std::setprecision(12) << std::setw(20) << cfmt(xzn_hse(i)) << " ";
+        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::idens)) << " ";
+        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::itemp)) << " ";
+        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::ipres)) << " ";
         for (int n=0; n<NumSpec; ++n){
-            file << std::setprecision(12) << std::setw(20) << model_hse(i, model::ispec + n) << " ";
+            file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::ispec + n)) << " ";
         }
         file << std::endl;
     }
