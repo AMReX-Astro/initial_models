@@ -313,11 +313,11 @@ AMREX_INLINE void init_1d( ) {
     std::ofstream file;
     file.open(outfile);
 
-    file << "#npts = " << nx << std::endl;
-    file << "#num of variables =" << 3 + NumSpec << std::endl;
-    file << "#density" << std::endl;
-    file << "#temperature" << std::endl;
-    file << "#pressure" << std::endl;
+    file << "# npts = " << nx << std::endl;
+    file << "# num of variables = " << 3 + NumSpec << std::endl;
+    file << "# density" << std::endl;
+    file << "# temperature" << std::endl;
+    file << "# pressure" << std::endl;
 
     for (int n=0; n<NumSpec; ++n) {
 	    file << "#" << spec_names_cxx[n] << std::endl;		
