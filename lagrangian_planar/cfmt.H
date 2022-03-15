@@ -1,5 +1,5 @@
-#ifndef CFMT_MODULE
-#define CFMT_MODULE
+#ifndef CFMT_MODULE_H
+#define CFMT_MODULE_H
 
 AMREX_INLINE Real cfmt(Real x) {
 
