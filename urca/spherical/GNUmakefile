@@ -1,4 +1,4 @@
-NDEBUG := 
+NDEBUG :=
 MPI    :=
 OMP    :=
 
@@ -6,6 +6,7 @@ COMP := g++
 FCOMP := gfortran
 
 USE_REACT = TRUE
+USE_CXX_EOS = TRUE
 MKVERBOSE := t
 
 SDC    :=
