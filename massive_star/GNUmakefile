@@ -12,6 +12,14 @@ USE_MPI = FALSE
 USE_OMP = FALSE
 
 USE_REACT = TRUE
+USE_CXX_EOS = TRUE
+USE_CXX_REACTIONS = TRUE
+
+USE_FORT_MICROPHYSICS = FALSE
+
+MAX_ZONES := 16384
+
+DEFINES += -DNPTS_MODEL=$(MAX_ZONES)
 
 # programs to be compiled
 EBASE := initialmodel
@@ -22,8 +30,8 @@ EOS_DIR := helmholtz
 NETWORK_DIR := aprox19
 USE_NSE := TRUE
 
-Bpack := ./Make.package ../read_mesa/Make.package
-Blocs := . ../read_mesa
+Bpack := ./Make.package ../Make.package
+Blocs := . ..
 
 EXTERN_SEARCH += . ..
 
