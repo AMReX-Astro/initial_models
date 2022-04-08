@@ -135,6 +135,7 @@ AMREX_INLINE void init_1d() {
     //-----------------------------------------------------------------------------
 
     bool isentropic = true;
+    bool test_hse_convergence = true;
     bool fluff = false;
     int i_conv, i_fluff;
     Real dens_zone;
@@ -327,6 +328,8 @@ AMREX_INLINE void iter_dens_temp(Real dens_zone, Real temp_zone, eos_t eos_state
                           std::string fluff_type, 
                           int i_fluff, int i_conv, int izone){
     
+    Real dtemp, drho;
+
     if (isentropic){
         Real p_want = eos_state_inwards.p + delx*0.5_rt*(dens_zone + eos_state_inwards.rho)*g_zone;
 
@@ -341,22 +344,158 @@ AMREX_INLINE void iter_dens_temp(Real dens_zone, Real temp_zone, eos_t eos_state
         set_urca_composition(eos_state);
 
         // (t, rho) -> (p, s)
-        call eos(eos_input_rt, eos_state);
+        eos(eos_input_rt, eos_state);
 
         Real entropy = eos_state.s;
         Real pres_zone = eos_state.p;
 
-        dpt = eos_state.dpdt;
+        Real dpt = eos_state.dpdt;
+        Real dpd = eos_state.dpdr;
+        Real dst = eos_state.dsdt;
+        Real dsd = eos_state.dsdr;
+
+        Real A = p_want - pres_zone;
+        Real B = eos_state_inwards.s - entropy;
+
+        Real dAdT = -dpt;
+        Real dAdrho = 0.5_rt*delx*g_zone - dpd;
+        Real dBdT = -dst;
+        Real dBdrho = -dsd;
+
+        dtemp = (B - (dBdrho/dAdrho)*A)/ 
+          ((dBdrho/dAdrho)*dAdT - dBdT);
+
+        drho = -(A + dAdT*dtemp)/dAdrho;
+
+        dens_zone = amrex::max((1.0_rt-dtol_fac)*dens_zone,
+            amrex::min(dens_zone + drho, (1.0_rt+dtol_fac)*dens_zone));
+
+        temp_zone = amrex::max((1.0_rt-dtol_fac)*temp_zone, 
+            amrex::min(temp_zone + dtemp, (1.0_rt+dtol_fac)*temp_zone));
+
+        // check if the density falls below our minimum cut-off --
+        // if so, floor it
+
+        if (dens_zone < low_density_cutoff) {
+            i_fluff = izone;
+
+            dens_zone = low_density_cutoff;
+
+            temp_before_fluff = eos_state_inwards.T;
+
+            get_fluff_temperature(temp_zone, temp_fluff, temp_before_fluff, fluff_type);
+
+            converged_hse = true;
+            fluff = true;
+            break;
+        }
+
+        if (dens_zone < dens_conv_zone && isentropic){
+            i_conv = izone;
+            isentropic = false;
+        }
+
+        if (test_hse_convergence){
+            // Check to see if HSE is satisfied to relative tolerance TOL
+
+            // Call EOS again using the new values of dens_zone and temp_zone
+            // to get pres_zone ...
+            eos_state.T     = temp_zone;
+            eos_state.rho   = dens_zone;
+            set_urca_composition(eos_state);
+
+            // (t, rho) -> (p, s)
+            eos(eos_input_rt, eos_state);
+
+            pres_zone = eos_state.p;
+
+            // Compute dpdr
+            dpdr = (pres_zone - eos_state_inwards.p)/delx;
+
+            // Compute rho*g
+            rhog = 0.5_rt*(dens_zone + eos_state_inwards.rho)*g_zone;
+
+            if (std::abs(dpdr - rhog) < TOL*std::abs(dpdr)){
+                converged_hse = true;
+                break;
+            }
+        } else {
+            // Check to see if drho is under the relative tolerance TOL
+            if (abs(drho) < TOL*dens_zone){
+                converged_hse = true;
+                break;
+            }
+        }
+    } else {
+        // do isothermal
+        p_want = eos_state_inwards.p + 
+            delx*0.5_rt*(dens_zone + eos_state_inwards.rho)*g_zone;
+
+        temp_zone = eos_state_inwards.T;
+
+
+        eos_state.T     = temp_zone;
+        eos_state.rho   = dens_zone;
+        set_urca_composition(eos_state);
+
+        // (t, rho) -> (p, s)
+        eos(eos_input_rt, eos_state);
+
+        entropy = eos_state.s;
+        pres_zone = eos_state.p;
+
         dpd = eos_state.dpdr;
-        dst = eos_state.dsdt;
-        dsd = eos_state.dsdr;
 
-        A = p_want - pres_zone;
-        B = eos_state_inwards.s - entropy;
+        drho = (p_want - pres_zone)/(dpd - 0.5_rt*delx*g_zone);
 
-        dAdT = -dpt;
-        dAdrho = 0.5d0*delx*g_zone - dpd;
-        dBdT = -dst;
-        dBdrho = -dsd;
+        dens_zone = amrex::max(0.9_rt*dens_zone,
+            amrex::min(dens_zone + drho, 1.1_rt*dens_zone));
+
+        if (dens_zone < low_density_cutoff) {
+            i_fluff = izone;
+
+            dens_zone = low_density_cutoff;
+
+            temp_before_fluff = eos_state_inwards.T;
+
+            get_fluff_temperature(temp_zone, temp_fluff, 
+                temp_before_fluff, fluff_type);
+
+            converged_hse = true;
+            fluff = true;
+            break;
+        }
+
+        if (test_hse_convergence){
+            // Check to see if HSE is satisfied to relative tolerance TOL
+
+            // Call EOS again using the new values of dens_zone and temp_zone
+            // to get pres_zone ...
+            eos_state.T     = temp_zone;
+            eos_state.rho   = dens_zone;
+            set_urca_composition(eos_state);
+
+            // (t, rho) -> (p, s)
+            eos(eos_input_rt, eos_state);
+
+            pres_zone = eos_state.p;
+
+            // Compute dpdr
+            dpdr = (pres_zone - eos_state_inwards.p)/delx;
+
+            // Compute rho*g
+            rhog = 0.5_rt*(dens_zone + eos_state_inwards.rho)*g_zone;
+
+            if (std::abs(dpdr - rhog) < TOL*std::abs(dpdr)){
+                converged_hse = true;
+                break;
+            }
+        } else {
+            // Check to see if drho is under the relative tolerance TOL
+            if (abs(drho) < TOL*dens_zone){
+                converged_hse = true;
+                break;
+            }
+        }
     }
-    }
+}
