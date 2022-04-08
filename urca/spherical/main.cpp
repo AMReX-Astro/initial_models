@@ -18,21 +18,20 @@
 
 #include <time.h>
 
-#include <microphysics_F.H>
+#include <microphysics.H>
 
-#include <extern_parameters_F.H>
 #include <extern_parameters.H>
 
 #include <fstream>
 
 #include <network.H>
 #include <eos.H>
+#include <init_1d.H>
 
 extern "C"
 {
   void test_jacobian();
   void do_burn();
-  void init_1d();
 }
 
 
