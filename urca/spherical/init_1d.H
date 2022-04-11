@@ -5,11 +5,12 @@
 
 
 #include <sstream>
+#include <network.H>
 
 #include <extern_parameters.H>
 #include <fundamental_constants.H>
 
-#include <model_util.H>
+//#include <model_util.H>
 
 using namespace amrex;
 
@@ -65,8 +66,35 @@ AMREX_INLINE void init_1d() {
     int ina23 = network_spec_index("sodium-23");
     int img23 = network_spec_index("magnesium-23");
 
-    if (ihe4 < 0 || ic12 < 0 || io16 < 0) {
+    if (ihe4 < 0 || ic12 < 0 || io16 < 0 || ine20 < 0 ||
+        ine23 < 0 || ina23 < 0 || img23 < 0) {
         amrex::Error("ERROR: species not defined");
+    }
+
+    // check the species mass fractions
+    if (c12_in < 0.0_rt || c12_in > 1.0_rt) {
+       amrex_error("ERROR: c12_in must be between 0 and 1");
+
+    } else if (c12_out < 0.0_rt || c12_out > 1.0_rt) {
+       amrex_error("ERROR: c12_out must be between 0 and 1");
+
+    } else if (o16_in < 0.0_rt || o16_in > 1.0_rt) {
+       amrex_error("ERROR: o16_in must be between 0 and 1");
+
+    } else if (o16_out < 0.0_rt || o16_out > 1.0_rt) {
+       amrex_error("ERROR: o16_out must be between 0 and 1");
+
+    } else if (ne23_in < 0.0_rt || ne23_in > 1.0_rt) {
+       amrex_error("ERROR: ne23_in must be between 0 and 1");
+
+    } else if (ne23_out < 0.0_rt || ne23_out > 1.0_rt) {
+       amrex_error("ERROR: ne23_out must be between 0 and 1");
+
+    } else if (na23_in < 0.0_rt || na23_in > 1.0_rt) {
+       amrex_error("ERROR: na23_in must be between 0 and 1");
+
+    } else if (na23_out < 0.0_rt || na23_out > 1.0_rt) {
+       amrex_error("ERROR: na23_out must be between 0 and 1");
     }
 
     //Initialize the temperature interior to fluff
@@ -78,9 +106,6 @@ AMREX_INLINE void init_1d() {
     //use_eos_coulomb comes in from extern_probin_module -- override
     //here if desired
     bool use_eos_coulomb = true;
-
-    // Initialize the composition module
-    init_urca_composition();
 
     //-----------------------------------------------------------------------------
     // Create a 1-d uniform grid that is identical to the mesh that we are
@@ -322,7 +347,7 @@ AMREX_INLINE void get_fluff_temperature(Real temp, Real temp_fluff, Real temp_pr
 }
 
 
-AMREX_INLINE void iter_dens_temp(Real dens_zone, Real temp_zone, eos_t eos_state_inwards, 
+AMREX_INLINE void iter_dens_temp(Real dens_zone, Real temp_zone, eos_t& eos_state_inwards, 
                           Real g_zone, Real delx, Real tol, Real dtol_fac, Real dens_conv_zone, low_density_cutoff, temp_fluff, 
                           bool isentropic, bool test_hse_convergence, bool converged_hse, bool fluff, 
                           std::string fluff_type, 
@@ -498,4 +523,34 @@ AMREX_INLINE void iter_dens_temp(Real dens_zone, Real temp_zone, eos_t eos_state
             }
         }
     }
+}
+
+AMREX_INLINE void set_urca_composition(eos_t& eos_state) {
+    
+    // Construct composition profiles
+    composition_equilibrium(eos_state);
+    
+    // Floor species so abundances below 1E-30 are 0.0d0
+    floor_species(eos_state);
+
+    // Renormalize species
+    renormalize_species(eos_state);
+
+}
+
+AMREX_INLINE void composition_equilibrium(eos_t& eos_state){
+    // get the species indices
+    int ic12  = network_species_index("carbon-12");
+    int io16  = network_species_index("oxygen-16");
+    int ine23 = network_species_index("neon-23");
+    int ina23 = network_species_index("sodium-23");
+
+    // Initialize mass fractions given "in" values
+    eos_state.xn[:]    = 0.0d0
+    eos_state.xn[ic12] = c12_in
+    eos_state.xn[io16] = o16_in
+    eos_state.xn[ine23] = 0.5_rt * na_ne_23
+    eos_state.xn[ina23] = 0.5_rt * na_ne_23
+
+
 }
