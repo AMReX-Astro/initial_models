@@ -4,6 +4,7 @@
 #include <AMReX_Array.H>
 
 
+#include <cmath>
 #include <sstream>
 #include <network.H>
 
@@ -56,7 +57,7 @@ AMREX_INLINE void init_1d() {
 
     cont Real M_sun = 1.9891e33 rt;
 
-    //! we'll get the composition indices from the network module
+    // we'll get the composition indices from the network module
     int ihe4 = network_spec_index("helium-4");
     int ic12 = network_spec_index("carbon-12");
     int io16 = network_spec_index("oxygen-16");
@@ -73,28 +74,28 @@ AMREX_INLINE void init_1d() {
 
     // check the species mass fractions
     if (c12_in < 0.0_rt || c12_in > 1.0_rt) {
-       amrex_error("ERROR: c12_in must be between 0 and 1");
+       amrex::Error("ERROR: c12_in must be between 0 and 1");
 
     } else if (c12_out < 0.0_rt || c12_out > 1.0_rt) {
-       amrex_error("ERROR: c12_out must be between 0 and 1");
+       amrex::Error("ERROR: c12_out must be between 0 and 1");
 
     } else if (o16_in < 0.0_rt || o16_in > 1.0_rt) {
-       amrex_error("ERROR: o16_in must be between 0 and 1");
+       amrex::Error("ERROR: o16_in must be between 0 and 1");
 
     } else if (o16_out < 0.0_rt || o16_out > 1.0_rt) {
-       amrex_error("ERROR: o16_out must be between 0 and 1");
+       amrex::Error("ERROR: o16_out must be between 0 and 1");
 
     } else if (ne23_in < 0.0_rt || ne23_in > 1.0_rt) {
-       amrex_error("ERROR: ne23_in must be between 0 and 1");
+       amrex::Error("ERROR: ne23_in must be between 0 and 1");
 
     } else if (ne23_out < 0.0_rt || ne23_out > 1.0_rt) {
-       amrex_error("ERROR: ne23_out must be between 0 and 1");
+       amrex::Error("ERROR: ne23_out must be between 0 and 1");
 
     } else if (na23_in < 0.0_rt || na23_in > 1.0_rt) {
-       amrex_error("ERROR: na23_in must be between 0 and 1");
+       amrex::Error("ERROR: na23_in must be between 0 and 1");
 
     } else if (na23_out < 0.0_rt || na23_out > 1.0_rt) {
-       amrex_error("ERROR: na23_out must be between 0 and 1");
+       amrex::Error("ERROR: na23_out must be between 0 and 1");
     }
 
     //Initialize the temperature interior to fluff
@@ -331,7 +332,7 @@ AMREX_INLINE void init_1d() {
 }
 
 
-AMREX_INLINE void get_fluff_temperature(Real temp, Real temp_fluff, Real temp_previous, std::string fluff_type){
+AMREX_INLINE void get_fluff_temperature(Real& temp, Real temp_fluff, Real temp_previous, std::string fluff_type){
     // There are 2 kinds of fluff temperature handling:
     // 1) fluff_type = "constant"   : fluff is at the temperature temp_fluff in the inputs
     // 2) fluff_type = "continuous" : fluff is at the same temperature as the material
@@ -342,16 +343,16 @@ AMREX_INLINE void get_fluff_temperature(Real temp, Real temp_fluff, Real temp_pr
     } else if (fluff_type == "continuous") {
         temp = temp_previous;
     } else {
-        call amrex_error("ERROR: invalid fluff_type");
+        amrex::Error("ERROR: invalid fluff_type");
     }
 }
 
 
-AMREX_INLINE void iter_dens_temp(Real dens_zone, Real temp_zone, eos_t& eos_state_inwards, 
-                          Real g_zone, Real delx, Real tol, Real dtol_fac, Real dens_conv_zone, low_density_cutoff, temp_fluff, 
-                          bool isentropic, bool test_hse_convergence, bool converged_hse, bool fluff, 
+AMREX_INLINE void iter_dens_temp(Real& dens_zone, Real& temp_zone, eos_t& eos_state_inwards, 
+                          Real g_zone, Real delx, Real tol, Real dtol_fac, Real dens_conv_zone, Real low_density_cutoff, Real temp_fluff, 
+                          bool& isentropic, bool test_hse_convergence, bool& converged_hse, bool fluff, 
                           std::string fluff_type, 
-                          int i_fluff, int i_conv, int izone){
+                          int& i_fluff, int& i_conv, int izone){
     
     Real dtemp, drho;
 
@@ -539,6 +540,10 @@ AMREX_INLINE void set_urca_composition(eos_t& eos_state) {
 }
 
 AMREX_INLINE void composition_equilibrium(eos_t& eos_state){
+    burn_t burn_state;
+    rate_eval_t rate_eval;
+    Real fopt;
+
     // get the species indices
     int ic12  = network_species_index("carbon-12");
     int io16  = network_species_index("oxygen-16");
@@ -546,11 +551,97 @@ AMREX_INLINE void composition_equilibrium(eos_t& eos_state){
     int ina23 = network_species_index("sodium-23");
 
     // Initialize mass fractions given "in" values
-    eos_state.xn[:]    = 0.0d0
-    eos_state.xn[ic12] = c12_in
-    eos_state.xn[io16] = o16_in
-    eos_state.xn[ine23] = 0.5_rt * na_ne_23
-    eos_state.xn[ina23] = 0.5_rt * na_ne_23
+    eos_state.xn[:]    = 0.0_rt;
+    eos_state.xn[ic12] = c12_in;
+    eos_state.xn[io16] = o16_in;
+    eos_state.xn[ine23] = 0.5_rt * na_ne_23;
+    eos_state.xn[ina23] = 0.5_rt * na_ne_23;
 
+    // Estimate the mass fractions approximating the rates as
+    // independent of ye.
+    composition(eos_state);
+    eos_to_burn(eos_state, burn_state);
+    evaluate_rates(burn_state, rate_eval);
 
+    Real r_ecap = rate_eval.screened_rates(k_na23__ne23);
+    Real r_beta = rate_eval.screened_rates(k_ne23__na23);
+
+    eos_state.xn(ine23) = na_ne_23/(1.0_rt + r_beta/r_ecap);
+    eos_state.xn(ina23) = na_ne_23 - eos_state.xn(ine23);
+
+    //Keep the mass fraction sum X(ne23) + X(na23) = na_ne_23
+    // Find the A=23 mass fractions such that A=23 Urca rates are in equilibrium
+    // Do Newton iterations approximating the rates as independent of mass fraction
+    fopt_urca_23(eos_state, fopt, r_ecap, r_beta);
+
+    Real rate_equilibrium_tol = 1.0e-10;
+    int max_equilibrium_iters = 10000;
+    int j=1;
+    do while (std::abs(fopt) > rate_equilibrium_tol && j < max_equilibrium_iters) {
+        Real dx = -1.0_rt * fopt/(r_ecap + r_beta);
+        if (fopt > 0.0_rt) {
+            eos_state.xn(ina23) = eos_state.xn(ina23) + dx;
+            eos_state.xn(ine23) = na_ne_23 - eos_state.xn(ina23);
+            fopt_urca_23(eos_state, fopt, r_ecap, r_beta);
+        } else {
+            eos_state.xn(ine23) = eos_state.xn(ine23) - dx;
+            eos_state.xn(ina23) = na_ne_23 - eos_state.xn(ine23);
+            fopt_urca_23(eos_state, fopt, r_ecap, r_beta);
+        }
+        j++;
+    }
+
+    if (j == max_equilibrium_iters) {
+        amrex::Error("species iteration did not converge!");
+    }
 }
+
+AMREX_INLINE void fopt_urca_23(eos_t& eos_state, Real& fopt, Real& r_ecap, Real& r_beta){
+    burn_t burn_state;
+    rate_eval_t rate_eval;
+    
+    int ine23 = network_species_index("neon-23");
+    int ina23 = network_species_index("sodium-23");
+    
+    composition(eos_state);
+    eos_to_burn(eos_state, burn_state);
+    evaluate_rates(burn_state, rate_eval);
+
+    r_ecap = rate_eval.screened_rates(k_na23__ne23);
+    r_beta = rate_eval.screened_rates(k_ne23__na23);
+
+    // calculate e-capture and beta decay rates are in equilibrium
+    Real xr_ecap = burn_state.xn(ina23) * r_ecap;
+    Real xr_beta = burn_state.xn(ine23) * r_beta;
+
+    fopt = xr_ecap - xr_beta;
+}
+
+AMREX_INLINE void floor_species(eos_t& eos_state) {
+    // Species mass fractions below 1E-30 should just be 0.0
+    // This prevents getting abundances of ~1E-100. Note that
+    // the initial model writing omits the "E" in the exponent
+    // if the exponent requires 3 digits.
+
+    Real mass_fraction_floor = 1.0e-30;
+
+    for (int i=0; i < NumSpec; ++i) {
+        if (eos_state.xn(i) < mass_fraction_floor){
+            eos_state.xn(i) = 0.0_rt;
+        }
+    }
+}
+
+AMREX_INLINE void renormalize_species(eos_t& eos_state) {
+    // Renormalize the mass fractions so they sum to 1
+    Real sumx=0.0_rt;
+    for (int i=0; i < NumSpec; ++i){
+        sumx += eos_state.xn[i];
+    }
+
+    for (int i=0; i < NumSpec; ++i){
+        eos_state.xn[i] = eos_state.xn[i]/sumx;
+    }
+    
+}
+#endif
