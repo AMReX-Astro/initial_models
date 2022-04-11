@@ -73,14 +73,6 @@ main (int   argc,
 
   init_extern_parameters();
 
-  update_fortran_extern_after_cxx();
-
-
-  // initialize Fortran Microphysics
-
-  microphysics_initialize(small_temp, small_dens);
-
-
   // initialize C++ Microphysics
 
   eos_init(small_temp, small_dens);
