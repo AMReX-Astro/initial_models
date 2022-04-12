@@ -17,6 +17,8 @@ M_conv_zone real    2.0
 low_density_cutoff real 1.e-4
 temp_fluff  real      1.e7
 
+fluff_type character "continuous"
+
 c12_in    real      0.0
 c12_out   real      0.0
 o16_in    real      0.0
@@ -28,5 +30,4 @@ na23_out  real      0.0
 na_ne_23  real      0.0
 
 urca_23_dens real   1.66e9
-urca_shell_type character "equilibrium"
 prefix      character  "spherical"

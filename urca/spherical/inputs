@@ -23,6 +23,4 @@ problem.na23_out = 2.00000e-4
 problem.na_ne_23 = 7.00000e-4
 problem.urca_23_dens = 1.66e9
 
-problem.urca_shell_type = "equilibrium"
-
 problem.prefix = "WD_urca_nuc_M-0.5_hot"
