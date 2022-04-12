@@ -18,22 +18,14 @@
 
 #include <time.h>
 
-#include <microphysics.H>
-
 #include <extern_parameters.H>
 
 #include <fstream>
 
 #include <network.H>
 #include <eos.H>
+
 #include <init_1d.H>
-
-extern "C"
-{
-  void test_jacobian();
-  void do_burn();
-}
-
 
 std::string inputs_name = "";
 
@@ -60,16 +52,6 @@ main (int   argc,
 
   // we use a single file name for the extern name list and
   // the name list used by the initialization
-
-  const int inputs_file_length = inputs_name.length();
-  amrex::Vector<int> inputs_file_name(inputs_file_length);
-  // initialize the runtime parameters
-
-  for (int i = 0; i < inputs_file_length; i++) {
-    inputs_file_name[i] = inputs_name[i];
-  }
-
-  runtime_init(inputs_file_name.dataPtr(), &inputs_file_length);
 
   init_extern_parameters();
 
