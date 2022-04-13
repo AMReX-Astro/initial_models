@@ -1,6 +1,6 @@
-problem.model_file = IC_325Lsun_0.18_C_frac_profile_9
+problem.model_file = xrb_new.raw
 
-problem.model_prefix = IC_325Lsun_0.18_C
+problem.model_prefix = xrb_new
 
 problem.nx = 1536
 
@@ -11,7 +11,7 @@ problem.model_shift = 1.e6
 problem.xmin = 0.0
 problem.xmax = 9216.0
 
-problem.g_const = -1.86e14
+problem.g_const = -2.4679e14
 
 problem.low_density_cutoff = 1.e-4
 
