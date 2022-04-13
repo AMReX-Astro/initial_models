@@ -27,6 +27,48 @@ constexpr Real TOL = 1.e-10_rt;
 
 constexpr int MAX_ITER = 250;
 
+
+AMREX_INLINE void
+write_model(std::string model_name,
+            const Array1D<Real, 0, NPTS_MODEL-1>& xzn_hse,
+            const Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1>& model_hse) {
+
+    // Write the file
+
+    std::stringstream ss;
+    ss << nx;
+    std::string num_to_str = ss.str();
+
+    std::string outfile = model_prefix + num_to_str + "." + model_name;
+
+    std::ofstream file;
+    file.open(outfile);
+
+    file << "# npts = " << nx << std::endl;
+    file << "# num of variables = " << 3 + NumSpec << std::endl;
+    file << "# density" << std::endl;
+    file << "# temperature" << std::endl;
+    file << "# pressure" << std::endl;
+
+    for (int n=0; n<NumSpec; ++n) {
+        file << "#" << spec_names_cxx[n] << std::endl;
+    }
+
+    for (int i=0; i<nx; ++i) {
+        file << std::setprecision(12) << std::setw(20) << cfmt(xzn_hse(i)) << " ";
+        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::idens)) << " ";
+        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::itemp)) << " ";
+        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::ipres)) << " ";
+        for (int n=0; n<NumSpec; ++n){
+            file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::ispec + n)) << " ";
+        }
+        file << std::endl;
+    }
+
+    file.close();
+}
+
+
 AMREX_INLINE void init_1d( ) {
 
     //Creates the type initial_model_t, parse it into read_model
@@ -41,7 +83,7 @@ AMREX_INLINE void init_1d( ) {
         lagrangian_planar.r(i) -= model_shift;
     }
 
-    //Create a new uniform grid with nx cells.
+    // Create a new uniform grid with nx cells.
 
     if (nx > NPTS_MODEL) {
         Error("too many zones requested -- increase NPTS_MODEL");
@@ -66,7 +108,7 @@ AMREX_INLINE void init_1d( ) {
         for (int n = 0; n < model::nvar; ++n) {
 
             if (n == model::itemp) {
-                model_hse(i,n) = amrex::max(temp_cutoff, interpolate(xzn_hse(i), n, lagrangian_planar));
+                model_hse(i,n) = amrex::max(temp_cutoff, interpolate(xzn_hse(i), n, lagrangian_planar, true));
             } else {
                 model_hse(i,n) = interpolate(xzn_hse(i), n,  lagrangian_planar);
             }
@@ -89,8 +131,10 @@ AMREX_INLINE void init_1d( ) {
         model_hse(i, model::ipres) = eos_state.p;
     }
 
-    //Once, the thermodynamical consistent pressure variable is
-    //defined in our model, we pick the biggest T, r[i] state.
+    write_model("uniform", xzn_hse, model_hse);
+
+    // Once, the thermodynamical consistent pressure variable is
+    // defined in our model, we pick the biggest T, r[i] state.
 
     int index_base = -1;
     Real max_T = -1.0_rt;
@@ -137,20 +181,20 @@ AMREX_INLINE void init_1d( ) {
     Real pwant;
     Real drho;
 
-    //Integrating Up
+    // Integrating Up
     for (int i = index_base+1; i < nx; ++i) {
 
         delx = xzn_hse(i) - xzn_hse(i-1);
 
-        //Compute the gravitational acceleration
+        // Compute the gravitational acceleration
         if (do_invsq_grav == 1) {
             g_zone = -C::Gconst*M_enclosed/std::pow(xznl_hse(i), 2);
         } else {
             g_zone = g_const;
         }
 
-        //Now, we have to setup our initial guess of rho, T, and
-        //composition variables, for each i-cell.
+        // Now, we have to setup our initial guess of rho, T, and
+        // composition variables, for each i-cell.
 
         dens_zone = model_hse(i, model::idens);
         temp_zone = amrex::max(temp_cutoff, model_hse(i, model::itemp));
@@ -159,8 +203,9 @@ AMREX_INLINE void init_1d( ) {
             xn[n] = model_hse(i, model::ispec+n);
         }
 
-        //Now, for each i-index point we force the thermodynamical variables
-        //to enter in HSE
+        // Now, for each i-index point we force the thermodynamical variables
+        // to enter in HSE
+
         converged_hse = false;
 
         for (int iter=0; iter < MAX_ITER; ++iter) {
@@ -184,12 +229,12 @@ AMREX_INLINE void init_1d( ) {
             dens_zone = amrex::max(0.9_rt*dens_zone,
                     amrex::min(dens_zone+drho, 1.1_rt*dens_zone));
 
-            if(std::abs(drho)<TOL*dens_zone) {
+            if (std::abs(drho) < TOL*dens_zone) {
                 converged_hse = true;
                 break;
             }
 
-            if(dens_zone < low_density_cutoff) {
+            if (dens_zone < low_density_cutoff) {
                 dens_zone = low_density_cutoff;
                 temp_zone = temp_cutoff;
                 converged_hse = true;
@@ -303,39 +348,8 @@ AMREX_INLINE void init_1d( ) {
         model_hse(i, model::ipres) = pres_zone;
     }
 
-    //Write the file
 
-    std::stringstream ss;
-    ss << nx;
-    std::string num_to_str = ss.str();
-
-    std::string outfile = "model_hse" + num_to_str;
-
-    std::ofstream file;
-    file.open(outfile);
-
-    file << "# npts = " << nx << std::endl;
-    file << "# num of variables = " << 3 + NumSpec << std::endl;
-    file << "# density" << std::endl;
-    file << "# temperature" << std::endl;
-    file << "# pressure" << std::endl;
-
-    for (int n=0; n<NumSpec; ++n) {
-        file << "#" << spec_names_cxx[n] << std::endl;
-    }
-
-    for (int i=0; i<nx; ++i) {
-        file << std::setprecision(12) << std::setw(20) << cfmt(xzn_hse(i)) << " ";
-        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::idens)) << " ";
-        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::itemp)) << " ";
-        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::ipres)) << " ";
-        for (int n=0; n<NumSpec; ++n){
-            file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::ispec + n)) << " ";
-        }
-        file << std::endl;
-    }
-
-    file.close();
+    write_model("hse", xzn_hse, model_hse);
 
     Real max_hse_error = -1.e30_rt;
     Real rhog;

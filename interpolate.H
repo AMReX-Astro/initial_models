@@ -39,7 +39,7 @@ locate(const Real r, const initial_model_t& initial_model) {
 
 AMREX_INLINE AMREX_GPU_HOST_DEVICE
 Real
-interpolate(const Real r, const int var_index, const initial_model_t& initial_model) {
+interpolate(const Real r, const int var_index, const initial_model_t& initial_model, const bool extrapolate_top = false) {
 
     // find the value of model_state component var_index at point r
     // using linear interpolation.  Eventually, we can do something
@@ -51,6 +51,8 @@ interpolate(const Real r, const int var_index, const initial_model_t& initial_mo
     Real interp;
 
     if (id == 0) {
+
+        // base of the model
 
        slope = (initial_model.state(id+1, var_index) - initial_model.state(id, var_index)) /
            (initial_model.r(id+1) - initial_model.r(id));
@@ -67,18 +69,23 @@ interpolate(const Real r, const int var_index, const initial_model_t& initial_mo
 
     } else if (id == initial_model.npts-1) {
 
+        // top of the model
+
        slope = (initial_model.state(id, var_index) - initial_model.state(id-1, var_index)) /
            (initial_model.r(id) - initial_model.r(id-1));
        interp = slope * (r - initial_model.r(id)) + initial_model.state(id, var_index);
 
-       // safety check to make sure interp lies within the bounding points
+       // safety check to make sure interp lies within the bounding points -- only do this
+       // if !extrapolate_top
 
-       Real minvar = amrex::min(initial_model.state(id-1, var_index),
-                                initial_model.state(id, var_index));
-       Real maxvar = amrex::max(initial_model.state(id-1, var_index),
-                                initial_model.state(id, var_index));
-       interp = amrex::max(interp, minvar);
-       interp = amrex::min(interp, maxvar);
+       if (! extrapolate_top) {
+           Real minvar = amrex::min(initial_model.state(id-1, var_index),
+                                    initial_model.state(id, var_index));
+           Real maxvar = amrex::max(initial_model.state(id-1, var_index),
+                                    initial_model.state(id, var_index));
+           interp = amrex::max(interp, minvar);
+           interp = amrex::min(interp, maxvar);
+       }
 
     } else {
 
