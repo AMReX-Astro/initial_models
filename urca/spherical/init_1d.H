@@ -19,7 +19,7 @@
 using namespace amrex;
 
 
-constexpr Real TOL = 1.e-11;
+constexpr Real TOL = 1.e-11_rt;
 
 constexpr int MAX_ITER = 1000000;
 constexpr int MAX_RETRY = 50;
@@ -135,7 +135,6 @@ AMREX_INLINE void composition_equilibrium(eos_t& eos_state){
 }
 
 AMREX_INLINE void set_urca_composition(eos_t& eos_state) {
-    
     // Construct composition profiles
     composition_equilibrium(eos_state);
     
@@ -148,7 +147,7 @@ AMREX_INLINE void set_urca_composition(eos_t& eos_state) {
 }
 
 
-AMREX_INLINE void get_fluff_temperature(Real& temp, Real temp_fluff, Real temp_previous, std::string fluff_type){
+AMREX_INLINE void get_fluff_temperature(Real& temp, Real temp_previous){
     // There are 2 kinds of fluff temperature handling:
     // 1) fluff_type = "constant"   : fluff is at the temperature temp_fluff in the inputs
     // 2) fluff_type = "continuous" : fluff is at the same temperature as the material
@@ -165,12 +164,11 @@ AMREX_INLINE void get_fluff_temperature(Real& temp, Real temp_fluff, Real temp_p
 
 
 AMREX_INLINE void iter_dens_temp(Real& dens_zone, Real& temp_zone, eos_t& eos_state_inwards, 
-                          Real g_zone, Real delx, Real tol, Real dtol_fac, Real dens_conv_zone, Real low_density_cutoff, Real temp_fluff, 
-                          bool& isentropic, bool test_hse_convergence, bool& converged_hse, bool fluff, 
-                          std::string fluff_type, 
+                          Real g_zone, Real delx, Real tol, Real dtol_fac,  
+                          bool& isentropic, bool test_hse_convergence, bool& converged_hse, bool fluff,
                           int& i_fluff, int& i_conv, int izone){
     
-    Real dtemp, drho,dpd;
+    Real dtemp, drho, dpd;
     eos_t eos_state;
 
     if (isentropic){
@@ -193,7 +191,7 @@ AMREX_INLINE void iter_dens_temp(Real& dens_zone, Real& temp_zone, eos_t& eos_st
         Real pres_zone = eos_state.p;
 
         Real dpt = eos_state.dpdT;
-        Real dpd = eos_state.dpdr;
+        dpd = eos_state.dpdr;
         Real dst = eos_state.dsdT;
         Real dsd = eos_state.dsdr;
 
@@ -226,7 +224,7 @@ AMREX_INLINE void iter_dens_temp(Real& dens_zone, Real& temp_zone, eos_t& eos_st
 
             Real temp_before_fluff = eos_state_inwards.T;
 
-            get_fluff_temperature(temp_zone, temp_fluff, temp_before_fluff, fluff_type);
+            get_fluff_temperature(temp_zone, temp_before_fluff);
 
             converged_hse = true;
             fluff = true;
@@ -258,13 +256,13 @@ AMREX_INLINE void iter_dens_temp(Real& dens_zone, Real& temp_zone, eos_t& eos_st
             // Compute rho*g
             Real rhog = 0.5_rt*(dens_zone + eos_state_inwards.rho)*g_zone;
 
-            if (std::abs(dpdr - rhog) < TOL*std::abs(dpdr)){
+            if (std::abs(dpdr - rhog) < tol*std::abs(dpdr)){
                 converged_hse = true;
                 return;
             }
         } else {
             // Check to see if drho is under the relative tolerance TOL
-            if (abs(drho) < TOL*dens_zone){
+            if (std::abs(drho) < tol*dens_zone){
                 converged_hse = true;
                 return;
             }
@@ -284,7 +282,6 @@ AMREX_INLINE void iter_dens_temp(Real& dens_zone, Real& temp_zone, eos_t& eos_st
         // (t, rho) -> (p, s)
         eos(eos_input_rt, eos_state);
 
-        Real entropy = eos_state.s;
         Real pres_zone = eos_state.p;
 
         dpd = eos_state.dpdr;
@@ -301,8 +298,7 @@ AMREX_INLINE void iter_dens_temp(Real& dens_zone, Real& temp_zone, eos_t& eos_st
 
             Real temp_before_fluff = eos_state_inwards.T;
 
-            get_fluff_temperature(temp_zone, temp_fluff, 
-                temp_before_fluff, fluff_type);
+            get_fluff_temperature(temp_zone, temp_before_fluff);
 
             converged_hse = true;
             fluff = true;
@@ -329,13 +325,13 @@ AMREX_INLINE void iter_dens_temp(Real& dens_zone, Real& temp_zone, eos_t& eos_st
             // Compute rho*g
             Real rhog = 0.5_rt*(dens_zone + eos_state_inwards.rho)*g_zone;
 
-            if (std::abs(dpdr - rhog) < TOL*std::abs(dpdr)){
+            if (std::abs(dpdr - rhog) < tol*std::abs(dpdr)){
                 converged_hse = true;
                 return;
             }
         } else {
             // Check to see if drho is under the relative tolerance TOL
-            if (abs(drho) < TOL*dens_zone){
+            if (std::abs(drho) < tol*dens_zone){
                 converged_hse = true;
                 return;
             }
@@ -344,8 +340,7 @@ AMREX_INLINE void iter_dens_temp(Real& dens_zone, Real& temp_zone, eos_t& eos_st
 }
 
 
-// generate an initial model for an arbitrary-mass, isothermal C WD
-// with an isentropic He envelope on the surface.
+// generate an initial model 
 
 AMREX_INLINE void init_1d() {
 
@@ -365,7 +360,7 @@ AMREX_INLINE void init_1d() {
     // possibly temperature).  TOL_HSE should be very small (~
     // 1.e-10).
 
-    const Real TOL_HSE = 1.e-10_rt;
+    //const Real TOL_HSE = 1.e-10_rt;
     const Real dtol_fac = 0.000001_rt;
 
     if (nx > NPTS_MODEL) {
@@ -380,7 +375,6 @@ AMREX_INLINE void init_1d() {
 
     Array1D<Real, 0, NPTS_MODEL-1> M_enclosed;
     Array1D<Real, 0, NPTS_MODEL-1> entropy_want;    
-    Array1D<Real, 0, NPTS_MODEL-1> entropy_store;
 
     const Real M_sun = 1.9891e33_rt;
 
@@ -403,26 +397,11 @@ AMREX_INLINE void init_1d() {
     if (c12_in < 0.0_rt || c12_in > 1.0_rt) {
        amrex::Error("ERROR: c12_in must be between 0 and 1");
 
-    } else if (c12_out < 0.0_rt || c12_out > 1.0_rt) {
-       amrex::Error("ERROR: c12_out must be between 0 and 1");
-
     } else if (o16_in < 0.0_rt || o16_in > 1.0_rt) {
        amrex::Error("ERROR: o16_in must be between 0 and 1");
 
-    } else if (o16_out < 0.0_rt || o16_out > 1.0_rt) {
-       amrex::Error("ERROR: o16_out must be between 0 and 1");
-
-    } else if (ne23_in < 0.0_rt || ne23_in > 1.0_rt) {
-       amrex::Error("ERROR: ne23_in must be between 0 and 1");
-
-    } else if (ne23_out < 0.0_rt || ne23_out > 1.0_rt) {
-       amrex::Error("ERROR: ne23_out must be between 0 and 1");
-
-    } else if (na23_in < 0.0_rt || na23_in > 1.0_rt) {
-       amrex::Error("ERROR: na23_in must be between 0 and 1");
-
-    } else if (na23_out < 0.0_rt || na23_out > 1.0_rt) {
-       amrex::Error("ERROR: na23_out must be between 0 and 1");
+    } else if (na_ne_23 < 0.0_rt || na_ne_23 > 1.0_rt) {
+       amrex::Error("ERROR: na_ne_23 must be between 0 and 1");
     }
 
     //Initialize the temperature interior to fluff
@@ -433,7 +412,10 @@ AMREX_INLINE void init_1d() {
 
     //use_eos_coulomb comes in from extern_probin_module -- override
     //here if desired
-    bool use_eos_coulomb = true;
+    use_eos_coulomb = true;
+
+    // init reaction stuff
+    actual_rhs_init();
 
     //-----------------------------------------------------------------------------
     // Create a 1-d uniform grid that is identical to the mesh that we are
@@ -457,9 +439,8 @@ AMREX_INLINE void init_1d() {
     eos_state.T = temp_base;
     eos_state.rho = dens_base;
     set_urca_composition(eos_state);
-
+    
     // (t, rho) -> (p, s)
-
     eos(eos_input_rt, eos_state);
 
     // make the initial guess be completely uniform
@@ -473,6 +454,33 @@ AMREX_INLINE void init_1d() {
             model_hse(i,ispec+n) = eos_state.xn[n];
         }
     }
+
+    // print out inital uniform model
+    std::ofstream init_of;
+    init_of.open("initial_model.out");
+
+    init_of << "# npts = " << nx << std::endl;
+    init_of << "# num init_of variables = " << nvar << std::endl;
+    init_of << "# density" << std::endl;
+    init_of << "# temperature" << std::endl;
+    init_of << "# pressure" << std::endl;
+
+    for (int n = 0; n < NumSpec; ++n) {
+        init_of << "# " << spec_names_cxx[n] << std::endl;
+    }
+
+    for (int i = 0; i < nx; ++i) {
+        init_of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
+        init_of << std::setprecision(12) << std::setw(20) << model_hse(i, idens) << " ";
+        init_of << std::setprecision(12) << std::setw(20) << model_hse(i, itemp) << " ";
+        init_of << std::setprecision(12) << std::setw(20) << model_hse(i, ipres) << " ";
+        for (int n = 0; n < NumSpec; ++n) {
+            init_of << std::setprecision(12) << std::setw(20) << model_hse(i, ispec+n) << " ";
+        }
+        init_of << std::endl;
+    }
+
+    init_of.close();
 
     for (int i = 0; i < nx; ++i) {
            entropy_want(i) = eos_state.s;
@@ -518,10 +526,7 @@ AMREX_INLINE void init_1d() {
 
         // start off the Newton loop by saying that the zone has not converged
         bool converged_hse = false;
-        //not sure about theses
-        Real p_want;
-        Real drho;
-        Real dtemp; 
+
         Real dpd;
         if (! fluff) {
 
@@ -531,9 +536,8 @@ AMREX_INLINE void init_1d() {
 
                 for (int iter = 0; iter < MAX_ITER; ++iter) {
                     iter_dens_temp(dens_zone, temp_zone, eos_state, 
-                                  g_zone, delx, TOL, dtol_fac, dens_conv_zone, low_density_cutoff, temp_fluff, 
-                                  isentropic, test_hse_convergence, converged_hse, fluff, 
-                                  fluff_type, 
+                                  g_zone, delx, try_tol, dtol_fac, 
+                                  isentropic, test_hse_convergence, converged_hse, fluff,
                                   i_fluff, i_conv, i);
                     if (converged_hse) {
                         break;
@@ -548,13 +552,13 @@ AMREX_INLINE void init_1d() {
 
             if (temp_zone < temp_fluff){
                 if ( fluff_type == "constant"){
-                    get_fluff_temperature(temp_zone, temp_fluff, temp_before_fluff, fluff_type);
+                    get_fluff_temperature(temp_zone, temp_before_fluff);
                 }
                 isentropic = false;
             }   
         } else {
         dens_zone = low_density_cutoff;
-        get_fluff_temperature(temp_zone, temp_fluff, temp_before_fluff, fluff_type);
+        get_fluff_temperature(temp_zone, temp_before_fluff);
 
         }
 
@@ -651,7 +655,7 @@ AMREX_INLINE void init_1d() {
     std::cout << "maximum HSE error = " << max_hse_error << std::endl;
     std::cout << std::endl;
 
-    std::cout << "total mass (Msun) = " << M_enclosed(i_fluff)/M_sun;
+    std::cout << "total mass (Msun) = " << M_enclosed(i_fluff)/M_sun << std::endl;
     std::cout << "convective zone mass (Msun) = " << M_enclosed(i_conv)/M_sun << std::endl;
     std::cout << "convective zone boundary density (g/cm^3) = " << model_hse(i_conv, idens) << std::endl;
     std::cout << "convective zone boundary radius (cm) = " << xzn_hse(i_conv) << std::endl;

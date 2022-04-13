@@ -1,6 +1,6 @@
 problem.nx = 640
 problem.dens_base = 4.5e9
-problem.temp_base = 3.0e8
+problem.temp_base = 5.5e8
 
 problem.dens_conv_zone = -1.0
 
@@ -12,13 +12,7 @@ problem.xmax = 5.12e8
 
 
 problem.c12_in   = 0.39975e0
-problem.c12_out  = 0.49990e0
 problem.o16_in   = 0.59975e0
-problem.o16_out  = 0.49990e0
-problem.ne23_in  = 5.00000e-4
-problem.ne23_out = 0.00000e0
-problem.na23_in  = 0.00000e0
-problem.na23_out = 2.00000e-4
 
 problem.na_ne_23 = 7.00000e-4
 problem.urca_23_dens = 1.66e9
