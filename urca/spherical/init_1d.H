@@ -598,7 +598,7 @@ AMREX_INLINE void init_1d() {
         }
     }    
 
-    std::cout << "mass = " << M_enclosed(nx)/M_sun << std::endl;
+    std::cout << "mass = " << M_enclosed(nx-1)/M_sun << std::endl;
 
     //print/save model
     int ipos = prefix.find(".dat");
