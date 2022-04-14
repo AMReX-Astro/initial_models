@@ -1,0 +1,27 @@
+@namespace: problem
+
+nx        integer    1280
+
+smallx    real      1.e-10
+
+xmin      real      0.0
+xmax      real      5.e8
+
+dens_base real      2.6e9
+temp_base real      6.e8
+
+dens_conv_zone  real -1.0
+M_conv_zone real    2.0
+
+
+low_density_cutoff real 1.e-4
+temp_fluff  real      1.e7
+
+fluff_type character "continuous"
+
+c12_in    real      0.0
+o16_in    real      0.0
+na_ne_23  real      0.0
+
+urca_23_dens real   1.66e9
+prefix      character  "spherical"

@@ -1,21 +1,32 @@
-NDEBUG := 
-MPI    :=
-OMP    :=
+PRECISION = DOUBLE
+PROFILE = FALSE
 
-COMP := gfortran
+DEBUG = FALSE
 
-MKVERBOSE := t
+COMP := g++
+FCOMP := gfortran
 
+USE_MPI = FALSE
+USE_OMP = FALSE
+
+USE_REACT = TRUE
+USE_CXX_EOS = TRUE
+
+MAX_ZONES := 16384
+
+DEFINES += -DNPTS_MODEL=$(MAX_ZONES)
 SDC    :=
 
+EBASE := initialmodel
 # EOS and network
 EOS_DIR := helmholtz
 
 NETWORK_TOP_DIR := $(MICROPHYSICS_HOME)/networks
 NETWORK_DIR := ignition_reaclib/URCA-simple
 
-# the local sources needed to build the initial model generator
-MODEL_SOURCES := init_1d.f90
-MODEL_SOURCES += urca_composition.f90
+Bpack := ./Make.package
+Blocs := . ../..
 
-include GInitModels.mak
+EXTERN_SEARCH += . ../..
+
+include $(MICROPHYSICS_HOME)/Make.Microphysics
