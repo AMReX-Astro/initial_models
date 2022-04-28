@@ -7,7 +7,7 @@ problem.nx = 1600
 problem.model_shift = 4.534081e8
 
 problem.xmin = 0.0
-problem.xmax = 1.5e7
+problem.xmax = 4.e7
 
 problem.g_const = -7.34e8
 
