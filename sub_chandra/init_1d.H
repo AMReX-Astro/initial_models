@@ -39,7 +39,7 @@ AMREX_INLINE void init_1d() {
     // since there will always be a central density value that can
     // give the desired WD mass on the grid we use
 
-    const Real TOL_WD_MASS = 1.e-4_rt;
+    const Real TOL_WD_MASS = 1.e-3_rt;
 
     // TOL_HE_MASS is the tolerance used for getting the mass of the
     // He envelope.  This should not be too small, since the values of
