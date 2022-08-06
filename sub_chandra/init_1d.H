@@ -46,7 +46,7 @@ AMREX_INLINE void init_1d() {
     // the He envelope mass we can achieve will depend on our grid
     // spacing.
 
-    const Real TOL_HE_MASS = 2.e-2;
+    const Real TOL_HE_MASS = 1.e-3_rt;
 
     const int MAX_ITER = 250;
 
@@ -474,19 +474,29 @@ AMREX_INLINE void init_1d() {
 
         // compute the total mass of the He layer and C/O WD
 
+        Real zone_X = model_hse(0, ispec+ihe4);
+        if (in14 > 0) {
+            zone_X += model_hse(0, ispec+in14);
+        }
+
         mass_he = (4.0_rt / 3.0_rt) * M_PI *
             (std::pow(xznr(0), 3) - std::pow(xznl(0), 3)) *
-            model_hse(0, idens) * model_hse(0, ispec+ihe4);
+            model_hse(0, idens) * zone_X;
 
         mass_wd = (4.0_rt / 3.0_rt) * M_PI *
             (std::pow(xznr(0), 3) - std::pow(xznl(0), 3)) *
             model_hse(0, idens) * (model_hse(0, ispec+ic12) + model_hse(0, ispec+io16));
 
         for (int i = 1; i < icutoff; ++i) {
+            zone_X = model_hse(i, ispec+ihe4);
+            if (in14 > 0) {
+                zone_X += model_hse(i, ispec+in14);
+            }
+
             mass_he += (4.0_rt / 3.0_rt) * M_PI *
                 (xznr(i) - xznl(i)) *
                 (std::pow(xznr(i), 2) + xznl(i) * xznr(i) + std::pow(xznl(i), 2)) *
-                model_hse(i,idens) * model_hse(i,ispec+ihe4);
+                model_hse(i,idens) * zone_X;
 
             mass_wd += (4.0_rt / 3.0_rt) * M_PI *
                 (xznr(i) - xznl(i)) *
@@ -536,8 +546,8 @@ AMREX_INLINE void init_1d() {
             rho_he_old = rho_he;
             mass_he_old = mass_he;
 
-            rho_he = amrex::min(1.1_rt * rho_he_old,
-                                amrex::max((rho_he + drho_he), 0.9_rt * rho_he_old));
+            rho_he = amrex::min(1.5_rt * rho_he_old,
+                                amrex::max((rho_he + drho_he), 0.75_rt * rho_he_old));
 
             std::cout << "current mass = " << mass_wd / C::M_solar << " " << mass_he / C::M_solar << std::endl;
         }
@@ -643,6 +653,9 @@ AMREX_INLINE void init_1d() {
     }
 
     std::cout << "maximum HSE error = " << max_hse_error << std::endl;
+
+
+
 }
 
 

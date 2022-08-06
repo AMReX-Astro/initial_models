@@ -13,7 +13,7 @@ problem.temp_base = 1.75e8
 
 problem.mixed_co_wd = 1
 
-problem.X_N14 = 0.0
+problem.X_N14 = 0.01
 
 problem.low_density_cutoff = 1.e-4
 problem.temp_fluff = 7.5e7
