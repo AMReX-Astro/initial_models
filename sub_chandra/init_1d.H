@@ -568,14 +568,16 @@ AMREX_INLINE void init_1d() {
     std::string dxstr = num_to_unitstring(dCoord);
 
     std::stringstream ss;
-    ss << std::setprecision(2) << mass_wd / C::M_solar;
+    ss << std::setprecision(2) << std::fixed << mass_wd / C::M_solar;
     std::string mass_wd_str = ss.str();
 
     std::stringstream ss2;
-    ss2 << std::setprecision(2) << mass_he / C::M_solar;
+    ss2 << std::setprecision(3) << std::fixed << mass_he / C::M_solar;
     std::string mass_he_str = ss2.str();
 
-    std::string outfile = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str + ".hse";
+    std::string outfile_base = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str;
+
+    std::string outfile = outfile_base + ".hse";
 
     if (mixed_co_wd) {
         outfile += ".CO";
@@ -617,11 +619,19 @@ AMREX_INLINE void init_1d() {
 
     // extra info
 
+    outfile = outfile_base + ".extras";
+
     if (mixed_co_wd) {
-        outfile = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str + ".extras.CO." + dxstr;
+        outfile += ".CO";
     } else {
-        outfile = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str + ".extras.C." + dxstr;
+        outfile += ".C";
     }
+
+    if (X_N14 > 0.0_rt) {
+        outfile += ".N14";
+    }
+
+    outfile += "." + dxstr;
 
     std::ofstream ef;
     ef.open(outfile);
