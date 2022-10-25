@@ -1,0 +1,16 @@
+problem.model_file = glasner_T5.raw
+
+problem.model_prefix = glasner_T5
+
+problem.nx = 1600
+
+problem.model_shift = 4.534081e8
+
+problem.xmin = 0.0
+problem.xmax = 4.096e7
+
+problem.g_const = -7.34e8
+
+problem.temp_cutoff = 1.0e6
+
+problem.low_density_cutoff = 1.e-5

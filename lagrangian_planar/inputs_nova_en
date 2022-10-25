@@ -1,0 +1,18 @@
+problem.model_file = glasner_enhanced.raw
+
+problem.model_prefix = glasner_enriched
+
+problem.nx = 1600
+
+problem.model_shift = 3.910368e8
+
+problem.xmin = 0.0
+problem.xmax = 4.096e7
+
+problem.g_const = -8.84e8
+#problem.M_enclosed = 2.387e33
+#problem.do_invsq_grav = 1
+
+problem.temp_cutoff = 1.0e6
+
+problem.low_density_cutoff = 1.e-5
