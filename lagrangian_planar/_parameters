@@ -16,9 +16,7 @@ M_enclosed          real         2.e33
 
 model_prefix        character    "model"
 
-low_density_cutoff  real     1.e-4
-temp_cutoff         real     1.e6
+low_density_cutoff  real     1.e-5
+temp_cutoff         real     1.e5
 
 smallx              real     1.e-10
-
-

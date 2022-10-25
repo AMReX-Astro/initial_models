@@ -110,7 +110,7 @@ AMREX_INLINE void init_1d( ) {
             if (n == model::itemp) {
                 model_hse(i,n) = amrex::max(temp_cutoff, interpolate(xzn_hse(i), n, lagrangian_planar, true));
             } else {
-                model_hse(i,n) = interpolate(xzn_hse(i), n,  lagrangian_planar);
+                model_hse(i,n) = interpolate(xzn_hse(i), n,  lagrangian_planar, true);
             }
 
         }
