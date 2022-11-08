@@ -34,12 +34,16 @@ write_model(std::string model_name,
             const Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1>& model_hse) {
 
     // Write the file
+    Real res = (xmax - xmin) / static_cast<Real>(nx);
+    res /= 1.0e5_rt;
 
     std::stringstream ss;
-    ss << nx;
-    std::string num_to_str = ss.str();
+    ss << res;
 
-    std::string outfile = model_prefix + num_to_str + "." + model_name;
+    //ss << nx;
+    std::string res_to_str = ss.str();
+
+    std::string outfile = model_prefix + "_" + res_to_str + "km"+ "." + model_name;
 
     std::ofstream file;
     file.open(outfile);
