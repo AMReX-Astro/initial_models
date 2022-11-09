@@ -19,6 +19,7 @@
 #include <fundamental_constants.H>
 #include <interpolate.H>
 #include <read_model.H>
+#include <model_util.H>
 #include <cfmt.H>
 
 using namespace amrex;
@@ -34,12 +35,10 @@ write_model(std::string model_name,
             const Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1>& model_hse) {
 
     // Write the file
+    const double res = (xmax - xmin)/static_cast<double>(nx);
+    std::string res_string = num_to_unitstring(res); 
 
-    std::stringstream ss;
-    ss << nx;
-    std::string num_to_str = ss.str();
-
-    std::string outfile = model_prefix + num_to_str + "." + model_name;
+    std::string outfile = model_prefix + "_" + res_string + "." + model_name;
 
     std::ofstream file;
     file.open(outfile);
