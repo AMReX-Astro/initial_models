@@ -79,7 +79,7 @@ AMREX_INLINE void init_1d( ) {
     //Apply the shift
 
     for (int i = 0; i < lagrangian_planar.npts; ++i) {
-        lagrangian_planar.r(i) -= model_shift;
+        lagrangian_planar.r(i) = lagrangian_planar.r(i) - model_shift + layer_size;
     }
 
     // Create a new uniform grid with nx cells.

@@ -14,3 +14,4 @@ problem.g_const = -7.06e8
 problem.temp_cutoff = 1.0e6
 
 problem.low_density_cutoff = 1.e-5
+problem.layer_size = 1.0e7
