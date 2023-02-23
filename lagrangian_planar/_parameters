@@ -20,3 +20,5 @@ low_density_cutoff  real     1.e-5
 temp_cutoff         real     1.e5
 
 smallx              real     1.e-10
+
+layer_size          real     0.0 
