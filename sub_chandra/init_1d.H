@@ -39,14 +39,14 @@ AMREX_INLINE void init_1d() {
     // since there will always be a central density value that can
     // give the desired WD mass on the grid we use
 
-    const Real TOL_WD_MASS = 1.e-4_rt;
+    const Real TOL_WD_MASS = 1.e-3_rt;
 
     // TOL_HE_MASS is the tolerance used for getting the mass of the
     // He envelope.  This should not be too small, since the values of
     // the He envelope mass we can achieve will depend on our grid
     // spacing.
 
-    const Real TOL_HE_MASS = 2.e-2;
+    const Real TOL_HE_MASS = 1.e-3_rt;
 
     const int MAX_ITER = 250;
 
@@ -474,19 +474,29 @@ AMREX_INLINE void init_1d() {
 
         // compute the total mass of the He layer and C/O WD
 
+        Real zone_X = model_hse(0, ispec+ihe4);
+        if (in14 > 0) {
+            zone_X += model_hse(0, ispec+in14);
+        }
+
         mass_he = (4.0_rt / 3.0_rt) * M_PI *
             (std::pow(xznr(0), 3) - std::pow(xznl(0), 3)) *
-            model_hse(0, idens) * model_hse(0, ispec+ihe4);
+            model_hse(0, idens) * zone_X;
 
         mass_wd = (4.0_rt / 3.0_rt) * M_PI *
             (std::pow(xznr(0), 3) - std::pow(xznl(0), 3)) *
             model_hse(0, idens) * (model_hse(0, ispec+ic12) + model_hse(0, ispec+io16));
 
         for (int i = 1; i < icutoff; ++i) {
+            zone_X = model_hse(i, ispec+ihe4);
+            if (in14 > 0) {
+                zone_X += model_hse(i, ispec+in14);
+            }
+
             mass_he += (4.0_rt / 3.0_rt) * M_PI *
                 (xznr(i) - xznl(i)) *
                 (std::pow(xznr(i), 2) + xznl(i) * xznr(i) + std::pow(xznl(i), 2)) *
-                model_hse(i,idens) * model_hse(i,ispec+ihe4);
+                model_hse(i,idens) * zone_X;
 
             mass_wd += (4.0_rt / 3.0_rt) * M_PI *
                 (xznr(i) - xznl(i)) *
@@ -536,8 +546,8 @@ AMREX_INLINE void init_1d() {
             rho_he_old = rho_he;
             mass_he_old = mass_he;
 
-            rho_he = amrex::min(1.1_rt * rho_he_old,
-                                amrex::max((rho_he + drho_he), 0.9_rt * rho_he_old));
+            rho_he = amrex::min(1.5_rt * rho_he_old,
+                                amrex::max((rho_he + drho_he), 0.75_rt * rho_he_old));
 
             std::cout << "current mass = " << mass_wd / C::M_solar << " " << mass_he / C::M_solar << std::endl;
         }
@@ -558,14 +568,16 @@ AMREX_INLINE void init_1d() {
     std::string dxstr = num_to_unitstring(dCoord);
 
     std::stringstream ss;
-    ss << std::setprecision(2) << mass_wd / C::M_solar;
+    ss << std::setprecision(2) << std::fixed << mass_wd / C::M_solar;
     std::string mass_wd_str = ss.str();
 
     std::stringstream ss2;
-    ss2 << std::setprecision(2) << mass_he / C::M_solar;
+    ss2 << std::setprecision(3) << std::fixed << mass_he / C::M_solar;
     std::string mass_he_str = ss2.str();
 
-    std::string outfile = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str + ".hse";
+    std::string outfile_base = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str;
+
+    std::string outfile = outfile_base + ".hse";
 
     if (mixed_co_wd) {
         outfile += ".CO";
@@ -607,11 +619,19 @@ AMREX_INLINE void init_1d() {
 
     // extra info
 
+    outfile = outfile_base + ".extras";
+
     if (mixed_co_wd) {
-        outfile = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str + ".extras.CO." + dxstr;
+        outfile += ".CO";
     } else {
-        outfile = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str + ".extras.C." + dxstr;
+        outfile += ".C";
     }
+
+    if (X_N14 > 0.0_rt) {
+        outfile += ".N14";
+    }
+
+    outfile += "." + dxstr;
 
     std::ofstream ef;
     ef.open(outfile);
@@ -643,6 +663,9 @@ AMREX_INLINE void init_1d() {
     }
 
     std::cout << "maximum HSE error = " << max_hse_error << std::endl;
+
+
+
 }
 
 
