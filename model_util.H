@@ -10,7 +10,6 @@ std::string num_to_unitstring(const Real value) {
         // work in km
         ss << std::setprecision(2) << std::fixed << value / 1.e5;
         numstr = ss.str() + "km";
-        std::cout << "here!!!!!!!!!!!!!!!!!!!" << numstr << std::endl;
     } else {
         // work in cm
         ss << std::setprecision(2) << std::fixed << value;

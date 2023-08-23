@@ -1,0 +1,399 @@
+#ifndef INIT_1D_H
+#define INIT_1D_H
+
+#include <AMReX_Array.H>
+
+
+#include <sstream>
+
+#include <extern_parameters.H>
+#include <fundamental_constants.H>
+
+#include <model_util.H>
+
+using namespace amrex;
+
+
+// generate an initial model for spherical geometry with a uniform
+// composition.  Here we take a central density and temperature and
+// use HSE and constant entropy to generate the model.  We specific
+// the mass of the convective zone, and for radii beyond that, we
+// use constant T.
+
+AMREX_INLINE void init_1d() {
+
+    // define convenient indices for the scalars
+
+    const int nvar = 3 + NumSpec;
+    const int idens = 0;
+    const int itemp = 1;
+    const int ipres = 2;
+    const int ispec = 3;
+
+    // TOL_HSE is the tolerance used when iterating over a zone to
+    // force it into HSE by adjusting the current density (and
+    // possibly temperature).  TOL_HSE should be very small (~
+    // 1.e-10).
+
+    const Real TOL_HSE = 1.e-10_rt;
+
+    const int MAX_ITER = 250;
+
+    const Real smallx = 1.e-10_rt;
+
+    // get the species indices
+
+    int ic12  = network_spec_index("carbon-12");
+    int io16  = network_spec_index("oxygen-16");
+
+    if (ic12 < 0 || io16 < 0) {
+        amrex::Error("ERROR: species not defined");
+    }
+
+    if (problem_rp::cfrac < 0.0_rt || problem_rp::cfrac > 1.0_rt) {
+        amrex::Error("ERROR: cfrac must be between 0 and 1");
+    }
+
+    Real xn_base[NumSpec] = {problem_rp::smallx};
+    xn_base[ic12] = problem_rp::cfrac;
+    xn_base[io16] = 1.0_rt - problem_rp::cfrac;
+
+    // Create a 1-d uniform grid that is identical to the mesh that we
+    // are mapping onto, and then we want to force it into HSE on that
+    // mesh.
+
+    if (problem_rp::nx > NPTS_MODEL) {
+        amrex::Error("too many zones requested -- increase NPTS_MODEL");
+    }
+
+    Array1D<Real, 0, NPTS_MODEL-1> xzn_hse;
+    Array1D<Real, 0, NPTS_MODEL-1> xznl;
+    Array1D<Real, 0, NPTS_MODEL-1> xznr;
+
+    Array2D<Real, 0, NPTS_MODEL-1, 0, nvar-1> model_hse;
+
+    Array1D<Real, 0, NPTS_MODEL-1> M_enclosed;
+    Array1D<Real, 0, NPTS_MODEL-1> entropy_want;
+    Array1D<Real, 0, NPTS_MODEL-1> entropy_store;
+
+    // compute the coordinates of the new gridded function
+
+    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
+
+    for (int i = 0; i < problem_rp::nx; ++i) {
+        xznl(i) = problem_rp::xmin + static_cast<Real>(i) * dCoord;
+        xznr(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt) * dCoord;
+        xzn_hse(i) = 0.5_rt * (xznl(i) + xznr(i));
+    }
+
+    bool fluff{false};
+
+    // call the EOS one more time for this zone and then go on to the next
+
+    eos_t eos_state;
+    eos_state.T = problem_rp::temp_base;
+    eos_state.rho = problem_rp::dens_base;
+    for (int n = 0; n < NumSpec; ++n) {
+        eos_state.xn[n] = xn_base[n];
+    }
+
+    // (t, rho) -> (p, s)
+
+    eos(eos_input_rt, eos_state);
+
+    // make the initial guess be completely uniform
+
+    for (int i = 0; i < problem_rp::nx; ++i) {
+        model_hse(i, idens) = eos_state.rho;
+        model_hse(i, itemp) = eos_state.T;
+        model_hse(i, ipres) = eos_state.p;
+
+        entropy_want(i) = eos_state.s;
+
+        for (int n = 0; n < NumSpec; ++n) {
+            model_hse(i, ispec+n) = eos_state.xn[n];
+        }
+    }
+
+    // keep track of the mass enclosed below the current zone
+
+    M_enclosed(0) = (4.0_rt / 3.0_rt) * M_PI *
+            (std::pow(xznr(0), 3) - std::pow(xznl(0), 3)) * model_hse(0,idens);
+
+
+    // HSE + entropy solve
+
+    bool isentropic{true};
+
+    Real dens_zone;
+    Real temp_zone;
+    Real pres_zone;
+    Real entropy;
+    Real xn[NumSpec];
+
+    int i_fluff{0};
+    int i_conv{0};
+
+    Real delx = xzn_hse(1) - xzn_hse(0);
+
+    for (int i = 1; i < problem_rp::nx; ++i) {
+
+        // as the initial guess for the temperature and density, use
+        // the previous zone
+
+        dens_zone = model_hse(i-1, idens);
+        temp_zone = model_hse(i-1, itemp);
+        for (int n = 0; n < NumSpec; ++n) {
+            xn[n] = model_hse(i, ispec+n);
+        }
+
+        Real g_zone = -C::Gconst * M_enclosed(i-1) / (xznl(i) * xznl(i));
+
+
+        // iteration loop
+
+        // start off the Newton loop by saying that the zone has not converged
+        bool converged_hse{false};
+
+        if (! fluff) {
+
+            Real p_want;
+            Real drho;
+            Real dtemp;
+            Real entropy_base;
+
+            for (int iter = 0; iter < MAX_ITER; ++iter) {
+
+                if (isentropic) {
+
+                    p_want = model_hse(i-1, ipres) +
+                        delx * 0.5_rt * (dens_zone + model_hse(i-1, idens)) * g_zone;
+
+                    // now we have two functions to zero:
+                    //   A = p_want - p(rho,T)
+                    //   B = entropy_want - s(rho,T)
+                    // We use a two dimensional Taylor expansion
+                    // and find the deltas for both density and
+                    // temperature
+
+                    eos_state.T = temp_zone;
+                    eos_state.rho = dens_zone;
+                    for (int n = 0; n < NumSpec; ++n) {
+                        eos_state.xn[n] = xn[n];
+                    }
+
+                    // (t, rho) -> (p, s)
+                    eos(eos_input_rt, eos_state);
+
+                    entropy = eos_state.s;
+                    pres_zone = eos_state.p;
+
+                    Real dpT = eos_state.dpdT;
+                    Real dpd = eos_state.dpdr;
+                    Real dsT = eos_state.dsdT;
+                    Real dsd = eos_state.dsdr;
+
+                    Real A = p_want - pres_zone;
+                    Real B = entropy_want(i) - entropy;
+
+                    Real dAdT = -dpT;
+                    Real dAdrho = 0.5_rt * delx * g_zone - dpd;
+                    Real dBdT = -dsT;
+                    Real dBdrho = -dsd;
+
+                    dtemp = (B - (dBdrho / dAdrho) * A) /
+                        ((dBdrho / dAdrho) * dAdT - dBdT);
+
+                    drho = -(A + dAdT * dtemp) / dAdrho;
+
+                    dens_zone =
+                        amrex::max(0.9_rt * dens_zone,
+                                   amrex::min(dens_zone + drho, 1.1_rt * dens_zone));
+
+                    temp_zone =
+                        amrex::max(0.9_rt * temp_zone,
+                                   amrex::min(temp_zone + dtemp, 1.1_rt * temp_zone));
+
+                    // check if the density falls below our minimum
+                    // cut-off -- if so, floor it
+
+                    if (dens_zone < problem_rp::low_density_cutoff) {
+
+                        i_fluff = i;
+
+                        dens_zone = problem_rp::low_density_cutoff;
+                        temp_zone = problem_rp::temp_fluff;
+                        converged_hse = true;
+                        fluff = true;
+                        break;
+                    }
+
+                    if (dens_zone < problem_rp::dens_conv_zone && isentropic) {
+                        i_conv = i;
+                        isentropic = false;
+                    }
+
+                    if (std::abs(drho) < TOL_HSE * dens_zone &&
+                        std::abs(dtemp) < TOL_HSE * temp_zone) {
+                        converged_hse = true;
+                        break;
+                    }
+
+                } else {
+
+                    // do isothermal
+
+                    p_want = model_hse(i-1, ipres) +
+                        delx * 0.5_rt * (dens_zone + model_hse(i-1, idens)) * g_zone;
+
+                    temp_zone = model_hse(i-1, itemp);
+
+                    eos_state.T = temp_zone;
+                    eos_state.rho = dens_zone;
+                    for (int n = 0; n < NumSpec; ++n) {
+                        eos_state.xn[n] = xn[n];
+                    }
+
+                    // (t, rho) -> (p, s)
+
+                    eos(eos_input_rt, eos_state);
+
+                    entropy = eos_state.s;
+                    pres_zone = eos_state.p;
+
+                    Real dpd = eos_state.dpdr;
+
+                    drho = (p_want - pres_zone) / (dpd - 0.5_rt *delx * g_zone);
+
+                    dens_zone =
+                        amrex::max(0.9_rt * dens_zone,
+                                   amrex::min(dens_zone + drho, 1.1_rt * dens_zone));
+
+                    if (std::abs(drho) < TOL_HSE * dens_zone) {
+                        converged_hse = true;
+                        break;
+                    }
+
+                    if (dens_zone < problem_rp::low_density_cutoff) {
+
+                        i_fluff = i;
+
+                        dens_zone = problem_rp::low_density_cutoff;
+                        temp_zone = problem_rp::temp_fluff;
+                        converged_hse = true;
+                        fluff = true;
+                        break;
+                    }
+
+                }
+            }  // thermo iteration loop
+
+            if (! converged_hse) {
+
+                std::cout << "Error zone " << i <<  " did not converge in init_1d" << std::endl;
+                std::cout << dens_zone << " " << temp_zone << std::endl;
+                std::cout << p_want;
+                std::cout << drho;
+                amrex::Error("Error: HSE non-convergence");
+            }
+
+            if (temp_zone < problem_rp::temp_fluff) {
+                temp_zone = problem_rp::temp_fluff;
+                isentropic = false;
+            }
+
+        } else {
+            dens_zone = problem_rp::low_density_cutoff;
+            temp_zone = problem_rp::temp_fluff;
+        }
+
+
+        // call the EOS one more time for this zone and then go on to
+        // the next
+
+        eos_state.T = temp_zone;
+        eos_state.rho = dens_zone;
+        for (int n = 0; n < NumSpec; ++n) {
+            eos_state.xn[n] = xn[n];
+        }
+
+        // (t, rho) -> (p, s)
+
+        eos(eos_input_rt, eos_state);
+
+        pres_zone = eos_state.p;
+
+        Real dpd = eos_state.dpdr;
+
+        // update the thermodynamics in this zone
+
+        model_hse(i, idens) = dens_zone;
+        model_hse(i, itemp) = temp_zone;
+        model_hse(i, ipres) = pres_zone;
+
+        M_enclosed(i) = M_enclosed(i-1) +
+            (4.0_rt / 3.0_rt) * M_PI * (xznr(i) - xznl(i)) *
+            (std::pow(xznr(i), 2) + xznl(i) * xznr(i) + std::pow(xznl(i), 2)) * model_hse(i, idens);
+
+        if (M_enclosed(i) > problem_rp::M_conv_zone * C::M_solar && isentropic) {
+            i_conv = i;
+            isentropic = false;
+        }
+
+    } // end loop over zones
+
+
+    std::cout << "mass = " << M_enclosed(problem_rp::nx-1) / C::M_solar << std::endl;;
+    std::cout << "mass of convective zone = " << M_enclosed(i_conv) / C::M_solar << std::endl;;
+
+    std::string dxstr = num_to_unitstring(dCoord);
+
+    std::string outfile_base = problem_rp::prefix;
+
+    std::string outfile = outfile_base + "." + dxstr + ".hse";
+
+    std::ofstream of;
+    of.open(outfile);
+
+    of << "# npts = " << problem_rp::nx << std::endl;
+    of << "# num of variables = " << nvar << std::endl;
+    of << "# density" << std::endl;
+    of << "# temperature" << std::endl;
+    of << "# pressure" << std::endl;
+
+    for (int n = 0; n < NumSpec; ++n) {
+        of << "# " << spec_names_cxx[n] << std::endl;
+    }
+
+    for (int i = 0; i < problem_rp::nx; ++i) {
+        of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, idens) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, itemp) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, ipres) << " ";
+        for (int n = 0; n < NumSpec; ++n) {
+            of << std::setprecision(12) << std::setw(20) << model_hse(i, ispec+n) << " ";
+        }
+        of << std::endl;
+    }
+
+    of.close();
+
+
+    // compute the maximum HSE error
+
+    Real max_hse_error = -1.e30_rt;
+
+    for (int i = 1; i < problem_rp::nx-1; ++i) {
+        Real g_zone = -C::Gconst * M_enclosed(i-1) / (xznr(i-1) * xznr(i-1));
+        Real dpdr = (model_hse(i, ipres) - model_hse(i-1, ipres)) / delx;
+        Real rhog = 0.5_rt * (model_hse(i, idens) + model_hse(i-1, idens)) * g_zone;
+
+        if (dpdr != 0.0_rt && model_hse(i+1, idens) > problem_rp::low_density_cutoff) {
+            max_hse_error = amrex::max(max_hse_error, std::abs(dpdr - rhog) / std::abs(dpdr));
+        }
+    }
+
+    std::cout << "maximum HSE error = " << max_hse_error << std::endl;
+}
+#endif
+
