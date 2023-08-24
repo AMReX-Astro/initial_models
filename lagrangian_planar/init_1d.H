@@ -35,15 +35,15 @@ write_model(std::string model_name,
             const Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1>& model_hse) {
 
     // Write the file
-    const double res = (xmax - xmin)/static_cast<double>(nx);
+    const double res = (problem_rp::xmax - problem_rp::xmin)/static_cast<double>(problem_rp::nx);
     std::string res_string = num_to_unitstring(res); 
 
-    std::string outfile = model_prefix + "_" + res_string + "." + model_name;
+    std::string outfile = problem_rp::model_prefix + "_" + res_string + "." + model_name;
 
     std::ofstream file;
     file.open(outfile);
 
-    file << "# npts = " << nx << std::endl;
+    file << "# npts = " << problem_rp::nx << std::endl;
     file << "# num of variables = " << 3 + NumSpec << std::endl;
     file << "# density" << std::endl;
     file << "# temperature" << std::endl;
@@ -53,7 +53,7 @@ write_model(std::string model_name,
         file << "#" << spec_names_cxx[n] << std::endl;
     }
 
-    for (int i=0; i<nx; ++i) {
+    for (int i=0; i<problem_rp::nx; ++i) {
         file << std::setprecision(12) << std::setw(20) << cfmt(xzn_hse(i)) << " ";
         file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::idens)) << " ";
         file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::itemp)) << " ";
@@ -74,17 +74,17 @@ AMREX_INLINE void init_1d( ) {
     //and returns with all the file information.
 
     initial_model_t lagrangian_planar;
-    read_file(model_file, lagrangian_planar);
+    read_file(problem_rp::model_file, lagrangian_planar);
 
     //Apply the shift
 
     for (int i = 0; i < lagrangian_planar.npts; ++i) {
-        lagrangian_planar.r(i) = lagrangian_planar.r(i) - model_shift + layer_size;
+        lagrangian_planar.r(i) = lagrangian_planar.r(i) - problem_rp::model_shift + problem_rp::layer_size;
     }
 
-    // Create a new uniform grid with nx cells.
+    // Create a new uniform grid with problem_rp::nx cells.
 
-    if (nx > NPTS_MODEL) {
+    if (problem_rp::nx > NPTS_MODEL) {
         Error("too many zones requested -- increase NPTS_MODEL");
     }
 
@@ -93,21 +93,21 @@ AMREX_INLINE void init_1d( ) {
     Array1D<Real, 0, NPTS_MODEL-1> xznr_hse;
     Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1> model_hse;
 
-    Real dCoord = (xmax - xmin) / static_cast<Real>(nx);
+    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
 
-    for (int i = 0; i < nx; ++i){
-        xznl_hse(i) = xmin + static_cast<Real>(i)*dCoord;
-        xzn_hse(i) = xmin + (static_cast<Real>(i) + 0.5_rt)*dCoord;
-        xznr_hse(i) = xmin + (static_cast<Real>(i) + 1.0_rt)*dCoord;
+    for (int i = 0; i < problem_rp::nx; ++i){
+        xznl_hse(i) = problem_rp::xmin + static_cast<Real>(i)*dCoord;
+        xzn_hse(i) = problem_rp::xmin + (static_cast<Real>(i) + 0.5_rt)*dCoord;
+        xznr_hse(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt)*dCoord;
     }
 
     eos_t eos_state;
 
-    for (int i = 0; i < nx; ++i) {
+    for (int i = 0; i < problem_rp::nx; ++i) {
         for (int n = 0; n < model::nvar; ++n) {
 
             if (n == model::itemp) {
-                model_hse(i,n) = amrex::max(temp_cutoff, interpolate(xzn_hse(i), n, lagrangian_planar, true));
+                model_hse(i,n) = amrex::max(problem_rp::temp_cutoff, interpolate(xzn_hse(i), n, lagrangian_planar, true));
             } else {
                 model_hse(i,n) = interpolate(xzn_hse(i), n,  lagrangian_planar, true);
             }
@@ -138,7 +138,7 @@ AMREX_INLINE void init_1d( ) {
     int index_base = -1;
     Real max_T = -1.0_rt;
 
-    for (int i = 0; i < nx; ++i) {
+    for (int i = 0; i < problem_rp::nx; ++i) {
         if (model_hse(i, model::itemp) > max_T) {
             index_base = i;
             max_T = model_hse(i, model::itemp);
@@ -181,22 +181,22 @@ AMREX_INLINE void init_1d( ) {
     Real drho;
 
     // Integrating Up
-    for (int i = index_base+1; i < nx; ++i) {
+    for (int i = index_base+1; i < problem_rp::nx; ++i) {
 
         delx = xzn_hse(i) - xzn_hse(i-1);
 
         // Compute the gravitational acceleration
-        if (do_invsq_grav == 1) {
-            g_zone = -C::Gconst*M_enclosed/std::pow(xznl_hse(i), 2);
+        if (problem_rp::do_invsq_grav == 1) {
+            g_zone = -C::Gconst*problem_rp::M_enclosed/std::pow(xznl_hse(i), 2);
         } else {
-            g_zone = g_const;
+            g_zone = problem_rp::g_const;
         }
 
         // Now, we have to setup our initial guess of rho, T, and
         // composition variables, for each i-cell.
 
         dens_zone = model_hse(i, model::idens);
-        temp_zone = amrex::max(temp_cutoff, model_hse(i, model::itemp));
+        temp_zone = amrex::max(problem_rp::temp_cutoff, model_hse(i, model::itemp));
 
         for (int n = 0; n < NumSpec; ++n) {
             xn[n] = model_hse(i, model::ispec+n);
@@ -233,9 +233,9 @@ AMREX_INLINE void init_1d( ) {
                 break;
             }
 
-            if (dens_zone < low_density_cutoff) {
-                dens_zone = low_density_cutoff;
-                temp_zone = temp_cutoff;
+            if (dens_zone < problem_rp::low_density_cutoff) {
+                dens_zone = problem_rp::low_density_cutoff;
+                temp_zone = problem_rp::temp_cutoff;
                 converged_hse = true;
                 break;
             }
@@ -277,14 +277,14 @@ AMREX_INLINE void init_1d( ) {
         delx = xzn_hse(i+1) - xzn_hse(i);
 
         //Compute the gravitational acceleration
-        if (do_invsq_grav == 1) {
-            g_zone = -C::Gconst*M_enclosed/std::pow(xznr_hse(i), 2);
+        if (problem_rp::do_invsq_grav == 1) {
+            g_zone = -C::Gconst*problem_rp::M_enclosed/std::pow(xznr_hse(i), 2);
         } else {
-            g_zone = g_const;
+            g_zone = problem_rp::g_const;
         }
 
         dens_zone = model_hse(i, model::idens);
-        temp_zone = amrex::max(temp_cutoff, model_hse(i, model::itemp));
+        temp_zone = amrex::max(problem_rp::temp_cutoff, model_hse(i, model::itemp));
 
         for (int n = 0; n < NumSpec; n++) {
             xn[n] = model_hse(i, model::ispec+n);
@@ -353,18 +353,18 @@ AMREX_INLINE void init_1d( ) {
     Real max_hse_error = -1.e30_rt;
     Real rhog;
 
-    for (int i = 1; i < nx-1; ++i) {
+    for (int i = 1; i < problem_rp::nx-1; ++i) {
 
-        if (do_invsq_grav == 1) {
-            g_zone == -C::Gconst * M_enclosed/ std::pow(xznr_hse(i-1), 2);
+        if (problem_rp::do_invsq_grav == 1) {
+            g_zone == -C::Gconst * problem_rp::M_enclosed/ std::pow(xznr_hse(i-1), 2);
         } else {
-            g_zone = g_const;
+            g_zone = problem_rp::g_const;
         }
 
         dpdr = (model_hse(i, model::ipres) - model_hse(i-1, model::ipres)) / delx;
         rhog = 0.5_rt * (model_hse(i, model::idens) + model_hse(i-1, model::idens)) * g_zone;
 
-        if (dpdr != 0.0_rt && model_hse(i+1, model::idens) > low_density_cutoff) {
+        if (dpdr != 0.0_rt && model_hse(i+1, model::idens) > problem_rp::low_density_cutoff) {
             max_hse_error = max(max_hse_error, std::abs(dpdr - rhog) / std::abs(dpdr));
         }
     }
