@@ -74,7 +74,7 @@ AMREX_INLINE void init_1d() {
     // are mapping onto, and then we want to force it into HSE on that
     // mesh.
 
-    if (nx > NPTS_MODEL) {
+    if (problem_rp::nx > NPTS_MODEL) {
         amrex::Error("too many zones requested -- increase NPTS_MODEL");
     }
 
@@ -87,10 +87,10 @@ AMREX_INLINE void init_1d() {
 
     // compute the coordinates of the new gridded function
 
-    Real dCoord = (xmax - xmin) / static_cast<Real>(nx);
+    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
 
-    for (int i = 0; i < nx; ++i) {
-        xzn_hse(i) = xmin + (static_cast<Real>(i) + 0.5_rt) * dCoord;
+    for (int i = 0; i < problem_rp::nx; ++i) {
+        xzn_hse(i) = problem_rp::xmin + (static_cast<Real>(i) + 0.5_rt) * dCoord;
     }
 
 
@@ -98,8 +98,8 @@ AMREX_INLINE void init_1d() {
 
     // find the index of the base height
 
-    for (int i = 0; i < nx; ++i) {
-        if (xzn_hse(i) >= base_height) {
+    for (int i = 0; i < problem_rp::nx; ++i) {
+        if (xzn_hse(i) >= problem_rp::base_height) {
             index_base = i;
             break;
         }
@@ -117,8 +117,8 @@ AMREX_INLINE void init_1d() {
     // all the material above base_height will have constant entropy
 
     eos_t eos_state;
-    eos_state.T = temp_base;
-    eos_state.rho = dens_base;
+    eos_state.T = problem_rp::temp_base;
+    eos_state.rho = problem_rp::dens_base;
     for (int n = 0; n < NumSpec; ++n) {
         eos_state.xn[n] = xn_base[n];
     }
@@ -129,7 +129,7 @@ AMREX_INLINE void init_1d() {
 
     // make the inital guess be completely uniform
 
-    for (int i = 0; i < nx; ++i) {
+    for (int i = 0; i < problem_rp::nx; ++i) {
         model_hse(i,idens) = eos_state.rho;
         model_hse(i,itemp) = eos_state.T;
         model_hse(i,ipres) = eos_state.p;
@@ -142,20 +142,20 @@ AMREX_INLINE void init_1d() {
 
     // set the desired entropy profile
 
-    for (int i = index_base; i < nx; ++i) {
+    for (int i = index_base; i < problem_rp::nx; ++i) {
         // entropy is constant
         entropy_want(i) = entropy;
         entropy_store(i) = entropy_want(i);
     }
 
 
-    Real slope = (entropy / entropy_jump - entropy / entropy_end) /
+    Real slope = (entropy / problem_rp::entropy_jump - entropy / problem_rp::entropy_end) /
         (xzn_hse(index_base) - xzn_hse(0));
 
     for (int i = index_base-1; i >= 0; --i) {
 
         // entropy gradient
-        entropy_want(i) = slope * (xzn_hse(i) - xzn_hse(index_base-1)) + entropy / entropy_jump;
+        entropy_want(i) = slope * (xzn_hse(i) - xzn_hse(index_base-1)) + entropy / problem_rp::entropy_jump;
         entropy_store(i) = entropy_want(i);
     }
 
@@ -163,9 +163,9 @@ AMREX_INLINE void init_1d() {
     // HSE + entropy solve
 
     // the HSE state will be done putting creating an isentropic state
-    // until the temperature goes below temp_fluff -- then we will do
+    // until the temperature goes below problem_rp::temp_fluff -- then we will do
     // isothermal.  also, once the density goes below
-    // low_density_cutoff, we stop HSE
+    // problem_rp::low_density_cutoff, we stop HSE
 
     bool isentropic = true;
 
@@ -182,7 +182,7 @@ AMREX_INLINE void init_1d() {
     Real dtemp;
     Real drho;
 
-    for (int i = index_base+1; i < nx; ++i) {
+    for (int i = index_base+1; i < problem_rp::nx; ++i) {
 
         // as the initial guess for the temperature and density, use the previous
         // zone
@@ -220,7 +220,7 @@ AMREX_INLINE void init_1d() {
                     // HSE differencing
 
                     p_want = model_hse(i-1, ipres) +
-                        delx * 0.5_rt * (dens_zone + model_hse(i-1, idens)) * g_zone;
+                        delx * 0.5_rt * (dens_zone + model_hse(i-1, idens)) * problem_rp::g_zone;
 
                     // now we have two functions to zero:
                     //   A = p_want - p(rho,T)
@@ -250,10 +250,10 @@ AMREX_INLINE void init_1d() {
                     Real A = p_want - pres_zone;
                     Real B = entropy_want(i) - entropy;
 
-                    dtemp = ((dsd / (dpd - 0.5_rt * delx * g_zone)) * A - B) /
-                        (dsd * dpT / (dpd -0.5_rt * delx * g_zone) - dsT);
+                    dtemp = ((dsd / (dpd - 0.5_rt * delx * problem_rp::g_zone)) * A - B) /
+                        (dsd * dpT / (dpd -0.5_rt * delx * problem_rp::g_zone) - dsT);
 
-                    drho = (A - dpT * dtemp) / (dpd - 0.5_rt * delx * g_zone);
+                    drho = (A - dpT * dtemp) / (dpd - 0.5_rt * delx * problem_rp::g_zone);
 
                     dens_zone =
                         amrex::max(0.9_rt * dens_zone,
@@ -267,9 +267,9 @@ AMREX_INLINE void init_1d() {
                     // check if the density falls below our minimum cut-off --
                     // if so, floor it
 
-                    if (dens_zone < low_density_cutoff) {
-                        dens_zone = low_density_cutoff;
-                        temp_zone = temp_fluff;
+                    if (dens_zone < problem_rp::low_density_cutoff) {
+                        dens_zone = problem_rp::low_density_cutoff;
+                        temp_zone = problem_rp::temp_fluff;
                         converged_hse = true;
                         fluff = true;
                         break;
@@ -285,9 +285,9 @@ AMREX_INLINE void init_1d() {
                     // do isothermal
 
                     Real p_want = model_hse(i-1,ipres) +
-                        delx * 0.5_rt * (dens_zone + model_hse(i-1, idens)) * g_zone;
+                        delx * 0.5_rt * (dens_zone + model_hse(i-1, idens)) * problem_rp::g_zone;
 
-                    temp_zone = temp_fluff;
+                    temp_zone = problem_rp::temp_fluff;
 
                     // (t, rho) -> (p)
 
@@ -304,7 +304,7 @@ AMREX_INLINE void init_1d() {
 
                     Real dpd = eos_state.dpdr;
 
-                    Real drho = (p_want - pres_zone) / (dpd - 0.5_rt * delx * g_zone);
+                    Real drho = (p_want - pres_zone) / (dpd - 0.5_rt * delx * problem_rp::g_zone);
 
                     dens_zone =
                         amrex::max(0.9_rt * dens_zone,
@@ -315,9 +315,9 @@ AMREX_INLINE void init_1d() {
                         break;
                     }
 
-                    if (dens_zone < low_density_cutoff) {
-                        dens_zone = low_density_cutoff;
-                        temp_zone = temp_fluff;
+                    if (dens_zone < problem_rp::low_density_cutoff) {
+                        dens_zone = problem_rp::low_density_cutoff;
+                        temp_zone = problem_rp::temp_fluff;
                         converged_hse = true;
                         fluff = true;
                         break;
@@ -336,14 +336,14 @@ AMREX_INLINE void init_1d() {
                 amrex:Error("Error: HSE non-convergence");
             }
 
-            if (temp_zone < temp_fluff) {
-                temp_zone = temp_fluff;
+            if (temp_zone < problem_rp::temp_fluff) {
+                temp_zone = problem_rp::temp_fluff;
                 isentropic = false;
             }
 
         } else {
-            dens_zone = low_density_cutoff;
-            temp_zone = temp_fluff;
+            dens_zone = problem_rp::low_density_cutoff;
+            temp_zone = problem_rp::temp_fluff;
         }
 
 
@@ -412,7 +412,7 @@ AMREX_INLINE void init_1d() {
             // HSE differencing
 
             p_want = model_hse(i+1, ipres) -
-                delx * 0.5_rt * (dens_zone + model_hse(i+1, idens)) * g_zone;
+                delx * 0.5_rt * (dens_zone + model_hse(i+1, idens)) * problem_rp::g_zone;
 
             // now we have two functions to zero:
             //   A = p_want - p(rho,T)
@@ -441,10 +441,10 @@ AMREX_INLINE void init_1d() {
             Real A = p_want - pres_zone;
             Real B = entropy_want(i) - entropy;
 
-            dtemp = ((dsd / (dpd + 0.5_rt * delx * g_zone)) * A - B) /
-                (dsd * dpT / (dpd + 0.5_rt * delx * g_zone) - dsT);
+            dtemp = ((dsd / (dpd + 0.5_rt * delx * problem_rp::g_zone)) * A - B) /
+                (dsd * dpT / (dpd + 0.5_rt * delx * problem_rp::g_zone) - dsT);
 
-            drho = (A - dpT * dtemp) / (dpd + 0.5_rt * delx * g_zone);
+            drho = (A - dpT * dtemp) / (dpd + 0.5_rt * delx * problem_rp::g_zone);
 
             dens_zone =
                 amrex::max(0.9_rt * dens_zone,
@@ -494,7 +494,7 @@ AMREX_INLINE void init_1d() {
     }
 
     std::stringstream ss;
-    ss << nx;
+    ss << problem_rp::nx;
     std::string num_str = ss.str();
 
     std::string outfile = "model.hse." + num_str;
@@ -502,7 +502,7 @@ AMREX_INLINE void init_1d() {
     std::ofstream of;
     of.open(outfile);
 
-    of << "# npts = " << nx << std::endl;
+    of << "# npts = " << problem_rp::nx << std::endl;
     of << "# num of variables = " << nvar << std::endl;
     of << "# density" << std::endl;
     of << "# temperature" << std::endl;
@@ -512,7 +512,7 @@ AMREX_INLINE void init_1d() {
         of << "# " << spec_names_cxx[n] << std::endl;
     }
 
-    for (int i = 0; i < nx; ++i) {
+    for (int i = 0; i < problem_rp::nx; ++i) {
         of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
         of << std::setprecision(12) << std::setw(20) << model_hse(i, idens) << " ";
         of << std::setprecision(12) << std::setw(20) << model_hse(i, itemp) << " ";
@@ -529,11 +529,11 @@ AMREX_INLINE void init_1d() {
 
     Real max_hse_error = -1.e30_rt;
 
-    for (int i = 1; i < nx-1; ++i) {
+    for (int i = 1; i < problem_rp::nx-1; ++i) {
         Real dpdr = (model_hse(i,ipres) - model_hse(i-1,ipres)) / delx;
-        Real rhog = 0.5_rt * (model_hse(i,idens) + model_hse(i-1,idens)) * g_zone;
+        Real rhog = 0.5_rt * (model_hse(i,idens) + model_hse(i-1,idens)) * problem_rp::g_zone;
 
-        if (dpdr != 0.0_rt && model_hse(i+1, idens) > low_density_cutoff) {
+        if (dpdr != 0.0_rt && model_hse(i+1, idens) > problem_rp::low_density_cutoff) {
             max_hse_error = amrex::max(max_hse_error, std::abs(dpdr - rhog) / std::abs(dpdr));
         }
     }
