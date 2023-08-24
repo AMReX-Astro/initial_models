@@ -28,7 +28,7 @@ EBASE := initialmodel
 EOS_DIR := helmholtz
 
 NETWORK_DIR := aprox19
-USE_NSE := TRUE
+USE_NSE_TABLE := TRUE
 
 Bpack := ./Make.package ../Make.package
 Blocs := . ..

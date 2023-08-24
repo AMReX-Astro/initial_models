@@ -28,7 +28,11 @@
 #include <fundamental_constants.H>
 
 #include <network.H>
-#include <nse.H>
+#include <nse_table.H>
+#include <nse_table_check.H>
+
+#include <eos.H>
+#include <eos_composition.H>
 
 #include <read_model.H>
 #include <interpolate.H>
@@ -58,7 +62,14 @@ constexpr Real temp_fluff = 1.e5_rt;
 AMREX_INLINE void
 set_aux(eos_t& eos_state) {
 
-    bool nse_check = in_nse(eos_state);
+    burn_t burn_state;
+    burn_state.rho = eos_state.rho;
+    burn_state.T = eos_state.T;
+    for (int n = 0; n < NumSpec; ++n) {
+        burn_state.xn[n] = eos_state.xn[n];
+    }
+
+    bool nse_check = in_nse(burn_state);
 
     if (nse_check) {
 
@@ -74,7 +85,7 @@ set_aux(eos_t& eos_state) {
         eos_state.aux[AuxZero::iabar] = abar_pass;
 
     } else {
-        set_nse_aux_from_X(eos_state);
+        set_aux_comp_from_X(eos_state);
     }
 }
 
@@ -86,12 +97,12 @@ write_model(std::string model_name,
 
     // Write data stored in `model_state` array to file
 
-    int ipos = model_file.find(".dat");
+    int ipos = problem_rp::model_file.find(".dat");
     if (ipos < 0) {
-        ipos = model_file.find(".txt");
+        ipos = problem_rp::model_file.find(".txt");
     }
 
-    std::string outfile = model_file.substr(0, ipos) + "." + model_name;
+    std::string outfile = problem_rp::model_file.substr(0, ipos) + "." + model_name;
 
     Real dx = (xzn_hse(1) - xzn_hse(0)) / 1.e5_rt;  // km
 
@@ -106,7 +117,7 @@ write_model(std::string model_name,
     std::ofstream of;
     of.open(outfile);
 
-    of << "# npts = " << nx << std::endl;
+    of << "# npts = " << problem_rp::nx << std::endl;
     of << "# num of variables = " << model::nvar << std::endl;
     of << "# density" << std::endl;
     of << "# temperature" << std::endl;
@@ -119,7 +130,7 @@ write_model(std::string model_name,
         of << "# " << spec_names_cxx[n] << std::endl;
     }
 
-    for (int i = 0; i < nx; ++i) {
+    for (int i = 0; i < problem_rp::nx; ++i) {
         of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
         of << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
         of << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
@@ -142,9 +153,9 @@ AMREX_INLINE void init_1d() {
     // are mapping onto, and then we want to force it into HSE on that
     // mesh.
 
-    std::cout << "here " << nx << " " << NPTS_MODEL << std::endl;
+    std::cout << "here " << problem_rp::nx << " " << NPTS_MODEL << std::endl;
 
-    if (nx > NPTS_MODEL) {
+    if (problem_rp::nx > NPTS_MODEL) {
         amrex::Error("too many zones requested -- increase NPTS_MODEL");
     }
 
@@ -160,11 +171,11 @@ AMREX_INLINE void init_1d() {
 
     // compute the coordinates of the new gridded function
 
-    Real delx = (xmax - xmin) / static_cast<Real>(nx);
+    Real delx = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
 
-    for (int i = 0; i < nx; ++i) {
-        xznl(i) = xmin + static_cast<Real>(i) * delx;
-        xznr(i) = xmin + (static_cast<Real>(i) + 1.0_rt) * delx;
+    for (int i = 0; i < problem_rp::nx; ++i) {
+        xznl(i) = problem_rp::xmin + static_cast<Real>(i) * delx;
+        xznr(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt) * delx;
         xzn_hse(i) = 0.5_rt * (xznl(i) + xznr(i));
     }
 
@@ -172,7 +183,7 @@ AMREX_INLINE void init_1d() {
 
     initial_model_t initial_model;
 
-    read_file(model_file, initial_model);
+    read_file(problem_rp::model_file, initial_model);
 
     std::ofstream of;
     of.open("model.orig");
@@ -214,7 +225,7 @@ AMREX_INLINE void init_1d() {
 
     // put the model onto our new uniform grid
 
-    for (int i = 0; i < nx; ++i) {
+    for (int i = 0; i < problem_rp::nx; ++i) {
 
        for (int n = 0; n < model::nvar; ++n) {
 
@@ -248,7 +259,7 @@ AMREX_INLINE void init_1d() {
 
     eos_t eos_state;
 
-    for (int i = 0; i < nx; ++i) {
+    for (int i = 0; i < problem_rp::nx; ++i) {
 
         // we need to fill a burn_t in order to check for NSE
 
@@ -300,7 +311,7 @@ AMREX_INLINE void init_1d() {
 
     int ibegin = -1;
 
-    for (int i = 0; i < nx; ++i) {
+    for (int i = 0; i < problem_rp::nx; ++i) {
         if (xzn_hse(i) >= initial_model.r(0)) {
             ibegin = i;
             break;;
@@ -345,7 +356,7 @@ AMREX_INLINE void init_1d() {
 
        model_mesa_hse(ibegin, model::ipres) = eos_state.p;
 
-       for (int i = 0; i < nx; ++i) {
+       for (int i = 0; i < problem_rp::nx; ++i) {
            entropy_want(i) = eos_state.s;
        }
 
@@ -501,7 +512,7 @@ AMREX_INLINE void init_1d() {
     bool fluff = false;
     int index_hse_fluff = -1;
 
-    for (int i = 1; i < nx; ++i) {
+    for (int i = 1; i < problem_rp::nx; ++i) {
 
         // use previous zone as initial guess for rho
 
@@ -651,13 +662,13 @@ AMREX_INLINE void init_1d() {
 
     write_model(model_name, xzn_hse, model_mesa_hse);
 
-    std::cout << "total mass = " << M_enclosed(nx-1) << " g; " << M_enclosed(nx-1) / C::M_solar << " solar masses" << std::endl;
+    std::cout << "total mass = " << M_enclosed(problem_rp::nx-1) << " g; " << M_enclosed(problem_rp::nx-1) / C::M_solar << " solar masses" << std::endl;
 
     // compute the maximum HSE error
 
     Real max_hse_error = -1.e30_rt;
 
-    for (int i = 1; i < nx-1; ++i) {
+    for (int i = 1; i < problem_rp::nx-1; ++i) {
         Real g_zone = -C::Gconst * M_enclosed(i-1) / std::pow(xznr(i-1), 2);
         Real dpdr = (model_mesa_hse(i, model::ipres) - model_mesa_hse(i-1, model::ipres)) / delx;
         Real rhog = 0.5_rt * (model_mesa_hse(i, model::idens) + model_mesa_hse(i-1, model::idens)) * g_zone;
