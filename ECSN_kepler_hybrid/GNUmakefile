@@ -1,25 +1,39 @@
-# Makefile for the init_1d initial model generator
+PRECISION = DOUBLE
+PROFILE = FALSE
 
-NDEBUG := 
-MPI    :=
-OMP    :=
+DEBUG = FALSE
 
-COMP := gfortran
+DIM = 1
 
-MKVERBOSE := t
+COMP = g++
+FCOMP = gfortran
+
+USE_MPI = FALSE
+USE_OMP = FALSE
+
+USE_REACT = TRUE
+USE_CXX_EOS = TRUE
+USE_CXX_REACTIONS = TRUE
+
+USE_FORT_MICROPHYSICS = FALSE
+
+MAX_ZONES := 32768
+
+DEFINES += -DNPTS_MODEL=$(MAX_ZONES)
+
+# programs to be compiled
+EBASE := initialmodel
 
 # EOS and network
 EOS_DIR := helmholtz
 
 NETWORK_DIR := general_null
-GENERAL_NET_INPUTS := $(MICROPHYSICS_HOME)/networks/$(NETWORK_DIR)/ECSN.net
+NETWORK_INPUTS = ECSN.net
+USE_NSE := TRUE
 
+Bpack := ./Make.package ../Make.package
+Blocs := . ..
 
-# the local sources needed to build the initial model generator
-MODEL_SOURCES := init_1d.f90
-# MODEL_SOURCES := init_1d_irreg.f90
+EXTERN_SEARCH += . ..
 
-
-include ../GInitModels.mak
-
-
+include $(MICROPHYSICS_HOME)/Make.Microphysics

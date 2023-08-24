@@ -1,0 +1,6 @@
+problem.nx = 10240
+
+problem.xmin = 0
+problem.xmax = 2.5e8
+
+problem.model_file = ECSN-ONe6040-final.raw
