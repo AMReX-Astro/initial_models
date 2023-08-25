@@ -5,13 +5,16 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Introduction &mdash; initial models  documentation</title>
-      <link rel="stylesheet" href="_static/theme_overrides.css" type="text/css" />
-      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
+      <link rel="stylesheet" href="_static/theme_overrides.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
         <script src="_static/documentation_options.js?v=5929fcd5"></script>
         <script src="_static/doctools.js?v=888ff710"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
@@ -78,7 +81,7 @@
            <div itemprop="articleBody">
              
   <section id="introduction">
-<h1>Introduction<a class="headerlink" href="#introduction" title="Link to this heading">¶</a></h1>
+<h1>Introduction<a class="headerlink" href="#introduction" title="Link to this heading"></a></h1>
 <p>This repository holds the routines that are used to make hydrostatic
 initial models for the AMReX Astrophysics Suite codes MAESTROeX and
 Castro.  It is designed to work with the equations of state and
@@ -103,7 +106,7 @@ equation for <span class="math notranslate nohighlight">\(\rho_{i+1}\)</span> to
 \[p(\rho_{i+1}, T_c) = p_i + \frac{\Delta r}{2} (\rho_i + \rho_{i+1} ) g_{i+1/2}\]</div>
 <p>And similar for a constant entropy.</p>
 <section id="simple-parameterized-models">
-<h2>Simple parameterized models<a class="headerlink" href="#simple-parameterized-models" title="Link to this heading">¶</a></h2>
+<h2>Simple parameterized models<a class="headerlink" href="#simple-parameterized-models" title="Link to this heading"></a></h2>
 <blockquote>
 <div><ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">low_mass_convective_star</span></code></p>
@@ -138,7 +141,7 @@ isothermal.  This was used for some of the X-ray burst models.</p>
 </div></blockquote>
 </section>
 <section id="stellar-evolution-code-convertors">
-<h2>stellar evolution code convertors<a class="headerlink" href="#stellar-evolution-code-convertors" title="Link to this heading">¶</a></h2>
+<h2>stellar evolution code convertors<a class="headerlink" href="#stellar-evolution-code-convertors" title="Link to this heading"></a></h2>
 <blockquote>
 <div><ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">lagrangian_planar</span></code></p>
