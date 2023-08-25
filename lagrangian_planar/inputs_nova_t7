@@ -2,12 +2,12 @@ problem.model_file = glasner_T7.raw
 
 problem.model_prefix = glasner_T7
 
-problem.nx = 8096
+problem.nx = 10240
 
 problem.model_shift = 4.534384e8
 
 problem.xmin = 0.0
-problem.xmax = 8.096e7
+problem.xmax = 10.240e7
 
 problem.g_const = -7.06e8
 
