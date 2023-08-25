@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>lagrangian_planar &mdash; initial models  documentation</title>
+  <title>ECSN_kepler_hybrid &mdash; initial models  documentation</title>
       <link rel="stylesheet" href="_static/theme_overrides.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -12,12 +12,9 @@
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/jquery.js"></script>
-        <script src="_static/underscore.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -48,7 +45,8 @@
 <li class="toctree-l1"><a class="reference internal" href="Introduction.html">Introduction</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="rp_intro.html">Runtime Parameters</a><ul class="current">
 <li class="toctree-l2 current"><a class="reference internal" href="rp_intro.html#microphysics-extern-parameter-format">Microphysics/extern parameter format</a><ul class="current">
-<li class="toctree-l3 current"><a class="current reference internal" href="#">lagrangian_planar</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">ECSN_kepler_hybrid</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#lagrangian-planar">lagrangian_planar</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#low-mass-convective-star">low_mass_convective_star</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#massive-star">massive_star</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#nova">nova</a></li>
@@ -77,7 +75,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="rp_intro.html">Runtime Parameters</a></li>
-      <li class="breadcrumb-item active">lagrangian_planar</li>
+      <li class="breadcrumb-item active">ECSN_kepler_hybrid</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/runtime_parameters.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -106,8 +104,11 @@
 </tr>
 </tbody>
 </table>
+<section id="ecsn-kepler-hybrid">
+<h1>ECSN_kepler_hybrid<a class="headerlink" href="#ecsn-kepler-hybrid" title="Link to this heading">¶</a></h1>
+</section>
 <section id="lagrangian-planar">
-<h1>lagrangian_planar<a class="headerlink" href="#lagrangian-planar" title="Permalink to this heading">¶</a></h1>
+<h1>lagrangian_planar<a class="headerlink" href="#lagrangian-planar" title="Link to this heading">¶</a></h1>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>parameter</p></th>
@@ -172,7 +173,7 @@
 </table>
 </section>
 <section id="low-mass-convective-star">
-<h1>low_mass_convective_star<a class="headerlink" href="#low-mass-convective-star" title="Permalink to this heading">¶</a></h1>
+<h1>low_mass_convective_star<a class="headerlink" href="#low-mass-convective-star" title="Link to this heading">¶</a></h1>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>parameter</p></th>
@@ -221,14 +222,18 @@
 <td></td>
 <td><p>“convective”</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">use_irreg_grid</span></code></p></td>
+<td></td>
+<td><p>0</p></td>
+</tr>
 </tbody>
 </table>
 </section>
 <section id="massive-star">
-<h1>massive_star<a class="headerlink" href="#massive-star" title="Permalink to this heading">¶</a></h1>
+<h1>massive_star<a class="headerlink" href="#massive-star" title="Link to this heading">¶</a></h1>
 </section>
 <section id="nova">
-<h1>nova<a class="headerlink" href="#nova" title="Permalink to this heading">¶</a></h1>
+<h1>nova<a class="headerlink" href="#nova" title="Link to this heading">¶</a></h1>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>parameter</p></th>
@@ -285,7 +290,7 @@ TNH2, 5 = GSSN, 6 = EXNP</p></td>
 </table>
 </section>
 <section id="spherical">
-<h1>spherical<a class="headerlink" href="#spherical" title="Permalink to this heading">¶</a></h1>
+<h1>spherical<a class="headerlink" href="#spherical" title="Link to this heading">¶</a></h1>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>parameter</p></th>
@@ -294,6 +299,54 @@ TNH2, 5 = GSSN, 6 = EXNP</p></td>
 </tr>
 </thead>
 <tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nx</span></code></p></td>
+<td></td>
+<td><p>1280</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">smallx</span></code></p></td>
+<td></td>
+<td><p>1.e-10</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">xmin</span></code></p></td>
+<td></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">xmax</span></code></p></td>
+<td></td>
+<td><p>5.e8</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dens_base</span></code></p></td>
+<td></td>
+<td><p>2.6e9</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">temp_base</span></code></p></td>
+<td></td>
+<td><p>6.e8</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dens_conv_zone</span></code></p></td>
+<td></td>
+<td><p>-1.0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M_conv_zone</span></code></p></td>
+<td></td>
+<td><p>2.0</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">low_density_cutoff</span></code></p></td>
+<td></td>
+<td><p>1.e-4</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">temp_fluff</span></code></p></td>
+<td></td>
+<td><p>1.e7</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cfrac</span></code></p></td>
+<td></td>
+<td><p>0.7</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prefix</span></code></p></td>
+<td></td>
+<td><p>“spherical”</p></td>
+</tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nx</span></code></p></td>
 <td></td>
 <td><p>1280</p></td>
@@ -358,59 +411,11 @@ TNH2, 5 = GSSN, 6 = EXNP</p></td>
 <td></td>
 <td><p>“spherical”</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nx</span></code></p></td>
-<td></td>
-<td><p>1280</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">smallx</span></code></p></td>
-<td></td>
-<td><p>1.e-10</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">xmin</span></code></p></td>
-<td></td>
-<td><p>0.0</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">xmax</span></code></p></td>
-<td></td>
-<td><p>5.e8</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dens_base</span></code></p></td>
-<td></td>
-<td><p>2.6e9</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">temp_base</span></code></p></td>
-<td></td>
-<td><p>6.e8</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dens_conv_zone</span></code></p></td>
-<td></td>
-<td><p>-1.0</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M_conv_zone</span></code></p></td>
-<td></td>
-<td><p>2.0</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">low_density_cutoff</span></code></p></td>
-<td></td>
-<td><p>1.e-4</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">temp_fluff</span></code></p></td>
-<td></td>
-<td><p>1.e7</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cfrac</span></code></p></td>
-<td></td>
-<td><p>0.7</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prefix</span></code></p></td>
-<td></td>
-<td><p>“spherical”</p></td>
-</tr>
 </tbody>
 </table>
 </section>
 <section id="sub-chandra">
-<h1>sub_chandra<a class="headerlink" href="#sub-chandra" title="Permalink to this heading">¶</a></h1>
+<h1>sub_chandra<a class="headerlink" href="#sub-chandra" title="Link to this heading">¶</a></h1>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>parameter</p></th>
@@ -471,7 +476,7 @@ TNH2, 5 = GSSN, 6 = EXNP</p></td>
 </table>
 </section>
 <section id="test2">
-<h1>test2<a class="headerlink" href="#test2" title="Permalink to this heading">¶</a></h1>
+<h1>test2<a class="headerlink" href="#test2" title="Link to this heading">¶</a></h1>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>parameter</p></th>
@@ -528,7 +533,7 @@ TNH2, 5 = GSSN, 6 = EXNP</p></td>
 </table>
 </section>
 <section id="toy-atm">
-<h1>toy_atm<a class="headerlink" href="#toy-atm" title="Permalink to this heading">¶</a></h1>
+<h1>toy_atm<a class="headerlink" href="#toy-atm" title="Link to this heading">¶</a></h1>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>parameter</p></th>
