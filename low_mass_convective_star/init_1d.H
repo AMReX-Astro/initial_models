@@ -3,12 +3,12 @@
 
 #include <AMReX_Array.H>
 
-
 #include <sstream>
 
 #include <extern_parameters.H>
 #include <fundamental_constants.H>
 
+#include <coord_info.H>
 #include <model_util.H>
 
 using namespace amrex;
@@ -92,36 +92,7 @@ AMREX_INLINE void init_1d() {
     Array1D<Real, 0, NPTS_MODEL-1> delrl;
     Array1D<Real, 0, NPTS_MODEL-1> delrr;
 
-    // compute the coordinates of the new gridded function
-
-    // note: this uses the uniform grid dx, regardless of whether we are doing irregular
-    // or uniform gridding
-
-    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
-
-    if (problem_rp::use_irreg_grid) {
-
-        for (int i = 0; i < nr; ++i) {
-            if (i == 0) {
-                // set the first edge node to xmin
-                xznl(i) = problem_rp::xmin;
-            } else {
-                xznl(i) = problem_rp::xmin + std::sqrt(0.75_rt + 2.0_rt * (static_cast<Real>(i) - 0.5_rt)) * dCoord;
-            }
-
-            xznr(i) = problem_rp::xmin + std::sqrt(0.75_rt + 2.0_rt * (static_cast<Real>(i) + 0.5_rt)) * dCoord;
-            xzn_hse(i) = problem_rp::xmin + std::sqrt(0.75_rt + 2.0_rt * static_cast<Real>(i)) * dCoord;
-            delrl(i) = xzn_hse(i) - xznl(i);
-            delrr(i) = xznr(i) - xzn_hse(i);
-        }
-    } else {
-
-        for (int i = 0; i < nr; ++i) {
-            xznl(i) = problem_rp::xmin + static_cast<Real>(i) * dCoord;
-            xznr(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt) * dCoord;
-            xzn_hse(i) = 0.5_rt * (xznl(i) + xznr(i));
-        }
-    }
+    fill_coord_arrays_irreg(nr, xzn_hse, xznl, xznr, delrl, delrr);
 
     // We don't know what central density will give the desired total
     // mass, so we need to iterate over central density
@@ -429,6 +400,7 @@ AMREX_INLINE void init_1d() {
 
     std::cout << "mass = " << M_enclosed(nr-1) / C::M_solar << std::endl;;
 
+    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
     std::string dxstr = problem_rp::use_irreg_grid ? "irreg" : num_to_unitstring(dCoord);
 
     std::string outfile_base = problem_rp::prefix;
