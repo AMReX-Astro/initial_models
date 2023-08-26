@@ -129,7 +129,7 @@ AMREX_INLINE void init_1d() {
     Real rho_c = 1.e9_rt;  // 1.e9 is a reasonable starting WD central density
 
     // rho_he_old is the old guess for the density to transition to He,
-    // where we will be isentropic, and rho_he is the currrent guess.
+    // where we will be isentropic, and rho_he is the current guess.
 
     Real rho_he_old = -1.0_rt;
     Real rho_he = 0.5_rt * rho_c;
