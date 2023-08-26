@@ -19,3 +19,6 @@ hefrac               real         0.3
 M_tot                real         0.3
 
 prefix               character    "convective"
+
+# not used, but needed for the reader
+model_file           character    ""
