@@ -7,7 +7,7 @@
 using namespace amrex;
 
 ///
-/// compute the coordinates of the new gridded function
+/// compute the coordinates of the new gridded function with irregular spacing
 ///
 inline
 void
@@ -47,6 +47,24 @@ fill_coord_arrays_irreg(const int nr,
         }
     }
 
+}
+
+///
+/// compute the coordinates of the new gridded function with regular spacing
+///
+inline
+void
+fill_coord_arrays(Array1D<Real, 0, NPTS_MODEL-1>& xzn_hse,
+                  Array1D<Real, 0, NPTS_MODEL-1>& xznl,
+                  Array1D<Real, 0, NPTS_MODEL-1>& xznr) {
+
+    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
+
+    for (int i = 0; i < problem_rp::nx; ++i) {
+        xznl(i) = problem_rp::xmin + static_cast<Real>(i) * dCoord;
+        xznr(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt) * dCoord;
+        xzn_hse(i) = 0.5_rt * (xznl(i) + xznr(i));
+    }
 }
 
 #endif

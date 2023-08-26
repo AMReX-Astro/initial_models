@@ -24,6 +24,7 @@
 
 #include <network.H>
 
+#include <coord_info.H>
 #include <read_model.H>
 #include <interpolate.H>
 
@@ -139,11 +140,7 @@ AMREX_INLINE void init_1d() {
 
     Real delx = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
 
-    for (int i = 0; i < problem_rp::nx; ++i) {
-        xznl(i) = problem_rp::xmin + static_cast<Real>(i) * delx;
-        xznr(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt) * delx;
-        xzn_hse(i) = 0.5_rt * (xznl(i) + xznr(i));
-    }
+    fill_coord_arrays(xzn_hse, xznl, xznr);
 
     // read in the MESA model
 
