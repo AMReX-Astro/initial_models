@@ -34,6 +34,7 @@
 #include <eos.H>
 #include <eos_composition.H>
 
+#include <coord_info.H>
 #include <read_model.H>
 #include <interpolate.H>
 
@@ -90,63 +91,6 @@ set_aux(eos_t& eos_state) {
 }
 
 
-AMREX_INLINE void
-write_model(std::string model_name,
-            const Array1D<Real, 0, NPTS_MODEL-1>& xzn_hse,
-            const Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1>& model_hse) {
-
-    // Write data stored in `model_state` array to file
-
-    int ipos = problem_rp::model_file.find(".dat");
-    if (ipos < 0) {
-        ipos = problem_rp::model_file.find(".txt");
-    }
-
-    std::string outfile = problem_rp::model_file.substr(0, ipos) + "." + model_name;
-
-    Real dx = (xzn_hse(1) - xzn_hse(0)) / 1.e5_rt;  // km
-
-    std::stringstream ss;
-    ss << dx;
-    std::string dx_str = ss.str();
-
-    outfile += "." + dx_str + "km";
-
-    std::cout << "writing " << model_name << " model to " << outfile << std::endl;
-
-    std::ofstream of;
-    of.open(outfile);
-
-    of << "# npts = " << problem_rp::nx << std::endl;
-    of << "# num of variables = " << model::nvar << std::endl;
-    of << "# density" << std::endl;
-    of << "# temperature" << std::endl;
-    of << "# pressure" << std::endl;
-    of << "# Ye" << std::endl;
-
-    // of << "# conv_vel" << std::endl;
-
-    for (int n = 0; n < NumSpec; ++n) {
-        of << "# " << spec_names_cxx[n] << std::endl;
-    }
-
-    for (int i = 0; i < problem_rp::nx; ++i) {
-        of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ipres) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::iyef) << " ";
-        for (int n = 0; n < NumSpec; ++n) {
-            of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ispec+n) << " ";
-        }
-        of << std::endl;
-    }
-
-    of.close();
-
-}
-
-
 AMREX_INLINE void init_1d() {
 
     // Create a 1-d uniform grid that is identical to the mesh that we
@@ -173,11 +117,7 @@ AMREX_INLINE void init_1d() {
 
     Real delx = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
 
-    for (int i = 0; i < problem_rp::nx; ++i) {
-        xznl(i) = problem_rp::xmin + static_cast<Real>(i) * delx;
-        xznr(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt) * delx;
-        xzn_hse(i) = 0.5_rt * (xznl(i) + xznr(i));
-    }
+    fill_coord_arrays(xzn_hse, xznl, xznr);
 
     // read in the MESA model
 
@@ -252,7 +192,7 @@ AMREX_INLINE void init_1d() {
 
     }
 
-    write_model("uniform", xzn_hse, model_mesa_hse);
+    write_model("uniform", xzn_hse, model_mesa_hse, true);
 
 
     // reset the composition if we are in NSE
@@ -288,7 +228,7 @@ AMREX_INLINE void init_1d() {
 
     }
 
-    write_model("composition", xzn_hse, model_mesa_hse);
+    write_model("composition", xzn_hse, model_mesa_hse, true);
 
 
     // iterate to find the central density
@@ -660,7 +600,7 @@ AMREX_INLINE void init_1d() {
 
     std::string model_name = "hse";
 
-    write_model(model_name, xzn_hse, model_mesa_hse);
+    write_model(model_name, xzn_hse, model_mesa_hse, true);
 
     std::cout << "total mass = " << M_enclosed(problem_rp::nx-1) << " g; " << M_enclosed(problem_rp::nx-1) / C::M_solar << " solar masses" << std::endl;
 
