@@ -71,15 +71,21 @@ write_model(std::string model_name,
 
     // Write data stored in `model_state` array to file
 
-    int ipos = problem_rp::model_file.find(".dat");
-    if (ipos < 0) {
-        ipos = problem_rp::model_file.find(".txt");
-    }
-    if (ipos < 0) {
-        ipos = problem_rp::model_file.find(".raw");
+    std::string outfile{};
+
+    if (! problem_rp::model_file.empty()) {
+        int ipos = problem_rp::model_file.find(".dat");
+        if (ipos < 0) {
+            ipos = problem_rp::model_file.find(".txt");
+        }
+        if (ipos < 0) {
+            ipos = problem_rp::model_file.find(".raw");
+        }
+
+        outfile += problem_rp::model_file.substr(0, ipos) + ".";
     }
 
-    std::string outfile = problem_rp::model_file.substr(0, ipos) + "." + model_name;
+    outfile += model_name;
 
     Real dx = (xzn_hse(1) - xzn_hse(0));
     std::string dx_str = num_to_unitstring(dx);
