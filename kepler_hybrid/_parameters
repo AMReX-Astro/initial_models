@@ -1,0 +1,21 @@
+@namespace: problem
+
+model_file           character    "kepler_new_6.25e8.raw""
+
+nx                   integer      1280
+
+smallx               real         1.e-10
+
+xmin                 real         0.0
+
+xmax                 real         5.e8
+
+low_density_cutoff   real         1.e-4
+
+# temp_fluff_cutoff is the density below which we hold the temperature
+# constant for the kepler model
+temp_fluff_cutoff    real         1.e3
+
+temp_fluff           real         5.e6
+
+use_irreg_grid       integer      0
