@@ -9,7 +9,11 @@
 #include <extern_parameters.H>
 #include <fundamental_constants.H>
 
+#include <coord_info.H>
 #include <model_util.H>
+
+// we use this only for the indices
+#include <read_model.H>
 
 using namespace amrex;
 
@@ -21,14 +25,6 @@ using namespace amrex;
 // use constant T.
 
 AMREX_INLINE void init_1d() {
-
-    // define convenient indices for the scalars
-
-    const int nvar = 3 + NumSpec;
-    const int idens = 0;
-    const int itemp = 1;
-    const int ipres = 2;
-    const int ispec = 3;
 
     // TOL_HSE is the tolerance used when iterating over a zone to
     // force it into HSE by adjusting the current density (and
@@ -70,7 +66,7 @@ AMREX_INLINE void init_1d() {
     Array1D<Real, 0, NPTS_MODEL-1> xznl;
     Array1D<Real, 0, NPTS_MODEL-1> xznr;
 
-    Array2D<Real, 0, NPTS_MODEL-1, 0, nvar-1> model_hse;
+    Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1> model_hse;
 
     Array1D<Real, 0, NPTS_MODEL-1> M_enclosed;
     Array1D<Real, 0, NPTS_MODEL-1> entropy_want;
@@ -78,13 +74,7 @@ AMREX_INLINE void init_1d() {
 
     // compute the coordinates of the new gridded function
 
-    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
-
-    for (int i = 0; i < problem_rp::nx; ++i) {
-        xznl(i) = problem_rp::xmin + static_cast<Real>(i) * dCoord;
-        xznr(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt) * dCoord;
-        xzn_hse(i) = 0.5_rt * (xznl(i) + xznr(i));
-    }
+    fill_coord_arrays(xzn_hse, xznl, xznr);
 
     bool fluff{false};
 
@@ -104,21 +94,21 @@ AMREX_INLINE void init_1d() {
     // make the initial guess be completely uniform
 
     for (int i = 0; i < problem_rp::nx; ++i) {
-        model_hse(i, idens) = eos_state.rho;
-        model_hse(i, itemp) = eos_state.T;
-        model_hse(i, ipres) = eos_state.p;
+        model_hse(i, model::idens) = eos_state.rho;
+        model_hse(i, model::itemp) = eos_state.T;
+        model_hse(i, model::ipres) = eos_state.p;
 
         entropy_want(i) = eos_state.s;
 
         for (int n = 0; n < NumSpec; ++n) {
-            model_hse(i, ispec+n) = eos_state.xn[n];
+            model_hse(i, model::ispec+n) = eos_state.xn[n];
         }
     }
 
     // keep track of the mass enclosed below the current zone
 
     M_enclosed(0) = (4.0_rt / 3.0_rt) * M_PI *
-            (std::pow(xznr(0), 3) - std::pow(xznl(0), 3)) * model_hse(0,idens);
+            (std::pow(xznr(0), 3) - std::pow(xznl(0), 3)) * model_hse(0, model::idens);
 
 
     // HSE + entropy solve
@@ -141,10 +131,10 @@ AMREX_INLINE void init_1d() {
         // as the initial guess for the temperature and density, use
         // the previous zone
 
-        dens_zone = model_hse(i-1, idens);
-        temp_zone = model_hse(i-1, itemp);
+        dens_zone = model_hse(i-1, model::idens);
+        temp_zone = model_hse(i-1, model::itemp);
         for (int n = 0; n < NumSpec; ++n) {
-            xn[n] = model_hse(i, ispec+n);
+            xn[n] = model_hse(i, model::ispec+n);
         }
 
         Real g_zone = -C::Gconst * M_enclosed(i-1) / (xznl(i) * xznl(i));
@@ -166,8 +156,8 @@ AMREX_INLINE void init_1d() {
 
                 if (isentropic) {
 
-                    p_want = model_hse(i-1, ipres) +
-                        delx * 0.5_rt * (dens_zone + model_hse(i-1, idens)) * g_zone;
+                    p_want = model_hse(i-1, model::ipres) +
+                        delx * 0.5_rt * (dens_zone + model_hse(i-1, model::idens)) * g_zone;
 
                     // now we have two functions to zero:
                     //   A = p_want - p(rho,T)
@@ -243,10 +233,10 @@ AMREX_INLINE void init_1d() {
 
                     // do isothermal
 
-                    p_want = model_hse(i-1, ipres) +
-                        delx * 0.5_rt * (dens_zone + model_hse(i-1, idens)) * g_zone;
+                    p_want = model_hse(i-1, model::ipres) +
+                        delx * 0.5_rt * (dens_zone + model_hse(i-1, model::idens)) * g_zone;
 
-                    temp_zone = model_hse(i-1, itemp);
+                    temp_zone = model_hse(i-1, model::itemp);
 
                     eos_state.T = temp_zone;
                     eos_state.rho = dens_zone;
@@ -327,13 +317,13 @@ AMREX_INLINE void init_1d() {
 
         // update the thermodynamics in this zone
 
-        model_hse(i, idens) = dens_zone;
-        model_hse(i, itemp) = temp_zone;
-        model_hse(i, ipres) = pres_zone;
+        model_hse(i, model::idens) = dens_zone;
+        model_hse(i, model::itemp) = temp_zone;
+        model_hse(i, model::ipres) = pres_zone;
 
         M_enclosed(i) = M_enclosed(i-1) +
             (4.0_rt / 3.0_rt) * M_PI * (xznr(i) - xznl(i)) *
-            (std::pow(xznr(i), 2) + xznl(i) * xznr(i) + std::pow(xznl(i), 2)) * model_hse(i, idens);
+            (std::pow(xznr(i), 2) + xznl(i) * xznr(i) + std::pow(xznl(i), 2)) * model_hse(i, model::idens);
 
         if (M_enclosed(i) > problem_rp::M_conv_zone * C::M_solar && isentropic) {
             i_conv = i;
@@ -346,6 +336,8 @@ AMREX_INLINE void init_1d() {
     std::cout << "mass = " << M_enclosed(problem_rp::nx-1) / C::M_solar << std::endl;;
     std::cout << "mass of convective zone = " << M_enclosed(i_conv) / C::M_solar << std::endl;;
 
+    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
+
     std::string dxstr = num_to_unitstring(dCoord);
 
     std::string outfile_base = problem_rp::prefix;
@@ -356,7 +348,7 @@ AMREX_INLINE void init_1d() {
     of.open(outfile);
 
     of << "# npts = " << problem_rp::nx << std::endl;
-    of << "# num of variables = " << nvar << std::endl;
+    of << "# num of variables = " << 3+NumSpec << std::endl;
     of << "# density" << std::endl;
     of << "# temperature" << std::endl;
     of << "# pressure" << std::endl;
@@ -367,11 +359,11 @@ AMREX_INLINE void init_1d() {
 
     for (int i = 0; i < problem_rp::nx; ++i) {
         of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, idens) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, itemp) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, ipres) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ipres) << " ";
         for (int n = 0; n < NumSpec; ++n) {
-            of << std::setprecision(12) << std::setw(20) << model_hse(i, ispec+n) << " ";
+            of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ispec+n) << " ";
         }
         of << std::endl;
     }
@@ -385,10 +377,10 @@ AMREX_INLINE void init_1d() {
 
     for (int i = 1; i < problem_rp::nx-1; ++i) {
         Real g_zone = -C::Gconst * M_enclosed(i-1) / (xznr(i-1) * xznr(i-1));
-        Real dpdr = (model_hse(i, ipres) - model_hse(i-1, ipres)) / delx;
-        Real rhog = 0.5_rt * (model_hse(i, idens) + model_hse(i-1, idens)) * g_zone;
+        Real dpdr = (model_hse(i, model::ipres) - model_hse(i-1, model::ipres)) / delx;
+        Real rhog = 0.5_rt * (model_hse(i, model::idens) + model_hse(i-1, model::idens)) * g_zone;
 
-        if (dpdr != 0.0_rt && model_hse(i+1, idens) > problem_rp::low_density_cutoff) {
+        if (dpdr != 0.0_rt && model_hse(i+1, model::idens) > problem_rp::low_density_cutoff) {
             max_hse_error = amrex::max(max_hse_error, std::abs(dpdr - rhog) / std::abs(dpdr));
         }
     }
