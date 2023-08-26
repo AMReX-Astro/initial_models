@@ -127,7 +127,7 @@ AMREX_INLINE void init_1d() {
 
     Real entropy = eos_state.s;
 
-    // make the inital guess be completely uniform
+    // make the initial guess be completely uniform
 
     for (int i = 0; i < problem_rp::nx; ++i) {
         model_hse(i,idens) = eos_state.rho;

@@ -56,7 +56,7 @@ Fmpack := $(foreach dir, $(FBOXLIB_CORE), $(FBOXLIB_HOME)/$(dir)/GPackage.mak)
 Fmlocs := $(foreach dir, $(FBOXLIB_CORE), $(FBOXLIB_HOME)/$(dir))
 Fmincs :=
 
-# auxillary directories
+# auxiliary directories
 Fmpack += $(foreach dir, $(MICROPHYS_CORE), $(dir)/GPackage.mak)
 Fmlocs += $(foreach dir, $(MICROPHYS_CORE), $(dir))
 

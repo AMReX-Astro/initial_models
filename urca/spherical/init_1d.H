@@ -455,7 +455,7 @@ AMREX_INLINE void init_1d() {
         }
     }
 
-    // print out inital uniform model
+    // print out initial uniform model
     std::ofstream init_of;
     init_of.open("initial_model.out");
 

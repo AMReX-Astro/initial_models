@@ -62,7 +62,7 @@ Simple parameterized models
   * ``test2``
 
     Generate an isentropic plane-parallel atmosphere with an entropy
-    jump below to surpress convective overshoot.  This is used by the
+    jump below to suppress convective overshoot.  This is used by the
     ``reacting_bubble`` (originally called "test2") and
     ``test_convect`` problems.
 
@@ -77,7 +77,7 @@ Simple parameterized models
     isothermal.  This was used for some of the X-ray burst models.
 
 
-stellar evolution code convertors
+stellar evolution code converters
 ---------------------------------
 
   * ``lagrangian_planar``
