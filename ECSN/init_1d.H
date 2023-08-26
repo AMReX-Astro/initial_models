@@ -60,62 +60,6 @@ constexpr Real temp_fluff = 5.e6_rt;
 constexpr Real anelastic_cutpff = 1.e6_rt;
 
 
-
-AMREX_INLINE void
-write_model(std::string model_name,
-            const Array1D<Real, 0, NPTS_MODEL-1>& xzn_hse,
-            const Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1>& model_hse) {
-
-    // Write data stored in `model_state` array to file
-
-    int ipos = problem_rp::model_file.find(".dat");
-    if (ipos < 0) {
-        ipos = problem_rp::model_file.find(".txt");
-    }
-
-    std::string outfile = problem_rp::model_file.substr(0, ipos) + "." + model_name;
-
-    Real dx = (xzn_hse(1) - xzn_hse(0)) / 1.e5_rt;  // km
-
-    std::stringstream ss;
-    ss << dx;
-    std::string dx_str = ss.str();
-
-    outfile += "." + dx_str + "km";
-
-    std::cout << "writing " << model_name << " model to " << outfile << std::endl;
-
-    std::ofstream of;
-    of.open(outfile);
-
-    of << "# npts = " << problem_rp::nx << std::endl;
-    of << "# num of variables = " << model::nvar << std::endl;
-    of << "# density" << std::endl;
-    of << "# temperature" << std::endl;
-    of << "# pressure" << std::endl;
-
-    // of << "# conv_vel" << std::endl;
-
-    for (int n = 0; n < NumSpec; ++n) {
-        of << "# " << spec_names_cxx[n] << std::endl;
-    }
-
-    for (int i = 0; i < problem_rp::nx; ++i) {
-        of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ipres) << " ";
-        for (int n = 0; n < NumSpec; ++n) {
-            of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ispec+n) << " ";
-        }
-        of << std::endl;
-    }
-
-    of.close();
-
-}
-
-
 AMREX_INLINE void init_1d() {
 
     // Create a 1-d uniform grid that is identical to the mesh that we
