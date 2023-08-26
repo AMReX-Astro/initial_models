@@ -1,0 +1,54 @@
+name: low_mass_convective_star
+
+on: [pull_request]
+jobs:
+  low_mass_convective_star:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get AMReX
+        run: |
+          mkdir external
+          cd external
+          git clone https://github.com/AMReX-Codes/amrex.git
+          cd amrex
+          git checkout development
+          echo 'AMREX_HOME=$(GITHUB_WORKSPACE)/external/amrex' >> $GITHUB_ENV
+          echo $AMREX_HOME
+          if [[ -n "${AMREX_HOME}" ]]; then exit 1; fi
+          cd ../..
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y -qq
+          sudo apt-get -qq -y install curl cmake jq clang g++>=9.3.0
+
+      - name: Compile
+        run: |
+          cd low_mass_convective_star
+          make -j2
+
+      - name: Run with regular grid
+        run: |
+          cd low_mass_convective_star
+          ./initialmodel1d.gnu.ex inputs
+
+      - name: Compare to stored output
+        run: |
+          cd low_mass_convective_star
+          diff convective.683.59km.hse ci-benchmarks/convective.683.59km.hse
+
+      - name: Run with irregular grid
+        run: |
+          cd low_mass_convective_star
+          ./initialmodel1d.gnu.ex inputs problem.use_irreg_grid=1 problem.nx=128
+
+      - name: Compare to stored output
+        run: |
+          cd low_mass_convective_star
+          diff convective.irreg.hse ci-benchmarks/convective.irreg.hse
+
+
