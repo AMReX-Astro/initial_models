@@ -1,8 +1,0 @@
-# the local sources needed to build the initial model generator
-f90EXE_sources += init_1d.f90
-f90EXE_sources += storage.f90
-f90EXE_sources += hydrostatic.f90
-f90EXE_sources += interpolate_grid.f90
-f90EXE_sources += read_input.f90
-f90EXE_sources += smooth.f90
-CEXE_sources += main.cpp
