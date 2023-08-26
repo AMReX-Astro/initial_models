@@ -21,3 +21,5 @@ cfrac        real        0.7
 
 prefix       character   "spherical"
 
+# not used, but needed for the reader
+model_file           character    ""
