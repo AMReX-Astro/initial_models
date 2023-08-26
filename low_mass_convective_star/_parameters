@@ -19,5 +19,3 @@ hefrac               real         0.3
 M_tot                real         0.3
 
 prefix               character    "convective"
-
-use_irreg_grid       integer      0
