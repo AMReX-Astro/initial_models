@@ -210,7 +210,7 @@ AMREX_INLINE void init_1d() {
     // because the MESA model likely begins at a larger radius than
     // our first HSE model zone, simple interpolation will not do a
     // good job.  We want to integrate in from the zone that best
-    // matches the first MESA model zone, assumming HSE and constant
+    // matches the first MESA model zone, assuming HSE and constant
     // entropy.
 
     // find the zone in the uniformly gridded model that corresponds to the
