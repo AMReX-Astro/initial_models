@@ -39,7 +39,7 @@ jobs:
 
       - name: Compile
         run: |
-          cd low_mass_convective_star
+          cd ECSN
           make -j2
 
       - name: Run with regular grid
