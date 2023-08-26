@@ -74,13 +74,7 @@ AMREX_INLINE void init_1d() {
 
     // compute the coordinates of the new gridded function
 
-    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
-
-    for (int i = 0; i < problem_rp::nx; ++i) {
-        xznl(i) = problem_rp::xmin + static_cast<Real>(i) * dCoord;
-        xznr(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt) * dCoord;
-        xzn_hse(i) = 0.5_rt * (xznl(i) + xznr(i));
-    }
+    fill_coord_arrays(xzn_hse, xznl, xznr);
 
     bool fluff{false};
 
@@ -341,6 +335,8 @@ AMREX_INLINE void init_1d() {
 
     std::cout << "mass = " << M_enclosed(problem_rp::nx-1) / C::M_solar << std::endl;;
     std::cout << "mass of convective zone = " << M_enclosed(i_conv) / C::M_solar << std::endl;;
+
+    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
 
     std::string dxstr = num_to_unitstring(dCoord);
 
