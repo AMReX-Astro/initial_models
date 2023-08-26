@@ -28,7 +28,7 @@ NETWORK_DIR := general_null
 NETWORK_INPUTS := ignition.net
 
 Bpack := ./Make.package
-Blocs := .
+Blocs := . ..
 
 EXTERN_SEARCH += . ..
 
