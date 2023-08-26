@@ -20,7 +20,6 @@
 #include <interpolate.H>
 #include <read_model.H>
 #include <model_util.H>
-#include <cfmt.H>
 
 using namespace amrex;
 

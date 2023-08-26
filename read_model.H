@@ -51,6 +51,18 @@ namespace model_string
 }
 
 
+AMREX_INLINE Real cfmt(const Real x) {
+
+    Real safe_x;
+
+    safe_x = x;
+    if (std::abs(x) < 1.0e-98_rt && x != 0.0) {
+        safe_x = 1.0e-98_rt;
+    }
+
+    return safe_x;
+}
+
 AMREX_INLINE void
 write_model(std::string model_name,
             const Array1D<Real, 0, NPTS_MODEL-1>& xzn_hse,
@@ -103,7 +115,7 @@ write_model(std::string model_name,
             of << std::setprecision(12) << std::setw(20) << model_hse(i, model::iyef) << " ";
         }
         for (int n = 0; n < NumSpec; ++n) {
-            of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ispec+n) << " ";
+            of << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::ispec+n)) << " ";
         }
         of << std::endl;
     }
