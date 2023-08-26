@@ -1,0 +1,58 @@
+name: sub_chandra
+
+on: [pull_request]
+jobs:
+  sub_chandra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get AMReX
+        run: |
+          mkdir external
+          cd external
+          git clone https://github.com/AMReX-Codes/amrex.git
+          cd amrex
+          git checkout development
+          echo 'AMREX_HOME=$(GITHUB_WORKSPACE)/external/amrex' >> $GITHUB_ENV
+          echo $AMREX_HOME
+          if [[ -n "${AMREX_HOME}" ]]; then exit 1; fi
+          cd ../..
+
+      - name: Get Microphysics
+        run: |
+          cd external
+          git clone https://github.com/AMReX-Astro/Microphysics.git
+          cd Microphysics
+          git checkout development
+          echo 'MICROPHYSICS_HOME=$(GITHUB_WORKSPACE)/external/Microphysics' >> $GITHUB_ENV
+          echo $MICROPHYSICS_HOME
+          if [[ -n "${MICROPHYSICS_HOME}" ]]; then exit 1; fi
+          cd ../..
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y -qq
+          sudo apt-get -qq -y install curl cmake jq clang g++>=9.3.0
+
+      - name: Compile
+        run: |
+          cd sub_chandra
+          make -j2
+
+      - name: Run with regular grid
+        run: |
+          cd sub_chandra
+          ./initialmodel1d.gnu.ex inputs.M_WD-1.1.M_He-0.05.CO.N14
+
+      - name: Compare to stored output
+        run: |
+          cd sub_chandra
+          diff sub_chandra.M_WD-1.10.M_He-0.050.hse.CO.N14.10.00km ci-benchmarks/sub_chandra.M_WD-1.10.M_He-0.050.hse.CO.N14.10.00km
+
+
+
+
+
