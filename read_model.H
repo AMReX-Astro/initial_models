@@ -63,6 +63,9 @@ write_model(std::string model_name,
     if (ipos < 0) {
         ipos = problem_rp::model_file.find(".txt");
     }
+    if (ipos < 0) {
+        ipos = problem_rp::model_file.find(".raw");
+    }
 
     std::string outfile = problem_rp::model_file.substr(0, ipos) + "." + model_name;
 
