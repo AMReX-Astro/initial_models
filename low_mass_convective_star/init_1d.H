@@ -391,7 +391,9 @@ AMREX_INLINE void init_1d() {
 
     // output
 
-    write_model(problem_rp::prefix, xzn_hse, model_hse);
+    std::string out_base = problem_rp::prefix + ".hse";
+
+    write_model(out_base, xzn_hse, model_hse);
 
     // compute the maximum HSE error
 
