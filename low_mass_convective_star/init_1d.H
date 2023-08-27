@@ -399,7 +399,7 @@ AMREX_INLINE void init_1d() {
     std::ofstream of;
     of.open(outfile);
 
-    of << "# npts = " << problem_rp::nx << std::endl;
+    of << "# npts = " << nr << std::endl;
     of << "# num of variables = " << 3 + NumSpec << std::endl;
     of << "# density" << std::endl;
     of << "# temperature" << std::endl;
@@ -409,7 +409,7 @@ AMREX_INLINE void init_1d() {
         of << "# " << spec_names_cxx[n] << std::endl;
     }
 
-    for (int i = 0; i < problem_rp::nx; ++i) {
+    for (int i = 0; i < nr; ++i) {
         of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
         of << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
         of << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
