@@ -18,6 +18,7 @@
 #include <extern_parameters.H>
 #include <fundamental_constants.H>
 #include <interpolate.H>
+#include <coord_info.H>
 #include <read_model.H>
 #include <model_util.H>
 
@@ -53,13 +54,7 @@ AMREX_INLINE void init_1d( ) {
     Array1D<Real, 0, NPTS_MODEL-1> xznr_hse;
     Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1> model_hse;
 
-    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
-
-    for (int i = 0; i < problem_rp::nx; ++i){
-        xznl_hse(i) = problem_rp::xmin + static_cast<Real>(i)*dCoord;
-        xzn_hse(i) = problem_rp::xmin + (static_cast<Real>(i) + 0.5_rt)*dCoord;
-        xznr_hse(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt)*dCoord;
-    }
+    fill_coord_arrays(xzn_hse, xznl_hse, xznr_hse);
 
     eos_t eos_state;
 
