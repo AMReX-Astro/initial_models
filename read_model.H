@@ -4,8 +4,7 @@
 #include <AMReX_Print.H>
 
 #include <model_util.H>
-
-const int MAX_VARNAME_LENGTH = 80;
+#include <coord_info.H>
 
 // define convenient indices for the scalars
 
