@@ -102,7 +102,7 @@ write_model(std::string model_name,
         dx_str = "irreg";
     } else {
         Real dx = (xzn_hse(1) - xzn_hse(0));
-        std::string dx_str = num_to_unitstring(dx);
+        dx_str = num_to_unitstring(dx);
     }
 
     outfile += "." + dx_str;
