@@ -191,62 +191,21 @@ AMREX_INLINE void init_1d() {
                         p_want = model_hse(i-1, model::ipres) +
                             delx * ((1.0_rt - rfrac) * dens_zone + rfrac * model_hse(i-1, model::idens)) * g_zone;
 
-                        // now we have two functions to zero:
-                        //   A = p_want - p(rho,T)
-                        //   B = entropy_want - s(rho,T)
-                        // We use a two dimensional Taylor expansion
-                        // and find the deltas for both density and
-                        // temperature
-
-                        eos_state.T = temp_zone;
-                        eos_state.rho = dens_zone;
+                        eos_state.T = temp_zone;  // initial guess
+                        eos_state.rho = dens_zone;  // initial guess
+                        eos_state.p = p_want;
+                        eos_state.s = entropy_want(i);
                         for (int n = 0; n < NumSpec; ++n) {
                             eos_state.xn[n] = xn[n];
                         }
 
-                        // (t, rho) -> (p, s)
-                        eos(eos_input_rt, eos_state);
+                        eos(eos_input_ps, eos_state);
 
-                        entropy = eos_state.s;
-                        pres_zone = eos_state.p;
+                        drho = eos_state.rho - dens_zone;
+                        dens_zone = eos_state.rho;
 
-                        Real dpT = eos_state.dpdT;
-                        Real dpd = eos_state.dpdr;
-                        Real dsT = eos_state.dsdT;
-                        Real dsd = eos_state.dsdr;
-
-                        Real A = p_want - pres_zone;
-                        Real B = entropy_want(i) - entropy;
-
-                        Real dAdT = -dpT;
-                        Real dAdrho = (1.0_rt - rfrac) * delx * g_zone - dpd;
-                        Real dBdT = -dsT;
-                        Real dBdrho = -dsd;
-
-                        dtemp = (B - (dBdrho / dAdrho) * A) /
-                            ((dBdrho / dAdrho) * dAdT - dBdT);
-
-                        drho = -(A + dAdT * dtemp) / dAdrho;
-
-                        dens_zone =
-                            amrex::max(0.9_rt * dens_zone,
-                                       amrex::min(dens_zone + drho, 1.1_rt * dens_zone));
-
-                        temp_zone =
-                            amrex::max(0.9_rt * temp_zone,
-                                       amrex::min(temp_zone + dtemp, 1.1_rt * temp_zone));
-
-                        // check if the density falls below our minimum
-                        // cut-off -- if so, floor it
-
-                        if (dens_zone < problem_rp::low_density_cutoff) {
-
-                            dens_zone = problem_rp::low_density_cutoff;
-                            temp_zone = problem_rp::temp_fluff;
-                            converged_hse = true;
-                            fluff = true;
-                            break;
-                        }
+                        dtemp = eos_state.T - temp_zone;
+                        temp_zone = eos_state.T;
 
                         if (std::abs(drho) < TOL_HSE * dens_zone &&
                             std::abs(dtemp) < TOL_HSE * temp_zone) {
@@ -264,41 +223,35 @@ AMREX_INLINE void init_1d() {
                         temp_zone = model_hse(i-1, model::itemp);
 
                         eos_state.T = temp_zone;
-                        eos_state.rho = dens_zone;
+                        eos_state.rho = dens_zone;  // initial guess
+                        eos_state.p = p_want;
                         for (int n = 0; n < NumSpec; ++n) {
                             eos_state.xn[n] = xn[n];
                         }
 
-                        // (t, rho) -> (p, s)
+                        eos(eos_input_tp, eos_state);
 
-                        eos(eos_input_rt, eos_state);
-
-                        entropy = eos_state.s;
-                        pres_zone = eos_state.p;
-
-                        Real dpd = eos_state.dpdr;
-
-                        drho = (p_want - pres_zone) / (dpd - (1.0_rt - rfrac) * delx * g_zone);
-
-                        dens_zone =
-                            amrex::max(0.9_rt * dens_zone,
-                                       amrex::min(dens_zone + drho, 1.1_rt * dens_zone));
+                        drho = eos_state.rho - dens_zone;
+                        dens_zone = eos_state.rho;
 
                         if (std::abs(drho) < TOL_HSE * dens_zone) {
                             converged_hse = true;
                             break;
                         }
 
-                        if (dens_zone < problem_rp::low_density_cutoff) {
-
-                            dens_zone = problem_rp::low_density_cutoff;
-                            temp_zone = problem_rp::temp_fluff;
-                            converged_hse = true;
-                            fluff = true;
-                            break;
-                        }
-
                     }
+
+                    // check if the density falls below our minimum
+                    // cut-off -- if so, floor it
+
+                    if (dens_zone < problem_rp::low_density_cutoff) {
+                        dens_zone = problem_rp::low_density_cutoff;
+                        temp_zone = problem_rp::temp_fluff;
+                        converged_hse = true;
+                        fluff = true;
+                        break;
+                    }
+
                 }  // thermo iteration loop
 
                 if (! converged_hse) {
