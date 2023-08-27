@@ -9,6 +9,7 @@
 #include <extern_parameters.H>
 #include <fundamental_constants.H>
 
+#include <coord_info.H>
 #include <read_model.H>
 #include <model_util.H>
 
@@ -102,13 +103,7 @@ AMREX_INLINE void init_1d() {
 
     // compute the coordinates of the new gridded function
 
-    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
-
-    for (int i = 0; i < problem_rp::nx; ++i) {
-        xznl(i) = problem_rp::xmin + static_cast<Real>(i) * dCoord;
-        xznr(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt) * dCoord;
-        xzn_hse(i) = 0.5_rt * (xznl(i) + xznr(i));
-    }
+    fill_coord_arrays(xzn_hse, xznl, xznr);
 
     // We don't know what WD central density will give the desired
     // total mass, so we need to iterate over central density
@@ -555,6 +550,7 @@ AMREX_INLINE void init_1d() {
 
     // store the model
 
+    Real dCoord = xzn_hse(1) - xzn_hse(0);
     std::string dxstr = num_to_unitstring(dCoord);
 
     std::stringstream ss;
@@ -579,33 +575,7 @@ AMREX_INLINE void init_1d() {
         outfile += ".N14";
     }
 
-    outfile += "." + dxstr;
-
-    std::ofstream of;
-    of.open(outfile);
-
-    of << "# npts = " << problem_rp::nx << std::endl;
-    of << "# num of variables = " << 3+NumSpec << std::endl;
-    of << "# density" << std::endl;
-    of << "# temperature" << std::endl;
-    of << "# pressure" << std::endl;
-
-    for (int n = 0; n < NumSpec; ++n) {
-        of << "# " << spec_names_cxx[n] << std::endl;
-    }
-
-    for (int i = 0; i < problem_rp::nx; ++i) {
-        of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ipres) << " ";
-        for (int n = 0; n < NumSpec; ++n) {
-            of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ispec+n) << " ";
-        }
-        of << std::endl;
-    }
-
-    of.close();
+    write_model(outfile, xzn_hse, model_hse);
 
     // extra info
 
