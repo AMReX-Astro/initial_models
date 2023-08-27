@@ -7,6 +7,24 @@
 using namespace amrex;
 
 ///
+/// get the number of radial points corresponding to an exact mapping from
+/// the 3D spherical domain to a 1D radial.  See the MAESTROeX paper
+/// for details
+///
+inline int
+get_irreg_nr() {
+
+    int nr{-1};
+
+    if (problem_rp::use_irreg_grid) {
+        nr = (3 * (problem_rp::nx/2 - 0.5_rt) * (problem_rp::nx/2 - 0.5_rt) - 0.75_rt) / 2.0_rt;
+    } else {
+        nr = problem_rp::nx;
+    }
+    return nr;
+}
+
+///
 /// compute the coordinates of the new gridded function with irregular spacing
 ///
 inline
