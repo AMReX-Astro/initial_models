@@ -389,39 +389,9 @@ AMREX_INLINE void init_1d() {
 
     std::cout << "mass = " << M_enclosed(nr-1) / C::M_solar << std::endl;;
 
-    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
-    std::string dxstr = problem_rp::use_irreg_grid ? "irreg" : num_to_unitstring(dCoord);
+    // output
 
-    std::string outfile_base = problem_rp::prefix;
-
-    std::string outfile = outfile_base + "." + dxstr + ".hse";
-
-    std::ofstream of;
-    of.open(outfile);
-
-    of << "# npts = " << nr << std::endl;
-    of << "# num of variables = " << 3 + NumSpec << std::endl;
-    of << "# density" << std::endl;
-    of << "# temperature" << std::endl;
-    of << "# pressure" << std::endl;
-
-    for (int n = 0; n < NumSpec; ++n) {
-        of << "# " << spec_names_cxx[n] << std::endl;
-    }
-
-    for (int i = 0; i < nr; ++i) {
-        of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ipres) << " ";
-        for (int n = 0; n < NumSpec; ++n) {
-            of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ispec+n) << " ";
-        }
-        of << std::endl;
-    }
-
-    of.close();
-
+    write_model(problem_rp::prefix, xzn_hse, model_hse);
 
     // compute the maximum HSE error
 

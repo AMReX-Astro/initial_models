@@ -1,7 +1,5 @@
 @namespace: problem
 
-nx                  integer      640
-
 model_file          character    "model.in"
 
 model_shift         real         0.0

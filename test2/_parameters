@@ -1,7 +1,5 @@
 @namespace: problem
 
-nx                   integer      640
-
 xmin                 real         0.0
 
 xmax                 real         3.6e8

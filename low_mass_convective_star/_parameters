@@ -1,7 +1,5 @@
 @namespace: problem
 
-nx                   integer      1280
-
 temp_core            real         1.e7
 
 smallx               real         1.e-10
