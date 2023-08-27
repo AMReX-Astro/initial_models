@@ -54,7 +54,7 @@ AMREX_INLINE void init_1d( ) {
     Array1D<Real, 0, NPTS_MODEL-1> xznr_hse;
     Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1> model_hse;
 
-    fill_coord_arrays(xzn_hse, xznl, xznr);
+    fill_coord_arrays(xzn_hse, xznl_hse, xznr_hse);
 
     eos_t eos_state;
 
