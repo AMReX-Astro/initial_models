@@ -61,13 +61,7 @@ AMREX_INLINE void init_1d() {
     // are mapping onto, and then we want to force it into HSE on that
     // mesh.
 
-    int nr{-1};
-
-    if (problem_rp::use_irreg_grid) {
-        nr = (3 * (problem_rp::nx/2 - 0.5_rt) * (problem_rp::nx/2 - 0.5_rt) - 0.75_rt) / 2.0_rt;
-    } else {
-        nr = problem_rp::nx;
-    }
+    int nr = get_irreg_nr();
 
     if (nr > NPTS_MODEL) {
         amrex::Error("too many zones requested -- increase NPTS_MODEL");
