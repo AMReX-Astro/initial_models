@@ -7,3 +7,6 @@ small_dens     real         -1.e200
 # for MAESTROeX, we can use a grid where each 3D Cartesian zone
 # exactly maps into the initial model
 use_irreg_grid  int         0
+
+# number of points to use in the model
+nx              int         -1

@@ -4,8 +4,7 @@
 #include <AMReX_Print.H>
 
 #include <model_util.H>
-
-const int MAX_VARNAME_LENGTH = 80;
+#include <coord_info.H>
 
 // define convenient indices for the scalars
 
@@ -71,7 +70,16 @@ write_model(std::string model_name,
 
     // Write data stored in `model_state` array to file
 
+    int npts = problem_rp::nx;
+    if (problem_rp::use_irreg_grid) {
+        npts = get_irreg_nr();
+    }
+
     std::string outfile{};
+
+    // if we are basing the model off an model file from a stellar
+    // evolution code, then we use that model file name as the root of
+    // the output
 
     if (! problem_rp::model_file.empty()) {
         int ipos = problem_rp::model_file.find(".dat");
@@ -87,8 +95,14 @@ write_model(std::string model_name,
 
     outfile += model_name;
 
-    Real dx = (xzn_hse(1) - xzn_hse(0));
-    std::string dx_str = num_to_unitstring(dx);
+    std::string dx_str{};
+
+    if (problem_rp::use_irreg_grid) {
+        dx_str = "irreg";
+    } else {
+        Real dx = (xzn_hse(1) - xzn_hse(0));
+        dx_str = num_to_unitstring(dx);
+    }
 
     outfile += "." + dx_str;
 
@@ -99,7 +113,7 @@ write_model(std::string model_name,
 
     int num_out = write_ye ? 4+NumSpec : 3+NumSpec;
 
-    of << "# npts = " << problem_rp::nx << std::endl;
+    of << "# npts = " << npts << std::endl;
     of << "# num of variables = " << num_out << std::endl;
     of << "# density" << std::endl;
     of << "# temperature" << std::endl;
@@ -112,7 +126,7 @@ write_model(std::string model_name,
         of << "# " << spec_names_cxx[n] << std::endl;
     }
 
-    for (int i = 0; i < problem_rp::nx; ++i) {
+    for (int i = 0; i < npts; ++i) {
         of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
         of << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
         of << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";

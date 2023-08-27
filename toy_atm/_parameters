@@ -1,7 +1,5 @@
 @namespace: problem
 
-nx             integer      640
-
 dens_base      real         2.e6
 
 T_star         real         1.e8
