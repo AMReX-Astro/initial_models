@@ -50,7 +50,7 @@ jobs:
       - name: Compare to stored output
         run: |
           cd spherical
-          diff WD_rhoc_2.e9_M_1.1.2.00km.hse ci-benchmarks/WD_rhoc_2.e9_M_1.1.2.00km.hse
+          diff WD_rhoc_2.e9_M_1.1.2.00km.hse ci-benchmarks/WD_rhoc_2.e9_M_1.1.hse.2.00km
 
 
 
