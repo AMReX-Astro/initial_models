@@ -115,7 +115,6 @@ AMREX_INLINE void init_1d() {
     Real dens_zone;
     Real temp_zone;
     Real pres_zone;
-    Real entropy;
     Real xn[NumSpec];
 
     // because the Kepler model likely begins at a larger radius than
@@ -149,8 +148,8 @@ AMREX_INLINE void init_1d() {
 
         // compute the enclosed mass
 
-        Real delx = xzn_hse(1) - xzn_hse(0);
-        M_enclosed(0) = (4.0_rt/3.0_rt) * M_PI * std::pow(delx, 3) * model_kepler_hse(0, model::idens);
+        Real dx = xzn_hse(1) - xzn_hse(0);
+        M_enclosed(0) = (4.0_rt/3.0_rt) * M_PI * std::pow(dx, 3) * model_kepler_hse(0, model::idens);
 
         for (int i = 1; i <= ibegin; ++i) {
             M_enclosed(i) = M_enclosed(i-1) +
@@ -189,10 +188,10 @@ AMREX_INLINE void init_1d() {
            Real delx{0};
            Real rfrac{0};
            if (problem_rp::use_irreg_grid) {
-               delx = delrr(i-1) + delrl(i);
-               rfrac = delrr(i-1) / delx;
+               delx = delrr(i+1) + delrl(i);
+               rfrac = delrl(i+1) / delx;
            } else {
-               delx = xzn_hse(i) - xzn_hse(i-1);
+               delx = xzn_hse(i+1) - xzn_hse(i);
                rfrac = 0.5;
            }
 
@@ -342,7 +341,6 @@ AMREX_INLINE void init_1d() {
 
             Real p_want;
             Real drho;
-            Real dtemp;
 
             for (int iter = 0; iter < MAX_ITER; ++iter) {
 
@@ -641,7 +639,9 @@ AMREX_INLINE void init_1d() {
             model_hybrid_hse(i, n) = model_isentropic_hse(i, n);
         }
 
-        // set the temperature
+        // set the temperature -- basically once the Kepler temperature
+        // really flattens out, we want to stop being isentropic and use
+        // the original Kepler model temperature
 
         if (model_kepler_hse(i, model::itemp) > model_isentropic_hse(i, model::itemp)) {
 
@@ -657,6 +657,7 @@ AMREX_INLINE void init_1d() {
             if (i_isentropic == -1 &&
                 model_isentropic_hse(i, model::itemp) < 0.9_rt * max_temp) {
                 i_isentropic = i;
+                std::cout << "i_isentropic = " << i_isentropic << std::endl;
             }
 
             model_hybrid_hse(i, model::itemp) = model_kepler_hse(i, model::itemp);
@@ -699,6 +700,7 @@ AMREX_INLINE void init_1d() {
         // as the initial guess for the density use the previous zone
 
         dens_zone = model_hybrid_hse(i-1, model::idens);
+        temp_zone = model_hybrid_hse(i-1, model::itemp);
 
         // get the composition for this zone
 
@@ -720,7 +722,6 @@ AMREX_INLINE void init_1d() {
 
             Real p_want;
             Real drho;
-            Real dtemp;
 
             for (int iter = 0; iter < MAX_ITER; ++iter) {
 
@@ -729,7 +730,7 @@ AMREX_INLINE void init_1d() {
 
                 temp_zone = model_hybrid_hse(i, model::itemp);
 
-                eos_state.T = problem_rp::temp_fluff;
+                eos_state.T = temp_zone;
                 eos_state.rho = dens_zone;  // initial guess
                 eos_state.p = p_want;
                 for (int n = 0; n < NumSpec; ++n) {
