@@ -78,7 +78,7 @@ AMREX_INLINE void init_1d() {
 
     for (int i = 0; i < nr; ++i) {
         for (int n = 0; n < model::nvar; ++n) {
-            model_kepler_hse(i,n) = interpolate(xzn_hse(i), n,  kepler_model, true);
+            model_kepler_hse(i,n) = interpolate(xzn_hse(i), n,  kepler_model, false);
         }
 
         // make sure the mass fractions sum to 1
@@ -328,10 +328,6 @@ AMREX_INLINE void init_1d() {
             xn[n] = model_kepler_hse(i, model::ispec+n);
         }
 
-        // we take the temperature from the model
-
-        temp_zone = model_kepler_hse(i, model::itemp);
-
         // compute the gravitational acceleration on the interface
         // between zones i-1 and i
 
@@ -352,6 +348,11 @@ AMREX_INLINE void init_1d() {
 
                 p_want = model_kepler_hse(i-1, model::ipres) +
                     delx * ((1.0_rt - rfrac) * dens_zone + rfrac * model_kepler_hse(i-1, model::idens)) * g_zone;
+
+                // we take the temperature from the model
+
+                temp_zone = model_kepler_hse(i, model::itemp);
+
 
                 if (model_kepler_hse(i-1, model::idens) < problem_rp::temp_fluff_cutoff) {
                     temp_zone = problem_rp::temp_fluff;
