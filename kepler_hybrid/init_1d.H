@@ -619,7 +619,7 @@ AMREX_INLINE void init_1d() {
 
     std::cout << "mass = " << M_enclosed(nr-1) / C::M_solar << std::endl;;
 
-    write_model("isentropic", xzn_hse, model_kepler_hse);
+    write_model("isentropic", xzn_hse, model_isentropic_hse);
 
 
     // compute a hybrid model -- isentropic in the interior, Kepler's
@@ -804,7 +804,7 @@ AMREX_INLINE void init_1d() {
 
     std::cout << "mass = " << M_enclosed(nr-1) / C::M_solar << std::endl;;
 
-    write_model("hybrid", xzn_hse, model_kepler_hse);
+    write_model("hybrid", xzn_hse, model_hybrid_hse);
 
 
     // compute the maximum HSE error
