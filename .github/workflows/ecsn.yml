@@ -39,7 +39,7 @@ jobs:
 
       - name: Compile
         run: |
-          cd low_mass_convective_star
+          cd ECSN
           make -j2
 
       - name: Run with regular grid
@@ -51,7 +51,8 @@ jobs:
       - name: Compare to stored output
         run: |
           cd ECSN
-          diff ECSN-ONe6040-final.raw.hse.0.244141km ci-benchmarks/ECSN-ONe6040-final.raw.hse.0.244141km
+          diff ECSN-ONe6040-final.hse.24414.06cm ci-benchmarks/ECSN-ONe6040-final.hse.24414.06cm
+
 
 
 

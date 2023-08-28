@@ -1,6 +1,10 @@
 #ifndef MODEL_UTIL_H
 #define MODEL_UTIL_H
 
+#include <string>
+
+#include <AMReX_REAL.H>
+
 std::string num_to_unitstring(const Real value) {
 
     std::string numstr{};

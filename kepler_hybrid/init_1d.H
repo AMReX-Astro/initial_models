@@ -9,9 +9,9 @@
 #include <extern_parameters.H>
 #include <fundamental_constants.H>
 
+#include <coord_info.H>
 #include <model_util.H>
 #include <read_model.H>
-#include <cfmt.H>
 
 using namespace amrex;
 
@@ -32,49 +32,6 @@ using namespace amrex;
 constexpr Real TOL_HSE = 1.e-10_rt;
 
 constexpr int MAX_ITER = 250;
-
-AMREX_INLINE void
-write_model(std::string model_name, const int nr,
-            const Array1D<Real, 0, NPTS_MODEL-1>& xzn_hse,
-            const Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1>& model_hse) {
-
-    // Write the file
-    std::string res_string{};
-    if (problem_rp::use_irreg_grid) {
-        res_string = "irreg";
-    } else {
-        const double res = (problem_rp::xmax - problem_rp::xmin)/static_cast<double>(problem_rp::nx);
-        res_string = num_to_unitstring(res);
-    }
-
-    std::string outfile = problem_rp::model_prefix + "_" + res_string + "." + model_name;
-
-    std::ofstream file;
-    file.open(outfile);
-
-    file << "# npts = " << nr << std::endl;
-    file << "# num of variables = " << 3 + NumSpec << std::endl;
-    file << "# density" << std::endl;
-    file << "# temperature" << std::endl;
-    file << "# pressure" << std::endl;
-
-    for (int n=0; n<NumSpec; ++n) {
-        file << "#" << spec_names_cxx[n] << std::endl;
-    }
-
-    for (int i = 0; i < nr; ++i) {
-        file << std::setprecision(12) << std::setw(20) << cfmt(xzn_hse(i)) << " ";
-        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::idens)) << " ";
-        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::itemp)) << " ";
-        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::ipres)) << " ";
-        for (int n=0; n<NumSpec; ++n){
-            file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::ispec + n)) << " ";
-        }
-        file << std::endl;
-    }
-
-    file.close();
-}
 
 
 AMREX_INLINE void init_1d() {

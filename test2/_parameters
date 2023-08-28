@@ -1,7 +1,5 @@
 @namespace: problem
 
-nx                   integer      640
-
 xmin                 real         0.0
 
 xmax                 real         3.6e8
@@ -22,3 +20,5 @@ low_density_cutoff   real         1.e-4
 
 temp_fluff           real         1.e7
 
+# not used, but needed for the reader
+model_file           character    ""

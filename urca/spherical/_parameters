@@ -1,7 +1,5 @@
 @namespace: problem
 
-nx        integer    1280
-
 smallx    real      1.e-10
 
 xmin      real      0.0

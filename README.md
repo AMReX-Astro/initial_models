@@ -36,7 +36,7 @@ The routines are:
   * test2
 
     generate an isentropic plane-parallel atmosphere with an entropy
-    jump below to surpress convective overshoot.  This is used by the
+    jump below to suppress convective overshoot.  This is used by the
     test2 and test_convect problems.
 
 

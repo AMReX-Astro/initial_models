@@ -1,0 +1,5 @@
+[codespell]
+skip = .git,*.ipynb,*.bib,*.ps,*~,*.js,*.html,./sphinx_docs/build/html/_sources,./sphinx_docs/build/html/_static
+ignore-words = .codespell-ignore-words
+
+

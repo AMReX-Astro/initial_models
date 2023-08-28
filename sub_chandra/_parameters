@@ -1,7 +1,5 @@
 @namespace: problem
 
-nx                   integer      1280
-
 M_tot                real         0.6
 
 M_He                 real         0.2
@@ -25,3 +23,5 @@ low_density_cutoff   real         1.e-4
 
 temp_fluff           real         1.e5
 
+# not used, but needed for the reader
+model_file           character    ""

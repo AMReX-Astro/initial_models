@@ -3,7 +3,8 @@
 
 #include <AMReX_Print.H>
 
-const int MAX_VARNAME_LENGTH = 80;
+#include <model_util.H>
+#include <coord_info.H>
 
 // define convenient indices for the scalars
 
@@ -47,6 +48,102 @@ namespace model_string
 	return s;
     }
 }
+
+
+AMREX_INLINE Real cfmt(const Real x) {
+
+    Real safe_x;
+
+    safe_x = x;
+    if (std::abs(x) < 1.0e-98_rt && x != 0.0) {
+        safe_x = 1.0e-98_rt;
+    }
+
+    return safe_x;
+}
+
+AMREX_INLINE void
+write_model(std::string model_name,
+            const Array1D<Real, 0, NPTS_MODEL-1>& xzn_hse,
+            const Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1>& model_hse,
+            const bool write_ye=false) {
+
+    // Write data stored in `model_state` array to file
+
+    int npts = problem_rp::nx;
+    if (problem_rp::use_irreg_grid) {
+        npts = get_irreg_nr();
+    }
+
+    std::string outfile{};
+
+    // if we are basing the model off an model file from a stellar
+    // evolution code, then we use that model file name as the root of
+    // the output
+
+    if (! problem_rp::model_file.empty()) {
+        int ipos = problem_rp::model_file.find(".dat");
+        if (ipos < 0) {
+            ipos = problem_rp::model_file.find(".txt");
+        }
+        if (ipos < 0) {
+            ipos = problem_rp::model_file.find(".raw");
+        }
+
+        outfile += problem_rp::model_file.substr(0, ipos) + ".";
+    }
+
+    outfile += model_name;
+
+    std::string dx_str{};
+
+    if (problem_rp::use_irreg_grid) {
+        dx_str = "irreg";
+    } else {
+        Real dx = (xzn_hse(1) - xzn_hse(0));
+        dx_str = num_to_unitstring(dx);
+    }
+
+    outfile += "." + dx_str;
+
+    std::cout << "writing " << model_name << " model to " << outfile << std::endl;
+
+    std::ofstream of;
+    of.open(outfile);
+
+    int num_out = write_ye ? 4+NumSpec : 3+NumSpec;
+
+    of << "# npts = " << npts << std::endl;
+    of << "# num of variables = " << num_out << std::endl;
+    of << "# density" << std::endl;
+    of << "# temperature" << std::endl;
+    of << "# pressure" << std::endl;
+    if (write_ye) {
+        of << "# Ye" << std::endl;
+    }
+
+    for (int n = 0; n < NumSpec; ++n) {
+        of << "# " << spec_names_cxx[n] << std::endl;
+    }
+
+    for (int i = 0; i < npts; ++i) {
+        of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ipres) << " ";
+        if (write_ye) {
+            of << std::setprecision(12) << std::setw(20) << model_hse(i, model::iyef) << " ";
+        }
+        for (int n = 0; n < NumSpec; ++n) {
+            of << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::ispec+n)) << " ";
+        }
+        of << std::endl;
+    }
+
+    of.close();
+
+}
+
 
 AMREX_INLINE void
 read_file(const std::string filename, initial_model_t& initial_model) {

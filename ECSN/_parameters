@@ -5,5 +5,3 @@ model_file       character       "ECSN-ONe6040-final.raw"
 xmin             real            0.0
 
 xmax             real            2.5e8
-
-nx               integer         20480

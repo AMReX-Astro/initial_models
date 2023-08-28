@@ -1,3 +1,4 @@
+CEXE_headers += coord_info.H
 CEXE_headers += read_model.H
 CEXE_headers += interpolate.H
 CEXE_headers += model_util.H

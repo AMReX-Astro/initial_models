@@ -18,54 +18,15 @@
 #include <extern_parameters.H>
 #include <fundamental_constants.H>
 #include <interpolate.H>
+#include <coord_info.H>
 #include <read_model.H>
 #include <model_util.H>
-#include <cfmt.H>
 
 using namespace amrex;
 
 constexpr Real TOL = 1.e-10_rt;
 
 constexpr int MAX_ITER = 250;
-
-
-AMREX_INLINE void
-write_model(std::string model_name,
-            const Array1D<Real, 0, NPTS_MODEL-1>& xzn_hse,
-            const Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1>& model_hse) {
-
-    // Write the file
-    const double res = (problem_rp::xmax - problem_rp::xmin)/static_cast<double>(problem_rp::nx);
-    std::string res_string = num_to_unitstring(res); 
-
-    std::string outfile = problem_rp::model_prefix + "_" + res_string + "." + model_name;
-
-    std::ofstream file;
-    file.open(outfile);
-
-    file << "# npts = " << problem_rp::nx << std::endl;
-    file << "# num of variables = " << 3 + NumSpec << std::endl;
-    file << "# density" << std::endl;
-    file << "# temperature" << std::endl;
-    file << "# pressure" << std::endl;
-
-    for (int n=0; n<NumSpec; ++n) {
-        file << "#" << spec_names_cxx[n] << std::endl;
-    }
-
-    for (int i=0; i<problem_rp::nx; ++i) {
-        file << std::setprecision(12) << std::setw(20) << cfmt(xzn_hse(i)) << " ";
-        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::idens)) << " ";
-        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::itemp)) << " ";
-        file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::ipres)) << " ";
-        for (int n=0; n<NumSpec; ++n){
-            file << std::setprecision(12) << std::setw(20) << cfmt(model_hse(i, model::ispec + n)) << " ";
-        }
-        file << std::endl;
-    }
-
-    file.close();
-}
 
 
 AMREX_INLINE void init_1d( ) {
@@ -93,13 +54,7 @@ AMREX_INLINE void init_1d( ) {
     Array1D<Real, 0, NPTS_MODEL-1> xznr_hse;
     Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1> model_hse;
 
-    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
-
-    for (int i = 0; i < problem_rp::nx; ++i){
-        xznl_hse(i) = problem_rp::xmin + static_cast<Real>(i)*dCoord;
-        xzn_hse(i) = problem_rp::xmin + (static_cast<Real>(i) + 0.5_rt)*dCoord;
-        xznr_hse(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt)*dCoord;
-    }
+    fill_coord_arrays(xzn_hse, xznl_hse, xznr_hse);
 
     eos_t eos_state;
 
