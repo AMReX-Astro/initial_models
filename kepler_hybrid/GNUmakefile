@@ -1,25 +1,35 @@
-# Makefile for the init_1d initial model generator
+PRECISION = DOUBLE
+PROFILE = FALSE
 
-NDEBUG := 
-MPI    :=
-OMP    :=
+DEBUG = FALSE
 
-COMP := gfortran
+DIM = 1
 
-MKVERBOSE := t
+COMP = g++
+FCOMP = gfortran
+
+USE_MPI = FALSE
+USE_OMP = FALSE
+
+USE_REACT = TRUE
+USE_CXX_EOS = TRUE
+
+MAX_ZONES := 16384
+
+DEFINES += -DNPTS_MODEL=$(MAX_ZONES)
+
+# programs to be compiled
+EBASE := initialmodel
 
 # EOS and network
 EOS_DIR := helmholtz
 
 NETWORK_DIR := general_null
-GENERAL_NET_INPUTS := $(MICROPHYSICS_HOME)/networks/$(NETWORK_DIR)/ignition_wdconvect.net
+NETWORK_INPUTS := ignition_wdconvect.net
 
+Bpack := ./Make.package
+Blocs := . ..
 
-# the local sources needed to build the initial model generator
-# MODEL_SOURCES := init_1d.f90
-MODEL_SOURCES := init_1d_irreg.f90
+EXTERN_SEARCH += . ..
 
-
-include ../GInitModels.mak
-
-
+include $(MICROPHYSICS_HOME)/Make.Microphysics
