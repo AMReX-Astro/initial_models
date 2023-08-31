@@ -1,4 +1,6 @@
-[![github pages](https://github.com/AMReX-Astro/initial_models/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/AMReX-Astro/initial_models/actions/workflows/gh-pages.yml)
+[![github pages](https://github.com/AMReX-Astro/initial_models/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/AMReX-Astro/initial_models/actions/workflows/gh-pages.yml) 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8305500.svg)](https://doi.org/10.5281/zenodo.8305500)
+
 
 # initial_models
 
