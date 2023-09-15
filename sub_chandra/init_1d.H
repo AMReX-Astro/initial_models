@@ -42,7 +42,7 @@ AMREX_INLINE void init_1d() {
 
     const Real TOL_HE_MASS = 1.e-3_rt;
 
-    const int MAX_ITER = 250;
+    const int MAX_ITER = 500;
 
 
     // convert the envelope and WD mass into CGS
@@ -88,7 +88,7 @@ AMREX_INLINE void init_1d() {
         xn_he[io16] = problem_rp::X_O16;
     }
 
-    xn_he[ihe4] = 1.0_rt - xn_he[ic12] - xn_he[in14] - xn_he[io16] - (NumSpec-3) * network_rp::small_x;
+    xn_he[ihe4] = 1.0_rt - xn_he[ic12] - xn_he[in14] - xn_he[io16] - (NumSpec-4) * network_rp::small_x;
 
     // Create a 1-d uniform grid that is identical to the mesh that we
     // are mapping onto, and then we want to force it into HSE on that
@@ -481,15 +481,22 @@ AMREX_INLINE void init_1d() {
             // note: only count the C and O if we are in the He layer
 
             Real zone_X = model_hse(i, model::ispec+ihe4);
-
-            if (zone_X > 10.0 * network_rp::small_x) {
-                zone_X += model_hse(i, model::ispec+ic12);
-                zone_X += model_hse(i, model::ispec+io16);
+            if (problem_rp::X_N14 > 0.0) {
                 zone_X += model_hse(i, model::ispec+in14);
             }
 
+            if (problem_rp::X_C12 > 0.0 && zone_X > 10.0 * network_rp::small_x) {
+                zone_X += model_hse(i, model::ispec+ic12);
+            }
+
+            if (problem_rp::X_O16 > 0.0 && zone_X > 10.0 * network_rp::small_x) {
+                zone_X += model_hse(i, model::ispec+io16);
+            }
+
             Real core_X{0.0};
-            if (model_hse(i, model::ispec+ihe4) <= network_rp::small_x) {
+            if (problem_rp::X_C12 == 0.0 && problem_rp::X_O16 == 0.0) {
+                core_X += model_hse(i, model::ispec+ic12) + model_hse(i, model::ispec+io16);
+            } else if (model_hse(i, model::ispec+ihe4) <= network_rp::small_x) {
                 core_X += model_hse(i, model::ispec+ic12) + model_hse(i, model::ispec+io16);
             }
 
