@@ -42,7 +42,7 @@ AMREX_INLINE void init_1d() {
 
     const Real TOL_HE_MASS = 1.e-3_rt;
 
-    const int MAX_ITER = 250;
+    const int MAX_ITER = 500;
 
 
     // convert the envelope and WD mass into CGS
@@ -78,10 +78,17 @@ AMREX_INLINE void init_1d() {
 
     if (problem_rp::X_N14 > 0.0_rt) {
         xn_he[in14] = problem_rp::X_N14;
-        xn_he[ihe4] = 1.0_rt - (NumSpec - 2) * network_rp::small_x - problem_rp::X_N14;
-    } else {
-        xn_he[ihe4] = 1.0_rt - (NumSpec - 1) * network_rp::small_x;
     }
+
+    if (problem_rp::X_C12 > 0.0_rt) {
+        xn_he[ic12] = problem_rp::X_C12;
+    }
+
+    if (problem_rp::X_O16 > 0.0_rt) {
+        xn_he[io16] = problem_rp::X_O16;
+    }
+
+    xn_he[ihe4] = 1.0_rt - xn_he[ic12] - xn_he[in14] - xn_he[io16] - (NumSpec-4) * network_rp::small_x;
 
     // Create a 1-d uniform grid that is identical to the mesh that we
     // are mapping onto, and then we want to force it into HSE on that
@@ -457,36 +464,44 @@ AMREX_INLINE void init_1d() {
         } // end loop over zones
 
 
-        // compute the total mass of the He layer and C/O WD
+        mass_he = 0.0;
+        mass_wd = 0.0;
 
-        Real zone_X = model_hse(0, model::ispec+ihe4);
-        if (in14 > 0) {
-            zone_X += model_hse(0, model::ispec+in14);
-        }
+        for (int i = 0; i < icutoff; ++i) {
 
-        mass_he = (4.0_rt / 3.0_rt) * M_PI *
-            (std::pow(xznr(0), 3) - std::pow(xznl(0), 3)) *
-            model_hse(0, model::idens) * zone_X;
+            Real vol{0.0};
+            if (i == 0) {
+                vol = (4.0_rt / 3.0_rt) * M_PI * (std::pow(xznr(0), 3) - std::pow(xznl(0), 3));
+            } else {
+                vol = (4.0_rt / 3.0_rt) * M_PI *
+                (xznr(i) - xznl(i)) * (std::pow(xznr(i), 2) + xznl(i) * xznr(i) + std::pow(xznl(i), 2));
+            }
 
-        mass_wd = (4.0_rt / 3.0_rt) * M_PI *
-            (std::pow(xznr(0), 3) - std::pow(xznl(0), 3)) *
-            model_hse(0, model::idens) * (model_hse(0, model::ispec+ic12) + model_hse(0, model::ispec+io16));
+            // compute the total mass of the He layer and C/O WD
+            // note: only count the C and O if we are in the He layer
 
-        for (int i = 1; i < icutoff; ++i) {
-            zone_X = model_hse(i, model::ispec+ihe4);
-            if (in14 > 0) {
+            Real zone_X = model_hse(i, model::ispec+ihe4);
+            if (problem_rp::X_N14 > 0.0) {
                 zone_X += model_hse(i, model::ispec+in14);
             }
 
-            mass_he += (4.0_rt / 3.0_rt) * M_PI *
-                (xznr(i) - xznl(i)) *
-                (std::pow(xznr(i), 2) + xznl(i) * xznr(i) + std::pow(xznl(i), 2)) *
-                model_hse(i,model::idens) * zone_X;
+            if (problem_rp::X_C12 > 0.0 && zone_X > 10.0 * network_rp::small_x) {
+                zone_X += model_hse(i, model::ispec+ic12);
+            }
 
-            mass_wd += (4.0_rt / 3.0_rt) * M_PI *
-                (xznr(i) - xznl(i)) *
-                (std::pow(xznr(i), 2) + xznl(i) * xznr(i) + std::pow(xznl(i), 2)) *
-                model_hse(i, model::idens) * (model_hse(i, model::ispec+ic12) + model_hse(i, model::ispec+io16));
+            if (problem_rp::X_O16 > 0.0 && zone_X > 10.0 * network_rp::small_x) {
+                zone_X += model_hse(i, model::ispec+io16);
+            }
+
+            Real core_X{0.0};
+            if (problem_rp::X_C12 == 0.0 && problem_rp::X_O16 == 0.0) {
+                core_X += model_hse(i, model::ispec+ic12) + model_hse(i, model::ispec+io16);
+            } else if (model_hse(i, model::ispec+ihe4) <= network_rp::small_x) {
+                core_X += model_hse(i, model::ispec+ic12) + model_hse(i, model::ispec+io16);
+            }
+
+            mass_he += vol * model_hse(i, model::idens) * zone_X;
+            mass_wd += vol * model_hse(i, model::idens) * core_X;
         }
 
         if (rho_c_old < 0.0_rt) {
@@ -571,8 +586,16 @@ AMREX_INLINE void init_1d() {
         outfile += ".C";
     }
 
+    if (problem_rp::X_C12 > 0.0_rt) {
+        outfile += ".C12";
+    }
+
     if (problem_rp::X_N14 > 0.0_rt) {
         outfile += ".N14";
+    }
+
+    if (problem_rp::X_O16 > 0.0_rt) {
+        outfile += ".O16";
     }
 
     write_model(outfile, xzn_hse, model_hse);
@@ -587,8 +610,14 @@ AMREX_INLINE void init_1d() {
         outfile += ".C";
     }
 
+    if (problem_rp::X_C12 > 0.0_rt) {
+        outfile += ".C12";
+    }
     if (problem_rp::X_N14 > 0.0_rt) {
         outfile += ".N14";
+    }
+    if (problem_rp::X_O16 > 0.0_rt) {
+        outfile += ".O16";
     }
 
     outfile += "." + dxstr;

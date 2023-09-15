@@ -24,8 +24,7 @@ EBASE := initialmodel
 # EOS and network
 EOS_DIR := helmholtz
 
-NETWORK_DIR := subch
-#NETWORK_INPUTS := triple_alpha_plus_o.net
+NETWORK_DIR := subch_simple
 
 Bpack := ./Make.package
 Blocs := . ..
