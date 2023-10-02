@@ -568,6 +568,8 @@ AMREX_INLINE void init_1d() {
     Real dCoord = xzn_hse(1) - xzn_hse(0);
     std::string dxstr = num_to_unitstring(dCoord);
 
+    std::string delta_str = num_to_unitstring(problem_rp::delta);
+
     std::stringstream ss;
     ss << std::setprecision(2) << std::fixed << mass_wd / C::M_solar;
     std::string mass_wd_str = ss.str();
@@ -576,7 +578,8 @@ AMREX_INLINE void init_1d() {
     ss2 << std::setprecision(3) << std::fixed << mass_he / C::M_solar;
     std::string mass_he_str = ss2.str();
 
-    std::string outfile_base = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str;
+    std::string outfile_base = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str  + ".delta" + delta_str;
+
 
     std::string outfile = outfile_base + ".hse";
 
