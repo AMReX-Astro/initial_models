@@ -21,13 +21,6 @@ using namespace amrex;
 
 AMREX_INLINE void init_1d() {
 
-    // TOL_HSE is the tolerance used when iterating over a zone to
-    // force it into HSE by adjusting the current density (and
-    // possibly temperature).  TOL_HSE should be very small (~
-    // 1.e-10).
-
-    const Real TOL_HSE = 1.e-10_rt;
-
     // TOL_WD_MASS is tolerance used for getting the total WD mass
     // equal to M_tot (defined below).  It can be reasonably small,
     // since there will always be a central density value that can
@@ -42,7 +35,7 @@ AMREX_INLINE void init_1d() {
 
     const Real TOL_HE_MASS = 1.e-3_rt;
 
-    const int MAX_ITER = 500;
+    const int MAX_ITER = 750;
 
 
     // convert the envelope and WD mass into CGS
@@ -245,15 +238,21 @@ AMREX_INLINE void init_1d() {
 
                 } else {
 
-                    // fully isentropic
-
-                    if (ihe_entropy == -1) {
-                        ihe_entropy = i;
+                    if (problem_rp::isothermal_layer) {
+                        // isothermal He layer no matter what
                         temp_zone = problem_rp::temp_base;
                         isentropic = false;
                     } else {
-                        temp_zone = model_hse(i-1, model::itemp);
-                        isentropic = true;
+                        // fully isentropic
+
+                        if (ihe_entropy == -1) {
+                            ihe_entropy = i;
+                            temp_zone = problem_rp::temp_base;
+                            isentropic = false;
+                        } else {
+                            temp_zone = model_hse(i-1, model::itemp);
+                            isentropic = true;
+                        }
                     }
 
                     for (int n = 0; n < NumSpec; ++n) {
@@ -343,8 +342,8 @@ AMREX_INLINE void init_1d() {
 
                         }
 
-                        if (std::abs(drho) < TOL_HSE * dens_zone &&
-                            std::abs(dtemp) < TOL_HSE * temp_zone) {
+                        if (std::abs(drho) < problem_rp::tol_hse * dens_zone &&
+                            std::abs(dtemp) < problem_rp::tol_hse * temp_zone) {
                             converged_hse = true;
                             break;
                         }
@@ -383,7 +382,7 @@ AMREX_INLINE void init_1d() {
                             amrex::max(0.9_rt * dens_zone,
                                        amrex::min(dens_zone + drho, 1.1_rt * dens_zone));
 
-                        if (std::abs(drho) < TOL_HSE * dens_zone) {
+                        if (std::abs(drho) < problem_rp::tol_hse * dens_zone) {
                             converged_hse = true;
                             break;
                         }
@@ -411,8 +410,8 @@ AMREX_INLINE void init_1d() {
 
                     std::cout << "Error zone " << i <<  " did not converge in init_1d" << std::endl;
                     std::cout << dens_zone << " " << temp_zone << std::endl;
-                    std::cout << p_want;
-                    std::cout << drho;
+                    std::cout << p_want << std::endl;
+                    std::cout << drho << std::endl;
                     amrex::Error("Error: HSE non-convergence");
                 }
 
