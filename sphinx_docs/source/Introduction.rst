@@ -8,7 +8,7 @@ Castro.  It is designed to work with the equations of state and
 reaction networks defined in the StarKiller Microphysics repository.
 
 There are several routines that are roughly broken into two categories:
-those that create simple paramaterized models on their own and those
+those that create simple parameterized models on their own and those
 that adjust models from stellar evolution codes.
 
 All of these model builders enforce a discrete form of hydrostatic equilibrium:

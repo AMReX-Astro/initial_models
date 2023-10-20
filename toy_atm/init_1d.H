@@ -47,20 +47,14 @@
 #include <extern_parameters.H>
 #include <fundamental_constants.H>
 
+#include <coord_info.H>
+#include <read_model.H>
 #include <model_util.H>
 
 using namespace amrex;
 
 AMREX_INLINE void init_1d()
 {
-
-    // define convenient indices for the scalars
-
-    const int nvar = 3 + NumSpec;
-    const int idens = 0;
-    const int itemp = 1;
-    const int ipres = 2;
-    const int ispec = 3;
 
     const Real TOL = 1.e-10_rt;
 
@@ -218,18 +212,11 @@ AMREX_INLINE void init_1d()
     Array1D<Real, 0, NPTS_MODEL-1> xzn_hse;
     Array1D<Real, 0, NPTS_MODEL-1> xznr_hse;
 
-    Array2D<Real, 0, NPTS_MODEL-1, 0, nvar-1> model_hse;
+    Array2D<Real, 0, NPTS_MODEL-1, 0, model::nvar-1> model_hse;
 
     // compute the coordinates of the new gridded function
 
-    Real dCoord = (problem_rp::xmax - problem_rp::xmin) / static_cast<Real>(problem_rp::nx);
-
-    for (int i = 0; i < problem_rp::nx; ++i) {
-        xznl_hse(i) = problem_rp::xmin + (static_cast<Real>(i)) * dCoord;
-        xzn_hse(i) = problem_rp::xmin + (static_cast<Real>(i) + 0.5_rt) * dCoord;
-        xznr_hse(i) = problem_rp::xmin + (static_cast<Real>(i) + 1.0_rt) * dCoord;
-    }
-
+    fill_coord_arrays(xzn_hse, xznl_hse, xznr_hse);
 
     // find the index of the base height
     int index_base = -1;
@@ -274,19 +261,19 @@ AMREX_INLINE void init_1d()
         // hyperbolic tangent transition:
 
         for (int n = 0; n < NumSpec; ++n) {
-            model_hse(i, ispec+n) = xn_star[n] +
+            model_hse(i, model::ispec+n) = xn_star[n] +
                 0.5_rt * (xn_base[n] - xn_star[n]) *
                 (1.0_rt + std::tanh((xzn_hse(i) - (problem_rp::xmin + problem_rp::H_star - problem_rp::delta) + problem_rp::delta) / problem_rp::delta));
         }
 
-        model_hse(i, itemp) = problem_rp::T_star + 0.5_rt * (problem_rp::T_base - problem_rp::T_star) *
+        model_hse(i, model::itemp) = problem_rp::T_star + 0.5_rt * (problem_rp::T_base - problem_rp::T_star) *
             (1.0_rt + std::tanh((xzn_hse(i) - (problem_rp::xmin + problem_rp::H_star - problem_rp::delta) + problem_rp::delta) / problem_rp::delta));
 
         // the density and pressure will be determined via HSE,
         // for now, set them to the base conditions
 
-        model_hse(i, idens) = problem_rp::dens_base;
-        model_hse(i, ipres) = pres_base;
+        model_hse(i, model::idens) = problem_rp::dens_base;
+        model_hse(i, model::ipres) = pres_base;
 
     }
 
@@ -296,7 +283,7 @@ AMREX_INLINE void init_1d()
         index_base = -1;
         for (int i = 0; i < problem_rp::nx; ++i) {
 
-            if (model_hse(i, itemp) > 0.9995 * problem_rp::T_base) {
+            if (model_hse(i, model::itemp) > 0.9995 * problem_rp::T_base) {
                 index_base = i+1;
                 break;
             }
@@ -313,15 +300,15 @@ AMREX_INLINE void init_1d()
     // make the base thermodynamics consistent for this base point -- that is
     // what we will integrate from!
 
-    eos_state.rho = model_hse(index_base, idens);
-    eos_state.T = model_hse(index_base, itemp);
+    eos_state.rho = model_hse(index_base, model::idens);
+    eos_state.T = model_hse(index_base, model::itemp);
     for (int n = 0; n < NumSpec; ++n) {
-        eos_state.xn[n] = model_hse(index_base, ispec+n);
+        eos_state.xn[n] = model_hse(index_base, model::ispec+n);
     }
 
     eos(eos_input_rt, eos_state);
 
-    model_hse(index_base, ipres) = eos_state.p;
+    model_hse(index_base, model::ipres) = eos_state.p;
 
 
     // HSE + entropy solve
@@ -360,10 +347,10 @@ AMREX_INLINE void init_1d()
         // we've already set initial guesses for density, temperature, and
         // composition
 
-        dens_zone = model_hse(i, idens);
-        temp_zone = model_hse(i, itemp);
+        dens_zone = model_hse(i, model::idens);
+        temp_zone = model_hse(i, model::itemp);
         for (int n = 0; n < NumSpec; ++n) {
-            xn[n] = model_hse(i, ispec+n);
+            xn[n] = model_hse(i, model::ispec+n);
         }
 
         // iteration loop
@@ -390,8 +377,8 @@ AMREX_INLINE void init_1d()
 
                     // HSE differencing
 
-                    p_want = model_hse(i-1, ipres) +
-                        delx * 0.5_rt * (dens_zone + model_hse(i-1, idens)) * g_zone;
+                    p_want = model_hse(i-1, model::ipres) +
+                        delx * 0.5_rt * (dens_zone + model_hse(i-1, model::idens)) * g_zone;
 
                     // now we have two functions to zero:
                     //   A = p_want - p(rho,T)
@@ -453,8 +440,8 @@ AMREX_INLINE void init_1d()
                 } else {
 
                     // do isothermal
-                    p_want = model_hse(i-1, ipres) +
-                        delx * 0.5_rt * (dens_zone + model_hse(i-1, idens)) * g_zone;
+                    p_want = model_hse(i-1, model::ipres) +
+                        delx * 0.5_rt * (dens_zone + model_hse(i-1, model::idens)) * g_zone;
 
                     temp_zone = problem_rp::T_lo;
 
@@ -529,13 +516,13 @@ AMREX_INLINE void init_1d()
         pres_zone = eos_state.p;
 
         // update the thermodynamics in this zone
-        model_hse(i, idens) = dens_zone;
-        model_hse(i, itemp) = temp_zone;
-        model_hse(i, ipres) = pres_zone;
+        model_hse(i, model::idens) = dens_zone;
+        model_hse(i, model::itemp) = temp_zone;
+        model_hse(i, model::ipres) = pres_zone;
 
         // to make this process converge faster, set the density in the
         // next zone to the density in this zone
-        // model_hse(i+1,idens) = dens_zone
+        // model_hse(i+1, model::idens) = dens_zone
 
     }
 
@@ -556,14 +543,14 @@ AMREX_INLINE void init_1d()
         }
 
         // we already set the temperature and composition profiles
-        temp_zone = model_hse(i, itemp);
+        temp_zone = model_hse(i, model::itemp);
         for (int n = 0; n < NumSpec; ++n) {
-            xn[n] = model_hse(i, ispec+n);
+            xn[n] = model_hse(i, model::ispec+n);
         }
 
         // use our previous initial guess for density
 
-        dens_zone = model_hse(i+1, idens);
+        dens_zone = model_hse(i+1, model::idens);
 
 
         // iteration loop
@@ -581,8 +568,8 @@ AMREX_INLINE void init_1d()
 
             // HSE differencing
 
-            p_want = model_hse(i+1, ipres) -
-                delx * 0.5_rt * (dens_zone + model_hse(i+1, idens)) * g_zone;
+            p_want = model_hse(i+1, model::ipres) -
+                delx * 0.5_rt * (dens_zone + model_hse(i+1, model::idens)) * g_zone;
 
             // we will take the temperature already defined in model_hse
             // so we only need to zero:
@@ -638,14 +625,15 @@ AMREX_INLINE void init_1d()
         pres_zone = eos_state.p;
 
         // update the thermodynamics in this zone
-        model_hse(i, idens) = dens_zone;
-        model_hse(i, itemp) = temp_zone;
-        model_hse(i, ipres) = pres_zone;
+        model_hse(i, model::idens) = dens_zone;
+        model_hse(i, model::itemp) = temp_zone;
+        model_hse(i, model::ipres) = pres_zone;
 
     }
 
 
     auto deltastr = num_to_unitstring(problem_rp::delta);
+    Real dCoord = xzn_hse(1) - xzn_hse(0);
     auto dxstr = num_to_unitstring(dCoord);
 
     std::string outfile = problem_rp::model_prefix + ".hse.tanh.delta_" + deltastr + ".dx_" + dxstr;
@@ -655,7 +643,7 @@ AMREX_INLINE void init_1d()
     std::ofstream of2(outfile2);
 
     of << "# npts = " << problem_rp::nx << std::endl;
-    of << "# num of variables = " << nvar << std::endl;
+    of << "# num of variables = " << 3 + NumSpec << std::endl;
     of << "# density" << std::endl;
     of << "# temperature" << std::endl;
     of << "# pressure" << std::endl;
@@ -666,11 +654,11 @@ AMREX_INLINE void init_1d()
 
     for (int i = 0; i < problem_rp::nx; ++i) {
         of << std::setprecision(12) << std::setw(20) << xzn_hse(i) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, idens) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, itemp) << " ";
-        of << std::setprecision(12) << std::setw(20) << model_hse(i, ipres) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::idens) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::itemp) << " ";
+        of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ipres) << " ";
         for (int n = 0; n < NumSpec; ++n) {
-            of << std::setprecision(12) << std::setw(20) << model_hse(i, ispec+n) << " ";
+            of << std::setprecision(12) << std::setw(20) << model_hse(i, model::ispec+n) << " ";
         }
         of << std::endl;
     }
@@ -689,10 +677,10 @@ AMREX_INLINE void init_1d()
     of2 << "# c_s" << std::endl;
 
     for (int i = 0; i < problem_rp::nx; ++i) {
-        eos_state.rho = model_hse(i, idens);
-        eos_state.T = model_hse(i, itemp);
+        eos_state.rho = model_hse(i, model::idens);
+        eos_state.T = model_hse(i, model::itemp);
         for (int n = 0; n < NumSpec; ++n) {
-            eos_state.xn[n] = model_hse(i, ispec+n);
+            eos_state.xn[n] = model_hse(i, model::ispec+n);
         }
 
         eos(eos_input_rt, eos_state);
@@ -719,10 +707,10 @@ AMREX_INLINE void init_1d()
             g_zone = problem_rp::g_const;
         }
 
-        Real dpdr = (model_hse(i, ipres) - model_hse(i-1, ipres)) / delx;
-        Real rhog = 0.5_rt * (model_hse(i, idens) + model_hse(i-1, idens)) * g_zone;
+        Real dpdr = (model_hse(i, model::ipres) - model_hse(i-1, model::ipres)) / delx;
+        Real rhog = 0.5_rt * (model_hse(i, model::idens) + model_hse(i-1, model::idens)) * g_zone;
 
-        if (dpdr != 0.0_rt && model_hse(i+1, idens) > problem_rp::low_density_cutoff) {
+        if (dpdr != 0.0_rt && model_hse(i+1, model::idens) > problem_rp::low_density_cutoff) {
             max_hse_error = amrex::max(max_hse_error, std::abs(dpdr - rhog) / std::abs(dpdr));
         }
     }

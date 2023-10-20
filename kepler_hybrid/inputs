@@ -1,0 +1,12 @@
+problem.nx = 1280
+
+problem.xmin = 0.0
+problem.xmax = 5.e8
+
+problem.model_file = "kepler_new_6.25e8.raw"
+
+problem.temp_fluff_cutoff = 1.e3
+problem.low_density_cutoff = 1.e3
+
+eos.use_eos_coulomb = 1
+
