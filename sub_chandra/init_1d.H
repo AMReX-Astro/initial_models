@@ -466,7 +466,13 @@ AMREX_INLINE void init_1d() {
         mass_he = 0.0;
         mass_wd = 0.0;
 
-        for (int i = 0; i < icutoff; ++i) {
+        // it might be that we never reach the cutoff density in our
+        // domain.  This is especially the case if we do an isothermal
+        // model.  Make sure we integrate over everything in that
+        // case.
+        int max_index = icutoff == -1 ? problem_rp::nx : icutoff;
+
+        for (int i = 0; i < max_index; ++i) {
 
             Real vol{0.0};
             if (i == 0) {
@@ -501,6 +507,12 @@ AMREX_INLINE void init_1d() {
 
             mass_he += vol * model_hse(i, model::idens) * zone_X;
             mass_wd += vol * model_hse(i, model::idens) * core_X;
+        }
+
+        if (mass_wd == 0.0) {
+            std::string err_file = "zero_mass";
+            write_model(err_file, xzn_hse, model_hse);
+            amrex::Error("zero mass");
         }
 
         if (rho_c_old < 0.0_rt) {
@@ -548,7 +560,6 @@ AMREX_INLINE void init_1d() {
             rho_he = amrex::min(1.5_rt * rho_he_old,
                                 amrex::max((rho_he + drho_he), 0.75_rt * rho_he_old));
 
-            std::cout << "current mass = " << mass_wd / C::M_solar << " " << mass_he / C::M_solar << std::endl;
         }
 
     } // end mass constraint loop
