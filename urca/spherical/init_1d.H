@@ -37,8 +37,8 @@ AMREX_INLINE void fopt_urca_23(eos_t& eos_state, Real& fopt, Real& r_ecap, Real&
     constexpr int do_T_derivatives{0};
     evaluate_rates<do_T_derivatives, rate_t>(burn_state, rates);
 
-    r_ecap = rates.screened_rates(k_na23__ne23);
-    r_beta = rates.screened_rates(k_ne23__na23);
+    r_ecap = rates.screened_rates(k_na23_to_ne23);
+    r_beta = rates.screened_rates(k_ne23_to_na23);
 
     // calculate e-capture and beta decay rates are in equilibrium
     Real xr_ecap = burn_state.xn[ina23] * r_ecap;
@@ -103,8 +103,8 @@ AMREX_INLINE void composition_equilibrium(eos_t& eos_state){
     constexpr int do_T_derivatives{0};
     evaluate_rates<do_T_derivatives, rate_t>(burn_state, rates);
 
-    Real r_ecap = rates.screened_rates(k_na23__ne23);
-    Real r_beta = rates.screened_rates(k_ne23__na23);
+    Real r_ecap = rates.screened_rates(k_na23_to_ne23);
+    Real r_beta = rates.screened_rates(k_ne23_to_na23);
 
     eos_state.xn[ine23] = problem_rp::na_ne_23/(1.0_rt + r_beta/r_ecap);
     eos_state.xn[ina23] = problem_rp::na_ne_23 - eos_state.xn[ine23];
