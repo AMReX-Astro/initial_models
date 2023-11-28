@@ -45,7 +45,7 @@ jobs:
       - name: Run with regular grid
         run: |
           cd massive_star
-          ./initialmodel1d.gnu.ex inputs
+          ./initialmodel1d.gnu.ex inputs problem.nx=16384
 
       - name: Compare to stored output
         run: |
