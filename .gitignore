@@ -12,3 +12,5 @@ actual_network.F90
 build/
 
 tmp_build_dir
+
+nse*.tbl
