@@ -1,9 +1,0 @@
-problem.model_file = 15m_500_sec.aprox19.dat
-
-problem.xmin = 0.0
-problem.xmax = 32768000000.0
-
-problem.nx = 16384
-
-network.rho_nse = 2.e6
-network.T_nse = 3.e9

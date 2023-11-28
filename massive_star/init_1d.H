@@ -77,11 +77,16 @@ set_aux(eos_t& eos_state) {
         // we are in NSE, so leave ye alone, but get abar and redo xn
 
         Real abar_pass;
-        Real dq_pass;
+        Real bea_pass;
         Real dyedt_pass;
+        Real dabardt_pass;
+        Real dbeadt_pass;
+        Real e_nu_pass;
 
         nse_interp(eos_state.T, eos_state.rho, eos_state.aux[AuxZero::iye],
-                   abar_pass, dq_pass, dyedt_pass, eos_state.xn);
+                   abar_pass, bea_pass,
+                   dyedt_pass, dabardt_pass, dbeadt_pass, e_nu_pass,
+                   eos_state.xn);
 
         eos_state.aux[AuxZero::iabar] = abar_pass;
 

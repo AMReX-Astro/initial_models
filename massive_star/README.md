@@ -8,3 +8,14 @@ convert_21_to_19.py
 
 This setup uses Ye as the primary composition variable from the initial
 model in regions that are in NSE.
+
+Note: you should ensure that the NSE conditions in the inputs file match
+those of your simulation, so the model will be properly in HSE.
+
+Also note that when running with 32768 zones, you need to do:
+
+```
+ulimit -s 16384
+```
+
+Since the arrays are put on the stack.
