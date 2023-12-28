@@ -83,12 +83,18 @@ set_aux(eos_t& eos_state) {
         Real dbeadt_pass;
         Real e_nu_pass;
 
-        nse_interp(eos_state.T, eos_state.rho, eos_state.aux[AuxZero::iye],
-                   abar_pass, bea_pass,
-                   dyedt_pass, dabardt_pass, dbeadt_pass, e_nu_pass,
-                   eos_state.xn);
+	nse_table_t nse_state;
+	nse_state.T = eos_state.T;
+	nse_state.rho = eos_state.rho;
+	nse_state.Ye = eos_state.aux[AuxZero::iye];
 
-        eos_state.aux[AuxZero::iabar] = abar_pass;
+        nse_interp(nse_state);
+
+	for (int n = 0; n < NumSpec; ++n) {
+	    eos_state.xn[n] = nse_state.X[n];
+	}
+
+        eos_state.aux[AuxZero::iabar] = nse_state.abar;
 
     } else {
         set_aux_comp_from_X(eos_state);
