@@ -540,6 +540,11 @@ AMREX_INLINE void init_1d() {
 
                eos_state.aux[AuxZero::iye] = ye;
 
+	       // note: if we are in NSE, then as we adjust density in
+	       // this Newton loop, the composition will change, so
+	       // convergence should mean that the density and
+	       // composition have converged.
+
                set_aux(eos_state);
 
                eos(eos_input_rt, eos_state);
@@ -576,6 +581,7 @@ AMREX_INLINE void init_1d() {
                std::cout << "drho = " << drho << std::endl;
                amrex::Error("Error: HSE non-convergence");
            }
+
 
            if (temp_zone < temp_fluff) {
                temp_zone = temp_fluff;
