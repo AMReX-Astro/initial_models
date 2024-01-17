@@ -1,0 +1,28 @@
+problem.nx = 6144
+
+problem.xmin = 0.0
+problem.xmax = 6.144e9
+
+problem.M_tot = 0.981
+problem.M_He  = 0.05
+
+problem.delta = 5.e6
+
+problem.temp_core = 5.e7
+problem.temp_base = 2.e8
+
+problem.mixed_co_wd = 1
+
+problem.X_C12 = 0.05
+problem.X_O16 = 0.05
+
+problem.isothermal_layer = 1
+
+problem.tol_hse = 1.e-9
+
+problem.low_density_cutoff = 1.e-4
+problem.temp_fluff = 7.5e7
+
+problem.small_temp = 1.e6
+
+
