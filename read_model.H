@@ -101,10 +101,10 @@ write_model(std::string model_name,
         dx_str = "irreg";
     } else {
         Real dx = (xzn_hse(1) - xzn_hse(0));
-        dx_str = num_to_unitstring(dx);
+        dx_str = "dx" + num_to_unitstring(dx);
     }
 
-    outfile += ".dx" + dx_str;
+    outfile += "." + dx_str;
 
     std::cout << "writing " << model_name << " model to " << outfile << std::endl;
 
