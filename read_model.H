@@ -104,7 +104,7 @@ write_model(std::string model_name,
         dx_str = num_to_unitstring(dx);
     }
 
-    outfile += "." + dx_str;
+    outfile += ".dx" + dx_str;
 
     std::cout << "writing " << model_name << " model to " << outfile << std::endl;
 

@@ -35,7 +35,7 @@ AMREX_INLINE void init_1d() {
 
     const Real TOL_HE_MASS = 1.e-3_rt;
 
-    const int MAX_ITER = 750;
+    const int MAX_ITER = 1000;
 
 
     // convert the envelope and WD mass into CGS
@@ -576,7 +576,7 @@ AMREX_INLINE void init_1d() {
     // store the model
 
     Real dCoord = xzn_hse(1) - xzn_hse(0);
-    std::string dxstr = num_to_unitstring(dCoord);
+    std::string dxstr = "dx" + num_to_unitstring(dCoord);
 
     std::string delta_str = num_to_unitstring(problem_rp::delta);
 
