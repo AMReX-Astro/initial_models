@@ -39,3 +39,6 @@ isothermal_layer     int          0
 # possibly temperature).  TOL_HSE should be very small (~
 # 1.e-10).
 tol_hse              real         1.e-10
+
+# prefix for the output
+prefix               character    "sub_chandra"
