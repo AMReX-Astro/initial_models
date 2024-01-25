@@ -50,7 +50,7 @@ jobs:
       - name: Compare to stored output
         run: |
           cd test2
-          diff model.hse.5.62km ci-benchmarks/model.hse.5.62km
+          diff model.hse.dx5.62km ci-benchmarks/model.hse.dx5.62km
 
 
 
