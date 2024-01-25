@@ -1,7 +1,5 @@
 @namespace: problem
 
-model_file          character    "model.in"
-
 model_shift         real         0.0
 
 xmin                real         0.0

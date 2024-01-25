@@ -1,7 +1,5 @@
 @namespace: problem
 
-model_file           character    "kepler_new_6.25e8.raw"
-
 nx                   integer      1280
 
 smallx               real         1.e-10
