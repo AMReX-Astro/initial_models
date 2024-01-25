@@ -116,13 +116,78 @@ Cartesian zone exactly maps into the initial model</p></td>
 <td><p>number of points to use in the model</p></td>
 <td><p>-1</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">model_file</span></code></p></td>
+<td><p>initial model to read in</p></td>
+<td><p>“”</p></td>
+</tr>
 </tbody>
 </table>
 <section id="ecsn">
 <h1>ECSN<a class="headerlink" href="#ecsn" title="Link to this heading"></a></h1>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>parameter</p></th>
+<th class="head"><p>description</p></th>
+<th class="head"><p>default value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">xmin</span></code></p></td>
+<td></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">xmax</span></code></p></td>
+<td></td>
+<td><p>2.5e8</p></td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="kepler-hybrid">
 <h1>kepler_hybrid<a class="headerlink" href="#kepler-hybrid" title="Link to this heading"></a></h1>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>parameter</p></th>
+<th class="head"><p>description</p></th>
+<th class="head"><p>default value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nx</span></code></p></td>
+<td></td>
+<td><p>1280</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">smallx</span></code></p></td>
+<td></td>
+<td><p>1.e-10</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">xmin</span></code></p></td>
+<td></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">xmax</span></code></p></td>
+<td></td>
+<td><p>5.e8</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">low_density_cutoff</span></code></p></td>
+<td></td>
+<td><p>1.e-4</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">temp_fluff_cutoff</span></code></p></td>
+<td><p>temp_fluff_cutoff is the density below which we hold
+the temperature constant for the kepler model</p></td>
+<td><p>1.e3</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">temp_fluff</span></code></p></td>
+<td></td>
+<td><p>5.e6</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">use_irreg_grid</span></code></p></td>
+<td></td>
+<td><p>0</p></td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="lagrangian-planar">
 <h1>lagrangian_planar<a class="headerlink" href="#lagrangian-planar" title="Link to this heading"></a></h1>
@@ -134,51 +199,47 @@ Cartesian zone exactly maps into the initial model</p></td>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">model_file</span></code></p></td>
-<td></td>
-<td><p>“model.in”</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">model_shift</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">model_shift</span></code></p></td>
 <td></td>
 <td><p>0.0</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">xmin</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">xmin</span></code></p></td>
 <td></td>
 <td><p>0.0</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">xmax</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">xmax</span></code></p></td>
 <td></td>
 <td><p>2.e3</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">do_invsq_grav</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">do_invsq_grav</span></code></p></td>
 <td></td>
 <td><p>0</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">g_const</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">g_const</span></code></p></td>
 <td></td>
 <td><p>-1.0</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M_enclosed</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M_enclosed</span></code></p></td>
 <td></td>
 <td><p>2.e33</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">model_prefix</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">model_prefix</span></code></p></td>
 <td></td>
 <td><p>“model”</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">low_density_cutoff</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">low_density_cutoff</span></code></p></td>
 <td></td>
 <td><p>1.e-5</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">temp_cutoff</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">temp_cutoff</span></code></p></td>
 <td></td>
 <td><p>1.e5</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">smallx</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">smallx</span></code></p></td>
 <td></td>
 <td><p>1.e-10</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">layer_size</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">layer_size</span></code></p></td>
 <td></td>
 <td><p>0.0</p></td>
 </tr>
@@ -231,15 +292,29 @@ Cartesian zone exactly maps into the initial model</p></td>
 <td></td>
 <td><p>“convective”</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">model_file</span></code></p></td>
-<td><p>not used, but needed for the reader</p></td>
-<td><p>“”</p></td>
-</tr>
 </tbody>
 </table>
 </section>
 <section id="massive-star">
 <h1>massive_star<a class="headerlink" href="#massive-star" title="Link to this heading"></a></h1>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>parameter</p></th>
+<th class="head"><p>description</p></th>
+<th class="head"><p>default value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">xmin</span></code></p></td>
+<td></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">xmax</span></code></p></td>
+<td></td>
+<td><p>1.75e10</p></td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="spherical">
 <h1>spherical<a class="headerlink" href="#spherical" title="Link to this heading"></a></h1>
@@ -355,10 +430,6 @@ Cartesian zone exactly maps into the initial model</p></td>
 <td></td>
 <td><p>“spherical”</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">model_file</span></code></p></td>
-<td><p>not used, but needed for the reader</p></td>
-<td><p>“”</p></td>
-</tr>
 </tbody>
 </table>
 </section>
@@ -424,22 +495,18 @@ Cartesian zone exactly maps into the initial model</p></td>
 <td></td>
 <td><p>1.e5</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">model_file</span></code></p></td>
-<td><p>not used, but needed for the reader</p></td>
-<td><p>“”</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">isothermal_layer</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">isothermal_layer</span></code></p></td>
 <td></td>
 <td><p>0</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tol_hse</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tol_hse</span></code></p></td>
 <td><p>tol_hse is the tolerance used when iterating over a
 zone to force it into HSE by adjusting the current
 density (and possibly temperature).  TOL_HSE should be
 very small (~ 1.e-10).</p></td>
 <td><p>1.e-10</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prefix</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prefix</span></code></p></td>
 <td><p>prefix for the output</p></td>
 <td><p>“sub_chandra”</p></td>
 </tr>
@@ -495,10 +562,6 @@ very small (~ 1.e-10).</p></td>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">temp_fluff</span></code></p></td>
 <td></td>
 <td><p>1.e7</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">model_file</span></code></p></td>
-<td><p>not used, but needed for the reader</p></td>
-<td><p>“”</p></td>
 </tr>
 </tbody>
 </table>
@@ -660,10 +723,6 @@ very small (~ 1.e-10).</p></td>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">smallx</span></code></p></td>
 <td></td>
 <td><p>1.e-10</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">model_file</span></code></p></td>
-<td><p>not used, but needed for the reader</p></td>
-<td><p>“”</p></td>
 </tr>
 </tbody>
 </table>
