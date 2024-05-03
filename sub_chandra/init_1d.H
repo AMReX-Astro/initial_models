@@ -588,7 +588,11 @@ AMREX_INLINE void init_1d() {
     ss2 << std::setprecision(3) << std::fixed << mass_he / C::M_solar;
     std::string mass_he_str = ss2.str();
 
-    std::string outfile_base = problem_rp::prefix + ".M_WD-" + mass_wd_str + ".M_He-" + mass_he_str  + ".delta" + delta_str;
+    std::stringstream ss3;
+    ss3 << problem_rp::temp_base;
+    std::string temp_base_str = ss3.str();
+
+    std::string outfile_base = problem_rp::prefix + ".M_WD-" + mass_wd_str + ".M_He-" + mass_he_str  + ".delta" + delta_str + ".temp_base-" + temp_base_str;
 
 
     std::string outfile = outfile_base + ".hse";
