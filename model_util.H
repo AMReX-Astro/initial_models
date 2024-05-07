@@ -5,7 +5,7 @@
 
 #include <AMReX_REAL.H>
 
-std::string num_to_unitstring(const Real value) {
+std::string num_to_unitstring(const amrex::Real value) {
 
     std::string numstr{};
     std::stringstream ss;
