@@ -462,7 +462,6 @@ AMREX_INLINE void init_1d() {
 
         } // end loop over zones
 
-
         mass_he = 0.0;
         mass_wd = 0.0;
 
@@ -567,6 +566,11 @@ AMREX_INLINE void init_1d() {
     if (! mass_converged) {
         amrex::Error("ERROR: mass did not converge");
     }
+
+    std::cout << "converged" << std::endl;
+    std::cout << "central density of WD: " << rho_c << std::endl;
+    std::cout << "density at base of He layer: " << rho_he << std::endl;
+
 
     std::cout << "final masses: " << std::endl;
     std::cout << " mass WD: " << mass_wd / C::M_solar << std::endl;
