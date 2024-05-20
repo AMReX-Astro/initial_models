@@ -10,3 +10,6 @@ use_irreg_grid  int         0
 
 # number of points to use in the model
 nx              int         -1
+
+# initial model to read in
+model_file      character    ""
