@@ -38,7 +38,9 @@ and mass fraction).
 
 The model is placed into HSE by the following differencing:
 
+```
    (1/dr) [ <P>_i - <P>_{i-1} ] = (1/2) [ <rho>_i + <rho>_{i-1} ] g
+```
 
 This will be iterated over in tandem with the EOS call,
 
