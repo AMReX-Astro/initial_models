@@ -50,7 +50,7 @@ jobs:
       - name: Compare to stored output
         run: |
           cd lagrangian_planar
-          diff glasner_T7.hse.10000.00cm ci-benchmarks/glasner_T7.hse.10000.00cm
+          diff glasner_T7.hse.dx10000.00cm ci-benchmarks/glasner_T7.hse.dx10000.00cm
 
 
 

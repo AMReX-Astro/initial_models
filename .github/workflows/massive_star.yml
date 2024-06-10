@@ -45,12 +45,13 @@ jobs:
       - name: Run with regular grid
         run: |
           cd massive_star
+          ulimit -s 32768
           ./initialmodel1d.gnu.ex inputs problem.nx=16384
 
       - name: Compare to stored output
         run: |
           cd massive_star
-          diff 15m_500_sec.aprox19.hse.20.00km ci-benchmarks/15m_500_sec.aprox19.hse.20.00km
+          diff 15m_500_sec.aprox19.hse.dx20.00km ci-benchmarks/15m_500_sec.aprox19.hse.dx20.00km
 
 
 

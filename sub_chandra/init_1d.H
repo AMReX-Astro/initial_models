@@ -35,7 +35,7 @@ AMREX_INLINE void init_1d() {
 
     const Real TOL_HE_MASS = 1.e-3_rt;
 
-    const int MAX_ITER = 750;
+    const int MAX_ITER = 1000;
 
 
     // convert the envelope and WD mass into CGS
@@ -462,7 +462,6 @@ AMREX_INLINE void init_1d() {
 
         } // end loop over zones
 
-
         mass_he = 0.0;
         mass_wd = 0.0;
 
@@ -568,6 +567,11 @@ AMREX_INLINE void init_1d() {
         amrex::Error("ERROR: mass did not converge");
     }
 
+    std::cout << "converged" << std::endl;
+    std::cout << "central density of WD: " << rho_c << std::endl;
+    std::cout << "density at base of He layer: " << rho_he << std::endl;
+
+
     std::cout << "final masses: " << std::endl;
     std::cout << " mass WD: " << mass_wd / C::M_solar << std::endl;
     std::cout << " mass He: " << mass_he / C::M_solar << std::endl;
@@ -576,7 +580,7 @@ AMREX_INLINE void init_1d() {
     // store the model
 
     Real dCoord = xzn_hse(1) - xzn_hse(0);
-    std::string dxstr = num_to_unitstring(dCoord);
+    std::string dxstr = "dx" + num_to_unitstring(dCoord);
 
     std::string delta_str = num_to_unitstring(problem_rp::delta);
 
@@ -588,7 +592,11 @@ AMREX_INLINE void init_1d() {
     ss2 << std::setprecision(3) << std::fixed << mass_he / C::M_solar;
     std::string mass_he_str = ss2.str();
 
-    std::string outfile_base = "sub_chandra.M_WD-" + mass_wd_str + ".M_He-" + mass_he_str  + ".delta" + delta_str;
+    std::stringstream ss3;
+    ss3 << problem_rp::temp_base;
+    std::string temp_base_str = ss3.str();
+
+    std::string outfile_base = problem_rp::prefix + ".M_WD-" + mass_wd_str + ".M_He-" + mass_he_str  + ".delta" + delta_str + ".temp_base-" + temp_base_str;
 
 
     std::string outfile = outfile_base + ".hse";

@@ -50,7 +50,7 @@ jobs:
       - name: Compare to stored output
         run: |
           cd low_mass_convective_star
-          diff convective.hse.683.59km ci-benchmarks/convective.hse.683.59km
+          diff convective.hse.dx683.59km ci-benchmarks/convective.hse.dx683.59km
 
       - name: Run with irregular grid
         run: |
