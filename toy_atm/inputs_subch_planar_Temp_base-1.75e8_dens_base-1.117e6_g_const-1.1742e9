@@ -1,0 +1,33 @@
+problem.model_prefix = "toy_subch"
+
+problem.nx = 500
+
+problem.dens_base = 1.117e6
+
+problem.T_star = 1.e7
+problem.T_base = 1.75e8
+problem.T_lo   = 7.5e7
+
+problem.H_star = 8.e7
+problem.delta  = 5.e6
+
+problem.fuel1_name = "helium-4"
+problem.fuel1_frac = 0.99
+
+problem.fuel2_name = "nitrogen-14"
+problem.fuel2_frac = 0.01
+
+problem.ash1_name  = "carbon-12"
+problem.ash1_frac = 0.5
+
+problem.ash2_name = "oxygen-16"
+problem.ash2_frac = 0.5
+
+problem.xmin = 0.0
+problem.xmax = 1.e9
+
+problem.g_const = -1.1742e9
+
+problem.low_density_cutoff = 1.e-4
+
+problem.index_base_from_temp = 1
