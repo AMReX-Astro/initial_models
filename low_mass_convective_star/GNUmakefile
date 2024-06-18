@@ -22,7 +22,7 @@ DEFINES += -DNPTS_MODEL=$(MAX_ZONES)
 EBASE := initialmodel
 
 # EOS and network
-EOS_DIR := gamma_law_general
+EOS_DIR := gamma_law
 
 NETWORK_DIR := general_null
 NETWORK_INPUTS := H_He.net
