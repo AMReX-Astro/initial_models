@@ -143,20 +143,22 @@ AMREX_INLINE void init_1d()
     if (problem_rp::fuel7_name != "")
         xn_base[ifuel7] = problem_rp::fuel7_frac;
 
-    // check if they sum to 1
-    double sum{0.0};
+    // check if star comp. adds to 1
+    double sum_star{0.0};
     for (auto e : xn_star) {
-        sum += e;
+        sum_star += e;
     }
-    if (std::abs(sum) - 1.0_rt > NumSpec * smallx) {
+    if (std::abs(sum_star - 1.0_rt) > NumSpec * smallx) {
         amrex::Error("ERROR: ash mass fractions don't sum to 1");
     }
 
-    sum = 0.0;
+    // check if base comp. adds to 1
+    double sum_base{0.0};
     for (auto e : xn_base) {
-        if (std::abs(sum) - 1.0_rt > NumSpec * smallx) {
-            amrex::Error("ERROR: fuel mass fractions don't sum to 1");
-        }
+        sum_base += e;
+    }
+    if (std::abs(sum_base - 1.0_rt) > NumSpec * smallx) {
+        amrex::Error("ERROR: fuel mass fractions don't sum to 1");
     }
 
     // Create a 1-d uniform grid that is identical to the mesh that we are
