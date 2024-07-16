@@ -63,14 +63,7 @@ constexpr Real temp_fluff = 1.e5_rt;
 AMREX_INLINE void
 set_aux(eos_t& eos_state) {
 
-    burn_t burn_state;
-    burn_state.rho = eos_state.rho;
-    burn_state.T = eos_state.T;
-    for (int n = 0; n < NumSpec; ++n) {
-        burn_state.xn[n] = eos_state.xn[n];
-    }
-
-    bool nse_check = in_nse(burn_state);
+    bool nse_check = in_nse(eos_state);
 
     if (nse_check) {
 
@@ -211,8 +204,6 @@ AMREX_INLINE void init_1d() {
     eos_t eos_state;
 
     for (int i = 0; i < problem_rp::nx; ++i) {
-
-        // we need to fill a burn_t in order to check for NSE
 
         eos_state.rho = model_mesa_hse(i, model::idens);
         eos_state.T = model_mesa_hse(i, model::itemp);
