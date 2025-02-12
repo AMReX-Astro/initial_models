@@ -410,7 +410,7 @@ AMREX_INLINE void init_1d() {
 
     //use_eos_coulomb comes in from extern_probin_module -- override
     //here if desired
-    use_eos_coulomb = true;
+    eos_rp::use_eos_coulomb = true;
 
 
     //-----------------------------------------------------------------------------
