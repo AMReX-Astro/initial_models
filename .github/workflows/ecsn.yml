@@ -40,7 +40,7 @@ jobs:
       - name: Compile
         run: |
           cd ECSN
-          make -j2
+          make -j 4
 
       - name: Run with regular grid
         run: |
