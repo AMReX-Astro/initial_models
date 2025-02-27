@@ -11,8 +11,6 @@ problem.delta = 5.e6
 problem.temp_core = 3.e7
 problem.temp_base = 2.3e8
 
-problem.mixed_co_wd = 1
-
 problem.X_C12 = 0.05
 problem.X_O16 = 0.05
 problem.X_N14 = 0.009

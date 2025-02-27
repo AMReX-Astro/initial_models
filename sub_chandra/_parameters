@@ -13,6 +13,9 @@ X_C12                real         0.00
 # mass fraction of O16 to put in the accreted envelope
 X_O16                real         0.00
 
+# mass fraction of core O16 composition
+core_O16             real         0.5
+
 delta                real         1.e-6
 
 xmin                 real         0.0
