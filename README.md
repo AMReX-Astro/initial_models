@@ -21,13 +21,13 @@ where you replace `/path/to/` with the appropriate path on your system.
 
 The routines are:
 
-  * spherical
+  * `spherical`
 
     generate an isentropic, self-gravitating WD model given a core
     temperature and density.
 
 
-  * urca/spherical
+  * `urca/spherical`
 
     adaptation of the spherical initial model for a WD with the A=23
     Urca process. This initial model routine helps ensure the A=23
@@ -35,14 +35,14 @@ The routines are:
     symmetric model.
 
 
-  * test2
+  * `test2`
 
     generate an isentropic plane-parallel atmosphere with an entropy
     jump below to suppress convective overshoot.  This is used by the
     test2 and test_convect problems.
 
 
-  * toy_atm
+  * `toy_atm`
 
     similar to he_burn.  An isentropic layer is placed on top of an
     isothermal base.  A jump in temperature at the base of the
@@ -52,7 +52,7 @@ The routines are:
     is isothermal.
 
 
-  * lagrangian_planar
+  * `lagrangian_planar`
 
     This takes an existing initial model that is unequally gridded (in
     space) and maps it onto a uniform grid and puts it in HSE using
@@ -62,7 +62,7 @@ The routines are:
     and the temperature profile of the initial model is preserved.
 
 
-  * kepler_hybrid
+  * `kepler_hybrid`
 
     These were used for our original set of wdconvect calculations.
     They take a 1-d model from the Kepler stellar evolution code
