@@ -1,7 +1,12 @@
 
 import numpy as np
+import pynucastro
+from pynucastro.networks.rate_collection import Composition
 
 file_name = "20m_pre_cc_1335s_206_isos.data"
+
+# I have a branch in mesa_reader that could be used to make this code shorter
+# https://github.com/melilly/py_mesa_reader/tree/write-file
 
 bulk_data = np.genfromtxt(
     file_name,
@@ -20,6 +25,24 @@ with open(file_name) as f:
         elif i > 2:
             break
 header_data = dict(zip(header_names, header_data))
+
+
+# SHRINK WITH PYNUCASTRO
+try:
+    start, end = bulk_names.index('neut'), bulk_names.index('zn66')
+    mesa_species = bulk_names[start:end+1]
+except ValueError as e:
+    print("The given start or end species is not listed in the MESA file.")
+    raise e
+
+# this line can be eliminated with the PR:
+# https://github.com/pynucastro/pynucastro/pull/1253
+pynucastro_species = [x.replace('neut','n') for x in mesa_species]
+
+c = Composition(pynucastro_species)
+for row in bulk_data:
+    c.set_array(list(row)[start:end+1])
+    new_c = c.bin_as(aprox19_nuclei)
 
 
 
