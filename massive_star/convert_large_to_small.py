@@ -30,21 +30,26 @@ header_data = dict(zip(header_names, header_data))
 # SHRINK WITH PYNUCASTRO
 try:
     start, end = bulk_names.index('neut'), bulk_names.index('zn66')
-    mesa_species = bulk_names[start:end+1]
+    large_network = bulk_names[start:end+1]
 except ValueError as e:
     print("The given start or end species is not listed in the MESA file.")
     raise e
 
-# this line can be eliminated with the PR:
-# https://github.com/pynucastro/pynucastro/pull/1253
-pynucastro_species = [x.replace('neut','n') for x in mesa_species]
+aprox19_nuclei = ['h1', 'he3', 'he4', 'c12', 'n14', 'o16', 'ne20', 'mg24', 
+                  'si28', 's32', 'ar36', 'ca40', 'ti44', 'cr48', 'fe52', 
+                  'fe54', 'ni56', 'n']
+# this excludes p_nse. We'll deal with that split later
 
-c = Composition(pynucastro_species)
+small_network = aprox19_nuclei
+
+c = Composition(large_network)
 for row in bulk_data:
     c.set_array(list(row)[start:end+1])
     new_c = c.bin_as(aprox19_nuclei)
-
-
+    print(new_c.get_nuclei())
+    print(new_c.get_sum_X())
+    print(new_c.get_molar())
+    break
 
 # OUTPUT TO FILE
 new_file_name = "re-"+file_name
