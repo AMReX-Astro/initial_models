@@ -162,8 +162,23 @@ read_file(const std::string filename, initial_model_t& initial_model) {
 
     getline(mf, line);
 
+    // variables: 
+    //      initial_model.npts
+    int nvars_model_file;
+    std::vector<std::string> varnames_stored;
+
     if (line.find("npts") != std::string::npos) {
-        // old format
+        // old format. example:
+        """
+        # npts = 3
+        # number of variables = 2
+        # radius 
+        # density 
+        # temperature
+                 0.1           3         4.0
+                 0.2           4         3.9
+                 0.3           4         3.7
+        """
         
         std::string npts_string = line.substr(line.find("=")+1, line.length());
         initial_model.npts = std::stoi(npts_string);
@@ -181,20 +196,42 @@ read_file(const std::string filename, initial_model_t& initial_model) {
         }
 
         std::string num_vars_string = line.substr(line.find("=")+1, line.length());
-        int nvars_model_file = std::stoi(num_vars_string);
+        nvars_model_file = std::stoi(num_vars_string);
 
         // now read in the names of the variables
 
-        std::vector<std::string> varnames_stored;
         for (int n = 0; n < nvars_model_file; n++) {
             getline(mf, line);
             std::string var_string = line.substr(line.find("#")+1, line.length());
             varnames_stored.push_back(model_string::ltrim(model_string::rtrim(var_string)));
         }
     } else {
-        // new format
+        // new format. example:
+        """
+        # radius density temperature
+                 0.1           3         4.0
+                 0.2           4         3.9
+                 0.3           4         3.7
+        """
 
-        
+        // remove the leading "#"
+        if (!line.empty() && line[0] == '#') {
+            line = line.substr(1);
+        }
+
+        std::istringstream iss(line);
+
+        // in this format, the first column name is the coordinate --
+        // we can skip that
+
+        std::string word;
+        iss >> word;
+
+        while (iss >> word) {
+            varnames_stored.push_back(word);
+        }
+
+        nvars_model_file = static_cast<int>(varnames_stored.size());
     }
 
 
