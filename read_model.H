@@ -167,7 +167,7 @@ read_file(const std::string filename, initial_model_t& initial_model) {
 
     if (line.find("npts") != std::string::npos) {
         // old format. example:
-        """
+        /*
         # npts = 3
         # number of variables = 2
         # radius 
@@ -176,7 +176,7 @@ read_file(const std::string filename, initial_model_t& initial_model) {
                  0.1           3         4.0
                  0.2           4         3.9
                  0.3           4         3.7
-        """
+        */
         
         // ignore the first line, and detect the number of points
         // automatically below
@@ -185,7 +185,7 @@ read_file(const std::string filename, initial_model_t& initial_model) {
 
         getline(mf, line);
 
-        if (line.find("num of variables") == std::string::npos) {
+        if (line.find("num of variables") == std::string::npos && line.find("number of variables") == std::string::npos) {
             amrex::Error("Error: missing the number of variables header");
         }
 
@@ -201,12 +201,12 @@ read_file(const std::string filename, initial_model_t& initial_model) {
         }
     } else {
         // new format. example:
-        """
+        /*
         # radius density temperature
                  0.1           3         4.0
                  0.2           4         3.9
                  0.3           4         3.7
-        """
+        */
 
         // remove the leading "#"
         if (!line.empty() && line[0] == '#') {
