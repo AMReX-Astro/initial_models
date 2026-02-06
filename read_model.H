@@ -162,8 +162,6 @@ read_file(const std::string filename, initial_model_t& initial_model) {
 
     getline(mf, line);
 
-    // variables: 
-    //      initial_model.npts
     int nvars_model_file;
     std::vector<std::string> varnames_stored;
 
@@ -180,12 +178,8 @@ read_file(const std::string filename, initial_model_t& initial_model) {
                  0.3           4         3.7
         """
         
-        std::string npts_string = line.substr(line.find("=")+1, line.length());
-        initial_model.npts = std::stoi(npts_string);
-
-        if (initial_model.npts > NPTS_MODEL) {
-            amrex::Error("Error: model has more than NPTS_MODEL points,");
-        }
+        // ignore the first line, and detect the number of points
+        // automatically below
 
         // next line tells use the number of variables
 
@@ -240,11 +234,17 @@ read_file(const std::string filename, initial_model_t& initial_model) {
     amrex::Vector<Real> vars_stored;
     vars_stored.resize(nvars_model_file);
 
-    for (int i = 0; i < initial_model.npts; i++) {
-        mf >> initial_model.r(i);
+    int i{0};
+    while (getline(mf, line)) {
+        if (i > NPTS_MODEL) {
+            amrex::Error("Error: model has more than NPTS_MODEL points. Increase MAX_NPTS_MODEL");
+        }
+
+        std::istringstream iss(line);
+        iss >> initial_model.r(i);
 
         for (int j = 0; j < nvars_model_file; j++) {
-            mf >> vars_stored[j];
+            iss >> vars_stored[j];
         }
 
         for (int j = 0; j < model::nvar; j++) {
@@ -290,9 +290,14 @@ read_file(const std::string filename, initial_model_t& initial_model) {
                 amrex::Print() << Font::Bold << FGColor::Yellow << "[WARNING] variable not found: " << varnames_stored[j] << ResetDisplay << std::endl;
             }
 
-        } // end loop over nvars_model_file
+        } // end loop over variables in line
 
-    }
+        i++;
+    }  // end of loop over lines in model file
+
+    initial_model.npts = i;
+
+    mf.close();
 }
 
 #endif
