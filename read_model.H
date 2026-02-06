@@ -157,29 +157,44 @@ read_file(const std::string filename, initial_model_t& initial_model) {
 
     std::string line;
 
-    // first the header line -- this tells us the number of points
+    // first the header line -- this will determine the format.  If it
+    // tells us the number of points (npts), then we are the old style.
 
     getline(mf, line);
-    std::string npts_string = line.substr(line.find("=")+1, line.length());
-    initial_model.npts = std::stoi(npts_string);
 
-    if (initial_model.npts > NPTS_MODEL) {
-        amrex::Error("Error: model has more than NPTS_MODEL points,");
-    }
+    if (line.find("npts") != std::string::npos) {
+        // old format
+        
+        std::string npts_string = line.substr(line.find("=")+1, line.length());
+        initial_model.npts = std::stoi(npts_string);
 
-    // next line tells use the number of variables
+        if (initial_model.npts > NPTS_MODEL) {
+            amrex::Error("Error: model has more than NPTS_MODEL points,");
+        }
 
-    getline(mf, line);
-    std::string num_vars_string = line.substr(line.find("=")+1, line.length());
-    int nvars_model_file = std::stoi(num_vars_string);
+        // next line tells use the number of variables
 
-    // now read in the names of the variables
-
-    std::vector<std::string> varnames_stored;
-    for (int n = 0; n < nvars_model_file; n++) {
         getline(mf, line);
-        std::string var_string = line.substr(line.find("#")+1, line.length());
-        varnames_stored.push_back(model_string::ltrim(model_string::rtrim(var_string)));
+
+        if (line.find("num of variables") == std::string::npos) {
+            amrex::Error("Error: missing the number of variables header");
+        }
+
+        std::string num_vars_string = line.substr(line.find("=")+1, line.length());
+        int nvars_model_file = std::stoi(num_vars_string);
+
+        // now read in the names of the variables
+
+        std::vector<std::string> varnames_stored;
+        for (int n = 0; n < nvars_model_file; n++) {
+            getline(mf, line);
+            std::string var_string = line.substr(line.find("#")+1, line.length());
+            varnames_stored.push_back(model_string::ltrim(model_string::rtrim(var_string)));
+        }
+    } else {
+        // new format
+
+        
     }
 
 
