@@ -1,4 +1,5 @@
 import numpy as np
+import argparse
 
 '''
 This script turns a file in MESA's log file format:
@@ -45,14 +46,10 @@ def main(file_name, new_file_name):
     
     # add in the composition columns:
     # found in the range [neutron, opacity)
-    if 'n' in bulk_names:
-        start = bulk_names.index('n')
-    elif 'neut' in bulk_names:
-        start = bulk_names.index('neut')
-    elif 'neutron' in bulk_names:
-        start = bulk_names.index('neutron')
-    else:
+    neutron_name = {'n', 'neut', 'neutron'}.intersection(bulk_names)
+    if len(neutron_name) < 1:
         raise ValueError("No 'n', 'neut', or 'neutron' in MESA file column names.")
+    start = bulk_names.index(neutron_name.pop())
     end = bulk_names.index('opacity')
 
     # set up new columns
@@ -67,4 +64,17 @@ def main(file_name, new_file_name):
             display_row = [str(row[i]).rjust(30) for i in associated_indices]
             f.write(f'{"".join(display_row)}\n')
 
-main('initial_models/massive_star/20m_pre_cc_1335s_206_isos.data', '20m_pre_cc_1335s_206_isos.castro.data')
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Reformat a 1D model file from MESA's output format to Castro's preferred input format.")
+    parser.add_argument('file_name')
+    parser.add_argument('new_file_name', nargs='?')
+    args = parser.parse_args()
+    if args.new_file_name is None:
+        file_stem, file_ending = args.file_name.rsplit('.',1)
+        new_file_name = f"{file_stem}.castro.{file_ending}"
+    else:
+        new_file_name = args.new_file_name
+    main(args.file_name, new_file_name)
+
+    print('Saved new Castro-readable file in', new_file_name)
