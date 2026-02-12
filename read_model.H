@@ -165,7 +165,7 @@ read_file(const std::string filename, initial_model_t& initial_model) {
     int nvars_model_file;
     std::vector<std::string> varnames_stored;
 
-    if (line.find("npts") != std::string::npos) {
+    if (line.find("npts") != std::string::npos || line.find("number of points") != std::string::npos) {
         // old format. example:
         /*
         # npts = 3
