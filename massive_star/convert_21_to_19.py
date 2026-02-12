@@ -95,11 +95,8 @@ with open(f"{base}.aprox19.dat", "w") as f:
     for name in names_new:
         if name == "r":
             continue
-        f.write(f"{name}\n")
+        f.write(f"# {name}\n")
     for irow in range(data_new.shape[0]):
         l = [f"{q:30.20g}" for q in data_new[irow, :]]
         f.write(" ".join(l) + "\n")
-
-    f.write(f"# conversion of {file} to aprox19 nuclei via convert_21_to_19.py\n")
-
 
