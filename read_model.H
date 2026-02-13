@@ -157,29 +157,75 @@ read_file(const std::string filename, initial_model_t& initial_model) {
 
     std::string line;
 
-    // first the header line -- this tells us the number of points
+    // first the header line -- this will determine the format.  If it
+    // tells us the number of points (npts), then we are the old style.
 
     getline(mf, line);
-    std::string npts_string = line.substr(line.find("=")+1, line.length());
-    initial_model.npts = std::stoi(npts_string);
 
-    if (initial_model.npts > NPTS_MODEL) {
-        amrex::Error("Error: model has more than NPTS_MODEL points,");
-    }
-
-    // next line tells use the number of variables
-
-    getline(mf, line);
-    std::string num_vars_string = line.substr(line.find("=")+1, line.length());
-    int nvars_model_file = std::stoi(num_vars_string);
-
-    // now read in the names of the variables
-
+    int nvars_model_file;
     std::vector<std::string> varnames_stored;
-    for (int n = 0; n < nvars_model_file; n++) {
+
+    if (line.find("npts") != std::string::npos || line.find("number of points") != std::string::npos) {
+        // old format. example:
+        /*
+        # npts = 3
+        # number of variables = 2
+        # radius 
+        # density 
+        # temperature
+                 0.1           3         4.0
+                 0.2           4         3.9
+                 0.3           4         3.7
+        */
+        
+        // ignore the first line, and detect the number of points
+        // automatically below
+
+        // next line tells use the number of variables
+
         getline(mf, line);
-        std::string var_string = line.substr(line.find("#")+1, line.length());
-        varnames_stored.push_back(model_string::ltrim(model_string::rtrim(var_string)));
+
+        if (line.find("num of variables") == std::string::npos && line.find("number of variables") == std::string::npos) {
+            amrex::Error("Error: missing the number of variables header");
+        }
+
+        std::string num_vars_string = line.substr(line.find("=")+1, line.length());
+        nvars_model_file = std::stoi(num_vars_string);
+
+        // now read in the names of the variables
+
+        for (int n = 0; n < nvars_model_file; n++) {
+            getline(mf, line);
+            std::string var_string = line.substr(line.find("#")+1, line.length());
+            varnames_stored.push_back(model_string::ltrim(model_string::rtrim(var_string)));
+        }
+    } else {
+        // new format. example:
+        /*
+        # radius density temperature
+                 0.1           3         4.0
+                 0.2           4         3.9
+                 0.3           4         3.7
+        */
+
+        // remove the leading "#"
+        if (!line.empty() && line[0] == '#') {
+            line = line.substr(1);
+        }
+
+        std::istringstream iss(line);
+
+        // in this format, the first column name is the coordinate --
+        // we can skip that
+
+        std::string word;
+        iss >> word;
+
+        while (iss >> word) {
+            varnames_stored.push_back(word);
+        }
+
+        nvars_model_file = static_cast<int>(varnames_stored.size());
     }
 
 
@@ -188,11 +234,17 @@ read_file(const std::string filename, initial_model_t& initial_model) {
     amrex::Vector<Real> vars_stored;
     vars_stored.resize(nvars_model_file);
 
-    for (int i = 0; i < initial_model.npts; i++) {
-        mf >> initial_model.r(i);
+    int i{0};
+    while (getline(mf, line)) {
+        if (i > NPTS_MODEL) {
+            amrex::Error("Error: model has more than NPTS_MODEL points. Increase MAX_NPTS_MODEL");
+        }
+
+        std::istringstream iss(line);
+        iss >> initial_model.r(i);
 
         for (int j = 0; j < nvars_model_file; j++) {
-            mf >> vars_stored[j];
+            iss >> vars_stored[j];
         }
 
         for (int j = 0; j < model::nvar; j++) {
@@ -238,9 +290,14 @@ read_file(const std::string filename, initial_model_t& initial_model) {
                 amrex::Print() << Font::Bold << FGColor::Yellow << "[WARNING] variable not found: " << varnames_stored[j] << ResetDisplay << std::endl;
             }
 
-        } // end loop over nvars_model_file
+        } // end loop over variables in line
 
-    }
+        i++;
+    }  // end of loop over lines in model file
+
+    initial_model.npts = i;
+
+    mf.close();
 }
 
 #endif
