@@ -37,11 +37,7 @@ def main(file_name, new_file_name):
         "density": "density",
         "temperature": "temperature",
         "ye": "ye",
-        "velx": "velocity",
-        "pressure": "pressure",
-        "entr": "entropy",
-        "abar": "abar",
-        "enuc": "eps_nuc"
+        "pressure": "pressure"
     } # castro column name: mesa column name
     
     # add in the composition columns:
