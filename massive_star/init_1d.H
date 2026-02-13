@@ -101,8 +101,6 @@ AMREX_INLINE void init_1d() {
     // are mapping onto, and then we want to force it into HSE on that
     // mesh.
 
-    std::cout << "here " << problem_rp::nx << " " << NPTS_MODEL << std::endl;
-
     if (problem_rp::nx > NPTS_MODEL) {
         amrex::Error("too many zones requested -- increase NPTS_MODEL");
     }
@@ -144,23 +142,29 @@ AMREX_INLINE void init_1d() {
 
     of.close();
 
+    // determine whether the radial coordinates are ascending or descending. 
+    bool ascending = initial_model.r(initial_model.npts-1) > initial_model.r(0);
+
     // compute the mass of the initial model -- the data is
     // non-uniform, and appears to be node-centered finite difference.
     // We'll just do a very simple trapezoid rule.
 
     // the first node is not at r = 0, so just use a rectangle rule to get us started
 
-    Real M_total = (4.0_rt / 3.0_rt) * M_PI * std::pow(initial_model.r(0), 3) *
-        initial_model.state(0, model::idens);
+    Real smallest_r_index = ascending ? 0 : initial_model.npts-1;
+    Real M_total = (4.0_rt / 3.0_rt) * M_PI * std::pow(initial_model.r(smallest_r_index), 3) *
+        initial_model.state(smallest_r_index, model::idens);
 
-    for (int i = 1; i < initial_model.npts-1; ++i) {
+    for (int i = 1; i < initial_model.npts; ++i) {
 
         // integrate 4pi r**2 rho using trapezoid
 
         Real rl = initial_model.r(i-1);
         Real rr = initial_model.r(i);
 
-        M_total += 4.0_rt * M_PI * 0.5_rt * (rr - rl) *
+        Real diff = ascending ? rr - rl : rl - rr;
+
+        M_total += 4.0_rt * M_PI * 0.5_rt * diff *
             (rl * rl * initial_model.state(i-1, model::idens) +
              rr * rr * initial_model.state(i, model::idens));
     }
