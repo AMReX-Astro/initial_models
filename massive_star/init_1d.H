@@ -164,7 +164,6 @@ AMREX_INLINE void init_1d() {
              rr * rr * initial_model.state(i, model::idens));
     }
 
-    Real smallest_r_index = ascending ? 0 : initial_model.npts-1;
     std::cout << "total mass as read from original model = " << M_total << std::endl;
 
     // put the model onto our new uniform grid

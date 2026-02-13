@@ -300,20 +300,23 @@ read_file(const std::string filename, initial_model_t& initial_model) {
     mf.close();
 
     // ensure model is in order of ascending radius, not descending
-    if (initial_model.r(initial_model.npts-1) > initial_model.r(0)) {
+    if (initial_model.r(initial_model.npts-1) < initial_model.r(0)) {
         amrex::Array2D<amrex::Real, 0, NPTS_MODEL-1, 0, model::nvar-1> state_copy;
-        amrex::Array2D<amrex::Real, 0, NPTS_MODEL-1> r_copy;
+        amrex::Array1D<amrex::Real, 0, NPTS_MODEL-1> r_copy;
 
         for (int i = 0; i < initial_model.npts; ++i){ // copy
             r_copy(i) = initial_model.r(i);
             for (int j = 0; j < model::nvar; ++j) {
                 state_copy(i,j) = initial_model.state(i,j);
+                std::cout << state_copy(i,j) << " ";
             }
         }
+        std::cout << std::endl << "compared to:" << std::endl;
         for (int i = 0; i < initial_model.npts; ++i){ // reverse
             initial_model.r(i) = r_copy(initial_model.npts-1-i);
             for (int j = 0; j < model::nvar; ++j) {
-                initial_model.state(i,j) = state_copy(initial_model.npts-1-i,j);
+                //std::cout << state_copy(i,j) << " ";  //THIS LINE CAUSES SEGFAULT IF UNCOMMENTED
+                //initial_model.state(i,j) = state_copy(initial_model.npts-1-i,j);
             }
         }
     }
