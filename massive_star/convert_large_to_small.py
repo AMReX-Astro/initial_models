@@ -38,7 +38,7 @@ except ValueError as e:
 aprox19_nuclei = ['h1', 'he3', 'he4', 'c12', 'n14', 'o16', 'ne20', 'mg24', 
                   'si28', 's32', 'ar36', 'ca40', 'ti44', 'cr48', 'fe52', 
                   'fe54', 'ni56', 'n']
-# this excludes p_nse. We'll deal with that split later
+# this excludes p_nse. We'll deal with that split by later setting 'p' to 0
 
 small_network = aprox19_nuclei
 
@@ -49,6 +49,7 @@ for row in bulk_data:
     c.set_array(list(row)[start:end+1])
     new_c = c.bin_as(aprox19_nuclei)
     dictionary = new_c.data
+    dictionary['p'] = 0
 
     if not network_col_names:
         network_col_names = dictionary.keys()
