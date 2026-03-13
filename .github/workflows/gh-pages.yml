@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - development
 
 jobs:
   deploy:
@@ -19,24 +18,12 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: '3.14'
+          cache: "pip"
 
       - name: Upgrade pip
         run: |
-          # install pip=>20.1 to use "pip cache dir"
           python3 -m pip install --upgrade pip
-
-      - name: Get pip cache dir
-        id: pip-cache
-        run: echo "::set-output name=dir::$(pip cache dir)"
-
-      - name: Cache dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.pip-cache.outputs.dir }}
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: python3 -m pip install -r ./requirements.txt
@@ -45,12 +32,6 @@ jobs:
         if: ${{ endsWith(github.ref, 'main') }}
         env:
           GITHUB_BRANCH: 'main'
-        run: ./deploy_docs_action.sh
-
-      - name: Build docs
-        if: ${{ endsWith(github.ref, 'development') }}
-        env:
-          GITHUB_BRANCH: 'development'
         run: ./deploy_docs_action.sh
 
       - name: Deploy
