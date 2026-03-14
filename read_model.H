@@ -234,21 +234,21 @@ read_file(const std::string filename, initial_model_t& initial_model) {
     amrex::Vector<Real> vars_stored;
     vars_stored.resize(nvars_model_file);
 
-    int i{0};
+    int line_num{0};
     while (getline(mf, line)) {
-        if (i > NPTS_MODEL) {
+        if (line_num > NPTS_MODEL) {
             amrex::Error("Error: model has more than NPTS_MODEL points. Increase MAX_NPTS_MODEL");
         }
 
         std::istringstream iss(line);
-        iss >> initial_model.r(i);
+        iss >> initial_model.r(line_num);
 
         for (int j = 0; j < nvars_model_file; j++) {
             iss >> vars_stored[j];
         }
 
         for (int j = 0; j < model::nvar; j++) {
-            initial_model.state(i,j) = 0.0_rt;
+            initial_model.state(line_num,j) = 0.0_rt;
         }
 
 
@@ -259,25 +259,25 @@ read_file(const std::string filename, initial_model_t& initial_model) {
             bool found_model = false;
 
             if (varnames_stored[j] == "density") {
-                initial_model.state(i,model::idens) = vars_stored[j];
+                initial_model.state(line_num,model::idens) = vars_stored[j];
                 found_model = true;
 
             } else if (varnames_stored[j] == "temperature") {
-                initial_model.state(i,model::itemp) = vars_stored[j];
+                initial_model.state(line_num,model::itemp) = vars_stored[j];
                 found_model = true;
 
             } else if (varnames_stored[j] == "pressure") {
-                initial_model.state(i,model::ipres) = vars_stored[j];
+                initial_model.state(line_num,model::ipres) = vars_stored[j];
                 found_model = true;
 
             } else if (varnames_stored[j] == "ye" || varnames_stored[j] == "Ye") {
-                initial_model.state(i,model::iyef) = vars_stored[j];
+                initial_model.state(line_num,model::iyef) = vars_stored[j];
                 found_model = true;
 
             } else {
                 for (int comp = 0; comp < NumSpec; comp++) {
                     if (varnames_stored[j] == spec_names_cxx[comp] || varnames_stored[j] == short_spec_names_cxx[comp]) {
-                        initial_model.state(i,model::ispec+comp) = vars_stored[j];
+                        initial_model.state(line_num,model::ispec+comp) = vars_stored[j];
                         found_model = true;
                         break;
                     }
@@ -286,18 +286,38 @@ read_file(const std::string filename, initial_model_t& initial_model) {
 
             // yell if we didn't find the current variable
 
-            if (!found_model && i == 0) {
+            if (!found_model && line_num == 0) {
                 amrex::Print() << Font::Bold << FGColor::Yellow << "[WARNING] variable not found: " << varnames_stored[j] << ResetDisplay << std::endl;
             }
 
         } // end loop over variables in line
 
-        i++;
+        line_num++;
     }  // end of loop over lines in model file
 
-    initial_model.npts = i;
+    initial_model.npts = line_num;
 
     mf.close();
+
+    // ensure model is in order of ascending radius, not descending
+    if (initial_model.r(initial_model.npts-1) < initial_model.r(0)) {
+        std::cout << "in if" << std::endl;
+        amrex::Real swap_var;
+
+        for (int i = 0; i < int(std::floor(initial_model.npts/2)); ++i){
+            int swap_row = initial_model.npts-1-i;
+
+            swap_var = initial_model.r(i);
+            initial_model.r(i) = initial_model.r(swap_row);
+            initial_model.r(swap_row) = swap_var;
+
+            for (int j = 0; j < model::nvar; ++j) {
+                swap_var = initial_model.state(i,j);
+                initial_model.state(i,j) = initial_model.state(swap_row,j);
+                initial_model.state(swap_row,j) = swap_var;
+            }
+        }
+    }
 }
 
 #endif

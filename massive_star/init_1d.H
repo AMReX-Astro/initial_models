@@ -101,8 +101,6 @@ AMREX_INLINE void init_1d() {
     // are mapping onto, and then we want to force it into HSE on that
     // mesh.
 
-    std::cout << "here " << problem_rp::nx << " " << NPTS_MODEL << std::endl;
-
     if (problem_rp::nx > NPTS_MODEL) {
         amrex::Error("too many zones requested -- increase NPTS_MODEL");
     }
@@ -131,6 +129,7 @@ AMREX_INLINE void init_1d() {
 
     std::ofstream of;
     of.open("model.orig");
+    // note the rows will be in reversed order if input file is descending in radius
 
     of << "# initial model as read in" << std::endl;
 
@@ -153,7 +152,7 @@ AMREX_INLINE void init_1d() {
     Real M_total = (4.0_rt / 3.0_rt) * M_PI * std::pow(initial_model.r(0), 3) *
         initial_model.state(0, model::idens);
 
-    for (int i = 1; i < initial_model.npts-1; ++i) {
+    for (int i = 1; i < initial_model.npts; ++i) {
 
         // integrate 4pi r**2 rho using trapezoid
 
