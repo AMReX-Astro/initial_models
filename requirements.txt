@@ -5,7 +5,7 @@ sphinxcontrib_bibtex
 numpydoc
 more_itertools
 numpy
-IPython>=3
+IPython>=9.13.0
 nbconvert
 pandoc
 
