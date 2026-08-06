@@ -15,7 +15,6 @@
 
 using namespace amrex;
 
-
 // generate an initial model for an arbitrary-mass, isothermal C WD
 // with an isentropic He envelope on the surface.
 
@@ -36,7 +35,6 @@ AMREX_INLINE void init_1d() {
     const Real TOL_HE_MASS = 1.e-3_rt;
 
     const int MAX_ITER = 1000;
-
 
     // convert the envelope and WD mass into CGS
 
@@ -62,12 +60,11 @@ AMREX_INLINE void init_1d() {
     Real xn_core[NumSpec] = {network_rp::small_x};
     Real xn_he[NumSpec] = {network_rp::small_x};;
 
-    if (problem_rp::mixed_co_wd) {
-        xn_core[ic12] = 0.5_rt - 0.5_rt * (NumSpec - 1) * network_rp::small_x;
-        xn_core[io16] = 0.5_rt - 0.5_rt * (NumSpec - 1) * network_rp::small_x;
-    } else {
-        xn_core[ic12] = 1.0_rt - (NumSpec - 1) * network_rp::small_x;
+    if (problem_rp::core_O16 > 0.0_rt) {
+        xn_core[io16] = problem_rp::core_O16;
     }
+
+    xn_core[ic12] = 1.0_rt - xn_core[io16] - (NumSpec - 2) * network_rp::small_x;
 
     if (problem_rp::X_N14 > 0.0_rt) {
         xn_he[in14] = problem_rp::X_N14;
