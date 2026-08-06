@@ -1,6 +1,6 @@
 Sphinx>=2.4.3
 sphinx_rtd_theme
-breathe>=4.14
+breathe>=4.36.0
 sphinxcontrib_bibtex
 numpydoc
 more_itertools
