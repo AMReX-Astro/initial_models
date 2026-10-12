@@ -50,8 +50,9 @@ def main(file_name, new_file_name, network):
 
     network_col_names = []
     network_col_bulk = []
+    c = Composition(large_network)
     for row in bulk_data:
-        c = Composition(dict(zip(large_network, list(row)[start:end+1])))
+        c.set_array(list(row)[start:end+1])
         new_c = c.bin_as(small_network)
         dictionary = new_c.data
         dictionary['p'] = 0
